@@ -1,4 +1,4 @@
-name: Pocket Trash PR review
+name: Pocket Trash PR review dispatcher
 
 on:
   workflow_call:
@@ -27,16 +27,13 @@ permissions:
   contents: read
   pull-requests: read
 
-concurrency:
-  group: pr-review-${{ github.repository }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
-  review:
+  authorize:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 2
     outputs:
-      publish: ${{ steps.preflight.outcome == 'failure' || steps.preflight.outputs.runnable == 'true' }}
+      runnable: ${{ steps.authorize.outputs.runnable }}
+      pull-number: ${{ steps.authorize.outputs.pull-number }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -44,94 +41,26 @@ jobs:
           ref: ${{ job.workflow_sha }}
           path: reviewer
           persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-      - id: preflight
-        name: Validate event and trusted configuration
-        continue-on-error: true
-        run: node reviewer/src/preflight.mjs 2> "${{ runner.temp }}/preflight-error.log"
+      - id: authorize
+        name: Authorize review event
+        run: node reviewer/src/preflight.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          REVIEW_CONFIG_PATH: ${{ inputs.config-path }}
-      - name: Install pinned review skills
-        if: steps.preflight.outcome == 'success' && steps.preflight.outputs.runnable == 'true'
-        working-directory: reviewer
-        run: npm run skills:install
-      - name: Install pinned reviewer dependencies
-        if: steps.preflight.outcome == 'success' && steps.preflight.outputs.runnable == 'true'
-        working-directory: reviewer
-        run: npm ci --ignore-scripts
-      - id: review
-        if: steps.preflight.outcome == 'success' && steps.preflight.outputs.runnable == 'true'
-        continue-on-error: true
-        run: node reviewer/src/automatic-review.mjs 2> "${{ runner.temp }}/review-error.log"
-        env:
-          CHEAPER_INFERENCE_API_KEY: ${{ secrets.CHEAPER_INFERENCE_API_KEY }}
-          GITHUB_TOKEN: ${{ github.token }}
-          REVIEW_ARTIFACT_PATH: ${{ runner.temp }}/review-result.json
-          REVIEW_CONFIG_PATH: ${{ inputs.config-path }}
-      - name: Record analysis failure
-        if: always() && steps.preflight.outputs.runnable == 'true'
-        run: >-
-          node reviewer/src/analysis-status.mjs
-          "${{ steps.review.outcome }}"
-          "${{ runner.temp }}/review-error.log"
-          "${{ runner.temp }}/review-result.json"
-      - name: Record preflight failure
-        if: always() && steps.preflight.outcome == 'failure'
-        run: >-
-          node reviewer/src/analysis-status.mjs
-          failure
-          "${{ runner.temp }}/preflight-error.log"
-          "${{ runner.temp }}/review-result.json"
-      - if: always() && (steps.preflight.outcome == 'failure' || steps.preflight.outputs.runnable == 'true')
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: pr-review-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
-          path: ${{ runner.temp }}/review-result.json
-          retention-days: 90
-      - name: Preserve analysis failure state
-        if: always() && (steps.preflight.outcome == 'failure' || steps.review.outcome == 'failure')
-        run: exit 1
+          REVIEW_AUTHORIZE_ONLY: "true"
 
-  publish:
-    if: always() && (needs.review.outputs.publish == 'true' || needs.review.result == 'failure' || needs.review.result == 'cancelled')
-    needs: review
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+  review:
+    needs: authorize
+    if: needs.authorize.outputs.runnable == 'true'
     permissions:
       actions: read
       contents: read
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          repository: ${{ job.workflow_repository }}
-          ref: ${{ job.workflow_sha }}
-          path: reviewer
-          persist-credentials: false
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
-        continue-on-error: true
-        with:
-          name: pr-review-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
-          path: ${{ runner.temp }}/review-artifact
-      - id: app-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
-        with:
-          app-id: ${{ inputs.app-id }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-metadata: read
-          permission-contents: read
-          permission-pull-requests: read
-          permission-checks: write
-          permission-issues: write
-      - name: Publish persistent review and check
-        run: node reviewer/src/publish-review.mjs
-        env:
-          ANALYSIS_CONCLUSION: ${{ needs.review.result == 'cancelled' && 'cancelled' || 'failure' }}
-          GITHUB_AUTHENTICATED_APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
-          GITHUB_APP_SLUG: ${{ inputs.app-slug }}
-          GITHUB_APP_TOKEN: ${{ steps.app-token.outputs.token }}
-          REVIEW_ARTIFACT_PATH: ${{ runner.temp }}/review-artifact/review-result.json
+      pull-requests: read
+    uses: ./.github/workflows/run-review.yml
+    with:
+      app-id: ${{ inputs.app-id }}
+      app-slug: ${{ inputs.app-slug }}
+      config-path: ${{ inputs.config-path }}
+      pull-number: ${{ fromJSON(needs.authorize.outputs.pull-number) }}
+    secrets:
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+      CHEAPER_INFERENCE_API_KEY: ${{ secrets.CHEAPER_INFERENCE_API_KEY }}

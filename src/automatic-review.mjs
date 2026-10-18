@@ -2,7 +2,7 @@ import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveAutomaticEvent } from "./events.mjs";
+import { resolveReviewEvent } from "./events.mjs";
 import { prepareReviewContext } from "./context.mjs";
 import {
   assertCurrentHead,
@@ -29,7 +29,7 @@ const skillManifest = JSON.parse(
 );
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
-const identity = resolveAutomaticEvent(event);
+const identity = await resolveReviewEvent(event, process.env.GITHUB_TOKEN);
 if (!identity.shouldRun) {
   if (process.env.GITHUB_STEP_SUMMARY)
     await appendFile(

@@ -2,8 +2,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const workflow = await readFile(
+const dispatcher = await readFile(
   new URL("../.github/workflows/review.yml", import.meta.url),
+  "utf8",
+);
+const workflow = await readFile(
+  new URL("../.github/workflows/run-review.yml", import.meta.url),
   "utf8",
 );
 
@@ -25,12 +29,24 @@ test("publisher isolates the model key from the minimum-permission App token", (
   assert.match(publishJob, /if: always\(\)/);
 });
 
-test("the entire review workflow is serialized per pull request", () => {
+test("only an authorized event enters per-pull-request concurrency", () => {
+  assert.doesNotMatch(dispatcher, /concurrency:/);
+  assert.match(dispatcher, /if: needs\.authorize\.outputs\.runnable == 'true'/);
+  assert.match(dispatcher, /uses: \.\/\.github\/workflows\/run-review\.yml/);
+  const calledReview = dispatcher.slice(dispatcher.indexOf("\n  review:\n"));
+  assert.match(calledReview, /permissions:\s+actions: read/);
   const jobs = workflow.indexOf("\njobs:\n");
-  const workflowSettings = workflow.slice(0, jobs);
   assert.match(
-    workflowSettings,
-    /concurrency:[\s\S]*group: pr-review-.*pull_request\.number[\s\S]*cancel-in-progress: true/,
+    workflow.slice(0, jobs),
+    /concurrency:[\s\S]*group: pr-review-.*inputs\.pull-number[\s\S]*cancel-in-progress: true/,
   );
   assert.doesNotMatch(workflow.slice(jobs), /\n\s+concurrency:/);
+});
+
+test("manual and automatic events share resolved artifact and publication identity", () => {
+  assert.match(dispatcher, /steps\.authorize\.outputs\.pull-number/);
+  assert.match(workflow, /steps\.preflight\.outputs\.pull-number/);
+  assert.match(workflow, /steps\.preflight\.outputs\.head-sha/);
+  assert.match(workflow, /REVIEW_PULL_NUMBER/);
+  assert.match(workflow, /REVIEW_HEAD_SHA/);
 });

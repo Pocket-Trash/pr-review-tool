@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { resolveAutomaticEvent } from "../src/events.mjs";
+import { resolveAutomaticEvent, resolveReviewEvent } from "../src/events.mjs";
 
 const fixture = JSON.parse(
   await readFile(
@@ -49,5 +49,114 @@ test("rejects incomplete runnable events", () => {
   assert.throws(
     () => resolveAutomaticEvent({ action: "opened", pull_request: {} }),
     /repository\.full_name/,
+  );
+});
+
+const manualEvent = (body = "!pockettrash review") => ({
+  action: "created",
+  repository: { full_name: "Pocket-Trash/example" },
+  issue: { number: 42, pull_request: { url: "https://api.github.test/pr/42" } },
+  comment: { body, user: { login: "maintainer" } },
+});
+
+const manualFetch =
+  ({ permission = "write", state = "open", draft = false } = {}) =>
+  async (url) => {
+    if (url.endsWith("/pulls/42"))
+      return new Response(
+        JSON.stringify({
+          state,
+          draft,
+          base: { sha: "current-base" },
+          head: { sha: "current-head", repo: { fork: false } },
+        }),
+      );
+    if (url.endsWith("/collaborators/maintainer/permission"))
+      return new Response(
+        JSON.stringify({ permission, role_name: permission }),
+      );
+    throw new Error(`unexpected request: ${url}`);
+  };
+
+test("runs an exact whitespace-normalized command from an authorized collaborator", async () => {
+  for (const permission of ["write", "maintain", "admin"])
+    assert.deepEqual(
+      await resolveReviewEvent(
+        manualEvent(" \n !pockettrash\t review  "),
+        "token",
+        manualFetch({ permission }),
+      ),
+      {
+        shouldRun: true,
+        repository: "Pocket-Trash/example",
+        pullNumber: 42,
+        baseSha: "current-base",
+        headSha: "current-head",
+        fork: false,
+      },
+    );
+});
+
+test("uses effective permission rather than a privileged-looking custom role", async () => {
+  for (const [permission, expected] of [
+    ["write", true],
+    ["read", false],
+  ]) {
+    const fetch = async (url) => {
+      if (url.endsWith("/pulls/42")) return manualFetch()(url);
+      return new Response(JSON.stringify({ permission, role_name: "admin" }));
+    };
+    assert.equal(
+      (await resolveReviewEvent(manualEvent(), "token", fetch)).shouldRun,
+      expected,
+    );
+  }
+});
+
+test("skips near matches and ordinary issue comments without API calls", async () => {
+  for (const candidate of [
+    manualEvent("!pockettrash reviews"),
+    { ...manualEvent(), issue: { number: 42 } },
+    { ...manualEvent(), action: "edited" },
+  ]) {
+    let called = false;
+    const result = await resolveReviewEvent(candidate, "token", async () => {
+      called = true;
+    });
+    assert.equal(result.shouldRun, false);
+    assert.equal(called, false);
+  }
+});
+
+test("skips unauthorized, draft, and closed manual requests", async () => {
+  assert.equal(
+    (
+      await resolveReviewEvent(
+        manualEvent(),
+        "token",
+        manualFetch({ permission: "read" }),
+      )
+    ).shouldRun,
+    false,
+  );
+  assert.equal(
+    (
+      await resolveReviewEvent(
+        manualEvent(),
+        "token",
+        manualFetch({ draft: true }),
+      )
+    ).shouldRun,
+    false,
+  );
+  assert.equal(
+    (
+      await resolveReviewEvent(
+        manualEvent(),
+        "token",
+        manualFetch({ state: "closed" }),
+      )
+    ).shouldRun,
+    false,
   );
 });
