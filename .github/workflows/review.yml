@@ -3,6 +3,19 @@ name: Pocket Trash PR review dispatcher
 on:
   workflow_call:
     inputs:
+      infisical-project-id:
+        description: Infisical project ID for OIDC credential reads
+        required: false
+        default: ""
+        type: string
+      infisical-environment:
+        required: false
+        default: preview
+        type: string
+      infisical-path:
+        required: false
+        default: /tools/github/pr-review-tool
+        type: string
       config-path:
         description: Trusted configuration path on the base SHA
         required: false
@@ -18,10 +31,16 @@ on:
         default: pockettrash
         type: string
     secrets:
+      INFISICAL_GITHUB_IDENTITY_ID:
+        required: false
+      INFISICAL_DOMAIN:
+        required: false
+      INFISICAL_OIDC_AUDIENCE:
+        required: false
       CHEAPER_INFERENCE_API_KEY:
-        required: true
+        required: false
       APP_PRIVATE_KEY:
-        required: true
+        required: false
 
 permissions:
   contents: read
@@ -55,12 +74,19 @@ jobs:
       actions: read
       contents: read
       pull-requests: read
+      id-token: write
     uses: ./.github/workflows/run-review.yml
     with:
+      infisical-project-id: ${{ inputs.infisical-project-id }}
+      infisical-environment: ${{ inputs.infisical-environment }}
+      infisical-path: ${{ inputs.infisical-path }}
       app-id: ${{ inputs.app-id }}
       app-slug: ${{ inputs.app-slug }}
       config-path: ${{ inputs.config-path }}
       pull-number: ${{ fromJSON(needs.authorize.outputs.pull-number) }}
     secrets:
+      INFISICAL_GITHUB_IDENTITY_ID: ${{ secrets.INFISICAL_GITHUB_IDENTITY_ID }}
+      INFISICAL_DOMAIN: ${{ secrets.INFISICAL_DOMAIN }}
+      INFISICAL_OIDC_AUDIENCE: ${{ secrets.INFISICAL_OIDC_AUDIENCE }}
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
       CHEAPER_INFERENCE_API_KEY: ${{ secrets.CHEAPER_INFERENCE_API_KEY }}

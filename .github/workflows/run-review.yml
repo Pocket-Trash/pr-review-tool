@@ -3,6 +3,19 @@ name: Pocket Trash authorized PR review
 on:
   workflow_call:
     inputs:
+      infisical-project-id:
+        description: Infisical project ID for OIDC credential reads
+        required: false
+        default: ""
+        type: string
+      infisical-environment:
+        required: false
+        default: preview
+        type: string
+      infisical-path:
+        required: false
+        default: /tools/github/pr-review-tool
+        type: string
       config-path:
         required: true
         type: string
@@ -16,10 +29,16 @@ on:
         required: true
         type: number
     secrets:
+      INFISICAL_GITHUB_IDENTITY_ID:
+        required: false
+      INFISICAL_DOMAIN:
+        required: false
+      INFISICAL_OIDC_AUDIENCE:
+        required: false
       CHEAPER_INFERENCE_API_KEY:
-        required: true
+        required: false
       APP_PRIVATE_KEY:
-        required: true
+        required: false
 
 permissions:
   contents: read
@@ -33,6 +52,12 @@ jobs:
   review:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      INFISICAL_GITHUB_IDENTITY_ID: ${{ secrets.INFISICAL_GITHUB_IDENTITY_ID }}
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
     outputs:
       publish: ${{ steps.preflight.outcome == 'failure' || steps.preflight.outputs.runnable == 'true' }}
       pull-number: ${{ steps.preflight.outputs.pull-number || inputs.pull-number }}
@@ -63,12 +88,24 @@ jobs:
         if: steps.preflight.outcome == 'success' && steps.preflight.outputs.runnable == 'true'
         working-directory: reviewer
         run: npm ci --ignore-scripts
+      - id: model-credential
+        # OIDC mode never reads the App key or the entire Infisical folder.
+        name: Fetch model credential from Infisical
+        if: steps.preflight.outcome == 'success' && steps.preflight.outputs.runnable == 'true' && env.INFISICAL_GITHUB_IDENTITY_ID != ''
+        continue-on-error: true
+        run: node reviewer/src/infisical.mjs analysis 2> "${{ runner.temp }}/review-error.log"
+        env:
+          INFISICAL_PROJECT_ID: ${{ inputs.infisical-project-id }}
+          INFISICAL_ENVIRONMENT: ${{ inputs.infisical-environment }}
+          INFISICAL_SECRET_PATH: ${{ inputs.infisical-path }}
+          INFISICAL_DOMAIN: ${{ secrets.INFISICAL_DOMAIN }}
+          INFISICAL_OIDC_AUDIENCE: ${{ secrets.INFISICAL_OIDC_AUDIENCE }}
       - id: review
-        if: steps.preflight.outcome == 'success' && steps.preflight.outputs.runnable == 'true'
+        if: steps.preflight.outcome == 'success' && steps.preflight.outputs.runnable == 'true' && steps.model-credential.outcome != 'failure'
         continue-on-error: true
         run: node reviewer/src/automatic-review.mjs 2> "${{ runner.temp }}/review-error.log"
         env:
-          CHEAPER_INFERENCE_API_KEY: ${{ secrets.CHEAPER_INFERENCE_API_KEY }}
+          CHEAPER_INFERENCE_API_KEY: ${{ env.CHEAPER_INFERENCE_API_KEY || secrets.CHEAPER_INFERENCE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
           REVIEW_ARTIFACT_PATH: ${{ runner.temp }}/review-result.json
           REVIEW_CONFIG_PATH: ${{ inputs.config-path }}
@@ -93,7 +130,7 @@ jobs:
           path: ${{ runner.temp }}/review-result.json
           retention-days: 90
       - name: Preserve analysis failure state
-        if: always() && (steps.preflight.outcome == 'failure' || steps.review.outcome == 'failure')
+        if: always() && (steps.preflight.outcome == 'failure' || steps.model-credential.outcome == 'failure' || steps.review.outcome == 'failure')
         run: exit 1
 
   publish:
@@ -101,9 +138,12 @@ jobs:
     needs: review
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      INFISICAL_GITHUB_IDENTITY_ID: ${{ secrets.INFISICAL_GITHUB_IDENTITY_ID }}
     permissions:
       actions: read
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -116,11 +156,24 @@ jobs:
         with:
           name: pr-review-${{ needs.review.outputs.pull-number }}-${{ needs.review.outputs.artifact-key }}
           path: ${{ runner.temp }}/review-artifact
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - id: app-credential
+        name: Fetch App credential from Infisical
+        if: env.INFISICAL_GITHUB_IDENTITY_ID != ''
+        run: node reviewer/src/infisical.mjs publication
+        env:
+          INFISICAL_PROJECT_ID: ${{ inputs.infisical-project-id }}
+          INFISICAL_ENVIRONMENT: ${{ inputs.infisical-environment }}
+          INFISICAL_SECRET_PATH: ${{ inputs.infisical-path }}
+          INFISICAL_DOMAIN: ${{ secrets.INFISICAL_DOMAIN }}
+          INFISICAL_OIDC_AUDIENCE: ${{ secrets.INFISICAL_OIDC_AUDIENCE }}
       - id: app-token
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
         with:
           app-id: ${{ inputs.app-id }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          private-key: ${{ env.PR_REVIEW_APP_PRIVATE_KEY || secrets.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-metadata: read

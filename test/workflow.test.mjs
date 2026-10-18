@@ -50,3 +50,40 @@ test("manual and automatic events share resolved artifact and publication identi
   assert.match(workflow, /REVIEW_PULL_NUMBER/);
   assert.match(workflow, /REVIEW_HEAD_SHA/);
 });
+
+test("OIDC fetches only the job credential after authorization without changing routing", () => {
+  const reviewJob = workflow.slice(
+    workflow.indexOf("\n  review:\n"),
+    workflow.lastIndexOf("\n  publish:\n"),
+  );
+  const publishJob = workflow.slice(workflow.lastIndexOf("\n  publish:\n"));
+  assert.match(reviewJob, /id-token: write/);
+  assert.match(publishJob, /id-token: write/);
+  assert.match(reviewJob, /node reviewer\/src\/infisical.mjs analysis/);
+  assert.doesNotMatch(reviewJob, /APP_PRIVATE_KEY|infisical.mjs publication/);
+  assert.match(publishJob, /node reviewer\/src\/infisical.mjs publication/);
+  assert.doesNotMatch(
+    publishJob,
+    /infisical.mjs analysis|CHEAPERINFERENCE|OPENROUTER/,
+  );
+  assert.match(reviewJob, /steps\.model-credential\.outcome != 'failure'/);
+  assert.match(
+    reviewJob,
+    /Preserve analysis failure state[\s\S]*steps\.model-credential\.outcome == 'failure'/,
+  );
+  const fetchStep = reviewJob.slice(
+    reviewJob.indexOf("- id: model-credential"),
+    reviewJob.indexOf("- id: review"),
+  );
+  assert.match(fetchStep, /steps\.preflight\.outcome == 'success'/);
+  assert.match(fetchStep, /steps\.preflight\.outputs\.runnable == 'true'/);
+  const authorizeJob = dispatcher.slice(
+    dispatcher.indexOf("\n  authorize:\n"),
+    dispatcher.indexOf("\n  review:\n"),
+  );
+  assert.doesNotMatch(authorizeJob, /id-token: write|INFISICAL_/);
+  assert.match(
+    dispatcher,
+    /infisical-project-id: \$\{\{ inputs\.infisical-project-id \}\}/,
+  );
+});
