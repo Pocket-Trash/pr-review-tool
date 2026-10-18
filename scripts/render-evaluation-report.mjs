@@ -5,6 +5,7 @@ import {
   accountedRunCost,
   adjudicationPasses,
   validateAdjudication,
+  usesCorrectedRunner,
 } from "../src/evaluation.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -23,10 +24,6 @@ const median = (values) => {
 const money = (value) => `$${value.toFixed(5)}`;
 const catalogAvailable = (entry) =>
   typeof entry === "boolean" ? entry : entry?.available === true;
-const usesCorrectedRunner = ({ contextFormat, validatorFormat, outputFormat }) =>
-  contextFormat === "plain-text-v1" &&
-  validatorFormat === "node-dom-v1" &&
-  outputFormat === "final-message-v1";
 const rows = [];
 for (const candidate of results.matrix.candidates) {
   const runs = results.runs.filter(

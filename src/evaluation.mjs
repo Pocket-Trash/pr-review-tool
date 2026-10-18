@@ -47,6 +47,18 @@ export function accountedRunCost(run) {
   return Math.max(run.usage?.estimatedCostUsd || 0, run.reservedCostUsd || 0);
 }
 
+export function usesCorrectedRunner({
+  contextFormat,
+  validatorFormat,
+  outputFormat,
+}) {
+  return (
+    contextFormat === "plain-text-v1" &&
+    validatorFormat === "node-dom-v1" &&
+    outputFormat === "final-message-v1"
+  );
+}
+
 const adjudicationKeys = [
   "expectedFactAccuracy",
   "falseClaims",
