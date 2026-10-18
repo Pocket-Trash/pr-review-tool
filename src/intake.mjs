@@ -22,10 +22,6 @@ export async function collectInternalReviewContext(
   token,
   fetch = globalThis.fetch,
 ) {
-  if (identity.fork)
-    throw new TypeError(
-      "this workflow slice accepts only internal pull requests",
-    );
   if (!token) throw new TypeError("GITHUB_TOKEN is required");
   const [owner, repository] = identity.repository.split("/");
   if (!owner || !repository)
@@ -70,6 +66,43 @@ export async function collectInternalReviewContext(
       .filter((file) => !file.patch)
       .map((file) => `${file.filename}: patch unavailable`),
   };
+}
+
+export async function loadChangedFile(
+  identity,
+  file,
+  token,
+  fetch = globalThis.fetch,
+) {
+  const [owner, repository] = identity.repository.split("/");
+  const path = file.filename.split("/").map(encodeURIComponent).join("%2F");
+  const ref = file.status === "removed" ? identity.baseSha : identity.headSha;
+  const response = await githubJson(
+    `/repos/${owner}/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`,
+    token,
+    fetch,
+  );
+  if (response.encoding !== "base64")
+    return { size: response.size ?? 0, content: "" };
+  return {
+    size: response.size,
+    content: Buffer.from(response.content, "base64").toString("utf8"),
+  };
+}
+
+export async function assertCurrentHead(
+  identity,
+  token,
+  fetch = globalThis.fetch,
+) {
+  const [owner, repository] = identity.repository.split("/");
+  const pull = await githubJson(
+    `/repos/${owner}/${repository}/pulls/${identity.pullNumber}`,
+    token,
+    fetch,
+  );
+  if (pull.head?.sha !== identity.headSha)
+    throw new Error("stale pull request head SHA");
 }
 
 export function buildArtifact({

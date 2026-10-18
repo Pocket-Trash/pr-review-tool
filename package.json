@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/review.mjs",
+    "./context": "./src/context.mjs",
     "./events": "./src/events.mjs",
     "./intake": "./src/intake.mjs",
     "./opencode": "./src/opencode.mjs"

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildArtifact, collectInternalReviewContext } from "../src/intake.mjs";
+import {
+  assertCurrentHead,
+  buildArtifact,
+  collectInternalReviewContext,
+} from "../src/intake.mjs";
 
 const identity = {
   shouldRun: true,
@@ -74,15 +78,13 @@ test("intake reads trusted config at the frozen base SHA and patches through Git
   assert.match(requests[2], /compare\/base-sha\.\.\.head-sha$/);
 });
 
-test("internal intake refuses fork events", async () => {
+test("stale head checks reject a superseded run", async () => {
   await assert.rejects(
-    collectInternalReviewContext(
-      { ...identity, fork: true },
-      "config.json",
-      "token",
-      async () => assert.fail(),
-    ),
-    /internal pull requests/,
+    assertCurrentHead(identity, "token", async () => ({
+      ok: true,
+      json: async () => ({ head: { sha: "new-head" } }),
+    })),
+    /stale pull request head SHA/,
   );
 });
 
