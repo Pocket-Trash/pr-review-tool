@@ -43,12 +43,16 @@ export function validateConfig(input) {
   exactKeys(config, "config", [
     "provider",
     "model",
+    "skills",
+    "prompt",
     "generatedFiles",
     "limits",
   ]);
   if (!providers.has(config.provider))
     fail("config.provider", "cheaperinference or openrouter");
   string(config.model, "config.model");
+  strings(config.skills, "config.skills");
+  string(config.prompt, "config.prompt");
   strings(config.generatedFiles, "config.generatedFiles");
 
   const limits = object(config.limits, "config.limits");

@@ -15,7 +15,10 @@ if (config.provider !== "cheaperinference")
 const run = validateRun(JSON.parse(await readFile(runPath, "utf8")));
 const review = await runRestrictedReview({
   apiKey: process.env.CHEAPER_INFERENCE_API_KEY,
+  provider: config.provider,
   model: config.model,
+  skills: config.skills,
+  prompt: config.prompt,
   workspace,
 });
 process.stdout.write(renderReview(config, review, run));

@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { prepareReviewContext } from "../src/context.mjs";
 
 const config = {
-  generatedFiles: ["pnpm-lock.yaml", "**/drizzle/meta/**"],
+  generatedFiles: [
+    "pnpm-lock.yaml",
+    "**/drizzle/meta/**",
+    "**/drizzle/**/snapshot.json",
+  ],
   limits: {
     maxFiles: 100,
     maxBytes: 1048576,
@@ -48,6 +53,15 @@ test("omits oversized files and neutralizes aggregate limit overflow", async () 
   assert.equal(oversized.files.length, 0);
   assert.match(oversized.omissions[0], /512 KiB/);
 
+  const manyOversized = await prepareReviewContext(
+    Array.from({ length: 101 }, (_, index) =>
+      file(`large-${index}.mjs`, { additions: 50000 }),
+    ),
+    config,
+    async () => ({ size: 524289, content: "" }),
+  );
+  assert.equal(manyOversized.conclusion, "review");
+
   const limited = await prepareReviewContext(
     [
       file("a.mjs", { patch: "x".repeat(600000) }),
@@ -58,6 +72,14 @@ test("omits oversized files and neutralizes aggregate limit overflow", async () 
   );
   assert.equal(limited.conclusion, "neutral");
   assert.match(limited.reason, /byte limit/);
+
+  const patchless = await prepareReviewContext(
+    [file("missing.patch", { patch: undefined })],
+    config,
+    async () => ({ size: 500000, content: "x".repeat(500000) }),
+  );
+  assert.equal(patchless.files.length, 0);
+  assert.match(patchless.omissions[0], /patch unavailable/);
 });
 
 test("rejects traversal paths and keeps prompt injection as inert content", async () => {
@@ -75,3 +97,23 @@ test("rejects traversal paths and keeps prompt injection as inert content", asyn
   );
   assert.equal(result.files[0].content, injection);
 });
+
+for (const pull of [354, 376]) {
+  test(`Pocket Trash PR #${pull} remains reviewable after snapshots are omitted`, async () => {
+    const files = JSON.parse(
+      await readFile(
+        new URL(`fixtures/pulls/${pull}.json`, import.meta.url),
+        "utf8",
+      ),
+    );
+    const result = await prepareReviewContext(files, config, async () => ({
+      size: 100,
+      content: "fixture",
+    }));
+    assert.equal(result.conclusion, "review");
+    assert.ok(result.files.length > 0);
+    assert.ok(
+      result.omissions.some((omission) => omission.includes("snapshot.json")),
+    );
+  });
+}

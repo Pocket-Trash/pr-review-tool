@@ -10,9 +10,9 @@ const fixture = JSON.parse(
   ),
 );
 const event = (action, draft = false) => ({
-  ...fixture,
+  ...structuredClone(fixture),
   action,
-  pull_request: { ...fixture.pull_request, draft },
+  pull_request: { ...structuredClone(fixture.pull_request), draft },
 });
 
 for (const action of ["opened", "synchronize", "ready_for_review"]) {
@@ -37,6 +37,12 @@ test("skips draft and unrelated events before inference", () => {
     shouldRun: false,
     reason: "unsupported action: reopened",
   });
+});
+
+test("accepts an external fork as untrusted data", () => {
+  const fork = event("opened");
+  fork.pull_request.head.repo.fork = true;
+  assert.equal(resolveAutomaticEvent(fork).fork, true);
 });
 
 test("rejects incomplete runnable events", () => {

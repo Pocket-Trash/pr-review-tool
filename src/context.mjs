@@ -32,15 +32,27 @@ export async function prepareReviewContext(files, config, loadFile) {
     else candidates.push(file);
   }
 
-  if (candidates.length > config.limits.maxFiles) {
+  const reviewable = [];
+  for (const file of candidates) {
+    if (!file.patch) {
+      omissions.push(`${file.filename}: patch unavailable`);
+      continue;
+    }
+    const loaded = await loadFile(file);
+    if (loaded.size > config.limits.maxFileBytes)
+      omissions.push(`${file.filename}: file exceeds 512 KiB`);
+    else reviewable.push({ ...file, content: loaded.content });
+  }
+
+  if (reviewable.length > config.limits.maxFiles) {
     return {
       conclusion: "neutral",
-      reason: `reviewable file limit exceeded (${candidates.length}/${config.limits.maxFiles})`,
+      reason: `reviewable file limit exceeded (${reviewable.length}/${config.limits.maxFiles})`,
       files: [],
       omissions,
     };
   }
-  const changedLines = candidates.reduce(
+  const changedLines = reviewable.reduce(
     (total, file) => total + file.additions + file.deletions,
     0,
   );
@@ -52,8 +64,8 @@ export async function prepareReviewContext(files, config, loadFile) {
       omissions,
     };
   }
-  const bytes = candidates.reduce(
-    (total, file) => total + Buffer.byteLength(file.patch ?? ""),
+  const bytes = reviewable.reduce(
+    (total, file) => total + Buffer.byteLength(file.patch),
     0,
   );
   if (bytes > config.limits.maxBytes) {
@@ -63,14 +75,6 @@ export async function prepareReviewContext(files, config, loadFile) {
       files: [],
       omissions,
     };
-  }
-
-  const reviewable = [];
-  for (const file of candidates) {
-    const loaded = await loadFile(file);
-    if (loaded.size > config.limits.maxFileBytes)
-      omissions.push(`${file.filename}: file exceeds 512 KiB`);
-    else reviewable.push({ ...file, content: loaded.content });
   }
   return { conclusion: "review", files: reviewable, omissions };
 }

@@ -9,7 +9,7 @@ import {
   collectInternalReviewContext,
   loadChangedFile,
 } from "./intake.mjs";
-import { REVIEW_SKILLS, runRestrictedReview } from "./opencode.mjs";
+import { runRestrictedReview } from "./opencode.mjs";
 import { renderReview } from "./review.mjs";
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
@@ -38,10 +38,11 @@ const prepared = await prepareReviewContext(
 const baseRun = {
   reviewedSha: identity.headSha,
   runId: process.env.GITHUB_RUN_ID,
-  selectedSkills: REVIEW_SKILLS,
+  selectedSkills: context.config.skills,
   usage: { inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 },
 };
 if (prepared.conclusion === "neutral") {
+  await assertCurrentHead(identity, process.env.GITHUB_TOKEN);
   if (process.env.GITHUB_STEP_SUMMARY)
     await appendFile(
       process.env.GITHUB_STEP_SUMMARY,
@@ -52,7 +53,7 @@ if (prepared.conclusion === "neutral") {
     buildArtifact({
       review: null,
       run: baseRun,
-      selectedSkills: REVIEW_SKILLS,
+      selectedSkills: context.config.skills,
       omissions: prepared.omissions,
       diagnostics: [prepared.reason],
     }),
@@ -69,7 +70,10 @@ try {
   );
   const review = await runRestrictedReview({
     apiKey: process.env.CHEAPER_INFERENCE_API_KEY,
+    provider: context.config.provider,
     model: context.config.model,
+    skills: context.config.skills,
+    prompt: context.config.prompt,
     workspace,
   });
   await assertCurrentHead(identity, process.env.GITHUB_TOKEN);

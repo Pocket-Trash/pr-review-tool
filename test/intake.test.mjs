@@ -20,6 +20,8 @@ test("intake reads trusted config at the frozen base SHA and patches through Git
   const config = {
     provider: "cheaperinference",
     model: "fixture-model",
+    skills: ["review-coordinator", "i-have-adhd", "stop-slop"],
+    prompt: "Review trusted evidence.",
     generatedFiles: [],
     limits: {
       maxFiles: 100,
