@@ -32,22 +32,44 @@ export async function collectInternalReviewContext(
     throw new TypeError("repository must be owner/name");
 
   const encodedPath = configPath.split("/").map(encodeURIComponent).join("%2F");
-  const configResponse = await githubJson(
-    `/repos/${owner}/${repository}/contents/${encodedPath}?ref=${encodeURIComponent(identity.baseSha)}`,
-    token,
-    fetch,
-  );
+  const [configResponse, pull, comparison] = await Promise.all([
+    githubJson(
+      `/repos/${owner}/${repository}/contents/${encodedPath}?ref=${encodeURIComponent(identity.baseSha)}`,
+      token,
+      fetch,
+    ),
+    githubJson(
+      `/repos/${owner}/${repository}/pulls/${identity.pullNumber}`,
+      token,
+      fetch,
+    ),
+    githubJson(
+      `/repos/${owner}/${repository}/compare/${identity.baseSha}...${identity.headSha}`,
+      token,
+      fetch,
+    ),
+  ]);
+  if (
+    pull.base?.sha !== identity.baseSha ||
+    pull.head?.sha !== identity.headSha
+  ) {
+    throw new Error(
+      "pull request SHAs changed before review context was frozen",
+    );
+  }
   if (configResponse.encoding !== "base64")
     throw new TypeError("trusted configuration must be base64 encoded");
   const config = validateConfig(
     JSON.parse(Buffer.from(configResponse.content, "base64").toString("utf8")),
   );
-  const files = await githubJson(
-    `/repos/${owner}/${repository}/pulls/${identity.pullNumber}/files?per_page=100&page=1`,
-    token,
-    fetch,
-  );
-  return { config, files };
+  return {
+    config,
+    pull: { title: pull.title, body: pull.body, author: pull.user?.login },
+    files: comparison.files ?? [],
+    omissions: (comparison.files ?? [])
+      .filter((file) => !file.patch)
+      .map((file) => `${file.filename}: patch unavailable`),
+  };
 }
 
 export function buildArtifact({

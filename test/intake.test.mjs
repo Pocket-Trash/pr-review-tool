@@ -31,15 +31,25 @@ test("intake reads trusted config at the frozen base SHA and patches through Git
           content: Buffer.from(JSON.stringify(config)).toString("base64"),
           encoding: "base64",
         }
-      : [
-          {
-            filename: "src/example.mjs",
-            status: "modified",
-            additions: 2,
-            deletions: 1,
-            patch: "@@ -1 +1,2 @@",
-          },
-        ];
+      : url.includes("/pulls/42")
+        ? {
+            title: "Example",
+            body: "Description",
+            user: { login: "author" },
+            base: { sha: "base-sha" },
+            head: { sha: "head-sha" },
+          }
+        : {
+            files: [
+              {
+                filename: "src/example.mjs",
+                status: "modified",
+                additions: 2,
+                deletions: 1,
+                patch: "@@ -1 +1,2 @@",
+              },
+            ],
+          };
     return { ok: true, json: async () => body };
   };
 
@@ -51,11 +61,17 @@ test("intake reads trusted config at the frozen base SHA and patches through Git
   );
   assert.deepEqual(context.config, config);
   assert.equal(context.files[0].filename, "src/example.mjs");
+  assert.deepEqual(context.pull, {
+    title: "Example",
+    body: "Description",
+    author: "author",
+  });
   assert.match(
     requests[0],
     /contents\/\.github%2Fpr-review\.json\?ref=base-sha$/,
   );
-  assert.match(requests[1], /pulls\/42\/files\?per_page=100&page=1$/);
+  assert.match(requests[1], /pulls\/42$/);
+  assert.match(requests[2], /compare\/base-sha\.\.\.head-sha$/);
 });
 
 test("internal intake refuses fork events", async () => {

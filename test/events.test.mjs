@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { resolveAutomaticEvent } from "../src/events.mjs";
 
+const fixture = JSON.parse(
+  await readFile(
+    new URL("fixtures/events/pull-request-opened.json", import.meta.url),
+    "utf8",
+  ),
+);
 const event = (action, draft = false) => ({
+  ...fixture,
   action,
-  repository: { full_name: "Pocket-Trash/example" },
-  pull_request: {
-    number: 42,
-    draft,
-    base: { sha: "base-sha" },
-    head: { sha: "head-sha", repo: { fork: false } },
-  },
+  pull_request: { ...fixture.pull_request, draft },
 });
 
 for (const action of ["opened", "synchronize", "ready_for_review"]) {

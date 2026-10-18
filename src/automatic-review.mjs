@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveAutomaticEvent } from "./events.mjs";
 import { buildArtifact, collectInternalReviewContext } from "./intake.mjs";
-import { runRestrictedReview } from "./opencode.mjs";
+import { REVIEW_SKILLS, runRestrictedReview } from "./opencode.mjs";
 import { renderReview } from "./review.mjs";
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
@@ -28,7 +28,7 @@ const workspace = await mkdtemp(join(tmpdir(), "pr-review-workspace-"));
 try {
   await writeFile(
     join(workspace, "pull-request.json"),
-    `${JSON.stringify({ identity, files: context.files }, null, 2)}\n`,
+    `${JSON.stringify({ identity, pull: context.pull, files: context.files }, null, 2)}\n`,
   );
   const review = await runRestrictedReview({
     apiKey: process.env.CHEAPER_INFERENCE_API_KEY,
@@ -38,7 +38,7 @@ try {
   const run = {
     reviewedSha: identity.headSha,
     runId: process.env.GITHUB_RUN_ID,
-    selectedSkills: ["review-coordinator", "i-have-adhd", "stop-slop"],
+    selectedSkills: REVIEW_SKILLS,
     usage: { inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 },
   };
   const markdown = renderReview(context.config, review, run);
@@ -50,7 +50,7 @@ try {
       review,
       run,
       selectedSkills: run.selectedSkills,
-      omissions: [],
+      omissions: context.omissions,
       diagnostics: ["OpenCode event-level token usage is not yet available."],
     }),
   );
