@@ -23,6 +23,10 @@ const median = (values) => {
 const money = (value) => `$${value.toFixed(5)}`;
 const catalogAvailable = (entry) =>
   typeof entry === "boolean" ? entry : entry?.available === true;
+const usesCorrectedRunner = ({ contextFormat, validatorFormat, outputFormat }) =>
+  contextFormat === "plain-text-v1" &&
+  validatorFormat === "node-dom-v1" &&
+  outputFormat === "final-message-v1";
 const rows = [];
 for (const candidate of results.matrix.candidates) {
   const runs = results.runs.filter(
@@ -43,8 +47,7 @@ for (const candidate of results.matrix.candidates) {
     runs.every(
       (run) =>
         run.status === "success" &&
-        run.contextFormat === "plain-text-v1" &&
-        run.validatorFormat === "node-dom-v1" &&
+        usesCorrectedRunner(run) &&
         adjudication.runs[run.id] &&
         adjudicationPasses(adjudication.runs[run.id]),
     );
@@ -133,7 +136,7 @@ for (const row of rows) {
     results.catalogs[row.candidate.provider]?.models[row.candidate.model],
   );
   lines.push(
-    `| ${row.candidate.provider} | ${row.candidate.model} | ${row.runs.length}/9 | ${row.runs.filter(({ contextFormat, validatorFormat }) => contextFormat === "plain-text-v1" && validatorFormat === "node-dom-v1").length}/9 | ${row.runs.filter(({ status, error }) => status === "error" || error).length} | ${row.runs.filter(({ status }) => status === "in-progress").length} | ${row.assessed.length}/${row.runs.length} | ${accuracy === null ? "—" : accuracy.toFixed(3)} | ${falseClaims}/${falseBlockers} | ${boundaryFailures}/${artifactFailures}/${coverageFailures}/${diagramFailures}/${telemetryFailures}/${loopFailures} | ${row.medianLatency === null ? "—" : `${(row.medianLatency / 1000).toFixed(1)}s`} | ${input}/${nullableTotal("cachedInputTokens")}/${nullableTotal("reasoningTokens")}/${output} | ${nullableTotal("modelCalls")}/${nullableTotal("toolIterations")} | ${money(row.accountedCost)} | ${row.passes ? "pass" : !available ? "unavailable" : row.runs.length ? "incomplete/fail" : "blocked"} |`,
+    `| ${row.candidate.provider} | ${row.candidate.model} | ${row.runs.length}/9 | ${row.runs.filter(usesCorrectedRunner).length}/9 | ${row.runs.filter(({ status, error }) => status === "error" || error).length} | ${row.runs.filter(({ status }) => status === "in-progress").length} | ${row.assessed.length}/${row.runs.length} | ${accuracy === null ? "—" : accuracy.toFixed(3)} | ${falseClaims}/${falseBlockers} | ${boundaryFailures}/${artifactFailures}/${coverageFailures}/${diagramFailures}/${telemetryFailures}/${loopFailures} | ${row.medianLatency === null ? "—" : `${(row.medianLatency / 1000).toFixed(1)}s`} | ${input}/${nullableTotal("cachedInputTokens")}/${nullableTotal("reasoningTokens")}/${output} | ${nullableTotal("modelCalls")}/${nullableTotal("toolIterations")} | ${money(row.accountedCost)} | ${row.passes ? "pass" : !available ? "unavailable" : row.runs.length ? "incomplete/fail" : "blocked"} |`,
   );
 }
 lines.push(
