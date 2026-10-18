@@ -53,6 +53,7 @@ try {
     const entry = {
       id,
       contextLength: model.context_length,
+      maxOutputTokens: 32768,
       inputPerMillionUsd: Number(model.pricing.prompt) * 1e6,
       outputPerMillionUsd: Number(model.pricing.completion) * 1e6,
     };
@@ -69,7 +70,7 @@ try {
   let ledger = {
     campaign: "kimi-k25-glm-53-peer-v1",
     budgetUsd: 10,
-    maxSessions: 39,
+    maxSessions: 41,
     repetitions: 3,
     models,
     catalogVerifiedAt: new Date().toISOString(),
@@ -86,7 +87,7 @@ try {
   if (
     ledger.campaign !== "kimi-k25-glm-53-peer-v1" ||
     ledger.budgetUsd !== 10 ||
-    ledger.maxSessions !== 39 ||
+    ledger.maxSessions !== 41 ||
     JSON.stringify(ledger.fixtures) !== JSON.stringify(matrix.fixtures)
   )
     throw new Error("Campaign identity or frozen fixtures changed");
@@ -181,7 +182,22 @@ try {
           session.status === "error" &&
           !session.envelopeFormat,
       );
-    const id = replacement ? `${originalId}:envelope-replacement` : originalId;
+    const limitReplacement =
+      !peer &&
+      model === ids[1] &&
+      fixture.pull === 354 &&
+      [2, 3].includes(repetition) &&
+      ledger.sessions.some(
+        (session) =>
+          session.id === originalId &&
+          session.status === "error" &&
+          session.limitDiagnostic?.providerFinishReason === "length",
+      );
+    const id = replacement
+      ? `${originalId}:envelope-replacement`
+      : limitReplacement
+        ? `${originalId}:output-limit-replacement`
+        : originalId;
     const existing = ledger.sessions.find((session) => session.id === id);
     const priorRequests = ledger.requests.filter(
       (request) => request.session === id,
@@ -223,6 +239,13 @@ try {
             replacesSession: originalId,
             replacementReason:
               "Initial attempt rejected by strict prose-envelope handling; separately counted within the same $10 allowance.",
+          }
+        : {}),
+      ...(limitReplacement
+        ? {
+            replacesSession: originalId,
+            replacementReason:
+              "Provider confirmed native output reached the runner's 16384-token cap; use 32768 within unchanged $10 allowance.",
           }
         : {}),
       ...(peer ? { peerSession: peer.id } : {}),
@@ -271,6 +294,11 @@ try {
         provider: "openrouter",
         model,
         openRouterBaseURL: proxy.baseURL,
+        openRouterModelLimits: {
+          context: ledger.models.find((entry) => entry.id === model)
+            .contextLength,
+          output: 32768,
+        },
         skills: (selection.selected.length
           ? selection.selected
           : REVIEW_SKILLS

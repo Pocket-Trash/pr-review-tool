@@ -31,14 +31,16 @@ const median = (values) => {
 const lines = [
   "# Kimi K2.5 and GLM-5.3: independent and peer-filtered evaluation",
   "",
-  "OpenRouter only. Additional budget approved: **$10**, separate from the original 54-attempt campaign. Same frozen PRs #403, #354, and #376; three repetitions each. The 36 planned sessions allow up to three separately logged envelope-repair replacements (39 total); all charges count against the same $10. No production route is enabled by this experiment.",
+  "OpenRouter only. Additional budget approved: **$10**, separate from the original 54-attempt campaign. Same frozen PRs #403, #354, and #376; three repetitions each. The 36 planned sessions allow five labelled runner-repair replacements (41 total): three Kimi prose-envelope cases and two provider-confirmed GLM output-cap truncations. All charges count against the same $10. No production route is enabled by this experiment.",
   "",
   "## Quality results",
   "",
-  "**Completed** means schema-valid output, not factual correctness. **Passed** requires source-grounded adjudication and all quality gates. **Expected-fact recall** measures preservation of fixture facts, not the truth of every extra claim. Unassessed metrics are N/A, not zero defects. Peer acceptance is not ground truth.",
+  "**Completed** means schema-valid output, not factual correctness. **Passed** requires source-grounded findings without material false claims or false blockers, accurate coverage/omission reporting, relevant and semantically correct diagrams, stable telemetry, and a completed tool loop within the runtime limit. Unassessed metrics are N/A, not zero defects. Expected-fact recall remains in the detailed assessment JSON; it is not an overall accuracy score. Peer acceptance is not ground truth.",
   "",
-  "| Candidate | Completed / planned | Assessed | Passed / planned | Expected-fact recall (assessed only) | Material false claims | False blockers |",
-  "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+  "Three initial Kimi infrastructure attempts were rejected by prose-envelope handling and remain unassessed; their replacements use repaired extraction. One schema review was recovered from the same local session without another paid inference. OpenRouter confirmed that two GLM schema attempts ended at the runner's original 16,384-native-token cap (finish_reason: length); their replacements use 32,768 tokens. The early completed outputs and later larger-cap outputs are exploratory observations under these recorded runner changes, not a controlled model-only reliability ranking. Attempt failures and their costs remain visible below.",
+  "",
+  "| Candidate | Completed / planned | Assessed | Passed / planned | Material false claims | False blockers |",
+  "| --- | ---: | ---: | ---: | ---: | ---: |",
 ];
 for (const candidate of [
   ...ledger.models.map((model) => ({
@@ -58,7 +60,7 @@ for (const candidate of [
     (row) => row.review && (!row.status || row.status === "success"),
   ).length;
   lines.push(
-    `| ${candidate.name} | ${completed}/9 | ${assessed.length}/${completed} | ${assessed.filter(adjudicationPasses).length}/9 | ${assessed.length ? (assessed.reduce((sum, a) => sum + a.expectedFactAccuracy, 0) / assessed.length).toFixed(3) : "N/A"} | ${assessed.length ? assessed.reduce((sum, a) => sum + a.falseClaims.length, 0) : "N/A"} | ${assessed.length ? assessed.reduce((sum, a) => sum + a.falseBlockingFindings.length, 0) : "N/A"} |`,
+    `| ${candidate.name} | ${completed}/9 | ${assessed.length}/${completed} | ${assessed.filter(adjudicationPasses).length}/9 | ${assessed.length ? assessed.reduce((sum, a) => sum + a.falseClaims.length, 0) : "N/A"} | ${assessed.length ? assessed.reduce((sum, a) => sum + a.falseBlockingFindings.length, 0) : "N/A"} |`,
   );
 }
 lines.push(

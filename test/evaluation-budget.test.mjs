@@ -11,12 +11,12 @@ const model = {
   inputPerMillionUsd: 1,
   outputPerMillionUsd: 2,
 };
-async function harness(fetchImpl, budgetUsd = 1) {
+async function harness(fetchImpl, budgetUsd = 1, limits = {}) {
   const ledger = { budgetUsd, requests: [] };
   let checkpoints = 0;
   const proxy = await startEvaluationProxy({
     apiKey: "real-secret",
-    models: [model],
+    models: [{ ...model, ...limits }],
     ledger,
     checkpoint: async () => {
       checkpoints++;
@@ -107,6 +107,24 @@ test("missing billing metadata stops further requests with the full reservation 
     assert.equal(h.ledger.requests[0].status, "unmetered");
     assert.ok(budgetTotal(h.ledger.requests) > 0.1);
     assert.equal((await h.request()).status, 402);
+  } finally {
+    await h.proxy.close();
+  }
+});
+
+test("explicit campaign output allowance overrides a lower SDK default and is reserved", async () => {
+  const h = await harness(
+    async (_url, options) => {
+      assert.equal(JSON.parse(options.body).max_tokens, 32768);
+      return new Response('{"usage":{"cost":0.01}}');
+    },
+    1,
+    { maxOutputTokens: 32768 },
+  );
+  try {
+    await (await h.request({ max_tokens: 16384 })).text();
+    assert.equal(h.ledger.requests[0].maxOutputTokens, 32768);
+    assert.ok(h.ledger.requests[0].reservedUsd > 0.16);
   } finally {
     await h.proxy.close();
   }

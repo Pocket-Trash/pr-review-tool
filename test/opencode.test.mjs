@@ -216,6 +216,7 @@ test("evaluation can use a loopback budget proxy and strict peer result contract
       model: "z-ai/glm-5.3",
       workspace: fixtureWorkspace,
       openRouterBaseURL: "http://127.0.0.1:12345/api/v1",
+      openRouterModelLimits: { context: 1048576, output: 32768 },
       resultFormat: {
         instructions: "Return peer assessments only.",
         validate: (value) => {
@@ -228,6 +229,10 @@ test("evaluation can use a loopback budget proxy and strict peer result contract
         assert.equal(
           config.provider.openrouter.options.baseURL,
           "http://127.0.0.1:12345/api/v1",
+        );
+        assert.deepEqual(
+          config.provider.openrouter.models["z-ai/glm-5.3"].limit,
+          { context: 1048576, output: 32768 },
         );
         assert.equal(options.env.OPENROUTER_API_KEY, "proxy-token");
         assert.match(args.at(-1), /Return peer assessments only/);

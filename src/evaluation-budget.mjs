@@ -75,8 +75,11 @@ export async function startEvaluationProxy({
       )
         return fail(403, "Unsupported evaluation model or modality");
       const outputTokens = Math.min(
-        16384,
-        body.max_tokens || body.max_completion_tokens || 16384,
+        32768,
+        model.maxOutputTokens ||
+          body.max_tokens ||
+          body.max_completion_tokens ||
+          32768,
       );
       if (!Number.isInteger(outputTokens) || outputTokens < 1)
         return fail(400, "Invalid output limit");
@@ -99,6 +102,7 @@ export async function startEvaluationProxy({
         model: model.id,
         status: "in-progress",
         reservedUsd,
+        maxOutputTokens: outputTokens,
       };
       ledger.requests.push(entry);
       await save();

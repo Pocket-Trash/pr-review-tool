@@ -312,6 +312,7 @@ export async function runRestrictedReview({
   allowSkillFallback = true,
   resultFormat,
   openRouterBaseURL,
+  openRouterModelLimits,
 }) {
   if (!providers.has(provider))
     throw new TypeError(`unsupported provider: ${provider}`);
@@ -365,7 +366,14 @@ export async function runRestrictedReview({
         config.provider = {
           openrouter: {
             options: { baseURL: url.href },
-            models: { [model]: { name: model } },
+            models: {
+              [model]: {
+                name: model,
+                ...(openRouterModelLimits
+                  ? { limit: openRouterModelLimits }
+                  : {}),
+              },
+            },
           },
         };
       }
