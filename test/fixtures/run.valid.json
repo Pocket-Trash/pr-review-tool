@@ -1,0 +1,10 @@
+{
+  "reviewedSha": "0123456789abcdef0123456789abcdef01234567",
+  "runId": "fixture-1",
+  "selectedSkills": ["review-coordinator", "i-have-adhd", "stop-slop"],
+  "usage": {
+    "inputTokens": 100000,
+    "outputTokens": 5000,
+    "estimatedCostUsd": 0.01325
+  }
+}

@@ -1,0 +1,38 @@
+## Overview
+
+The fixture stages a shared queue without changing the active production path.
+
+## Findings
+
+No findings found in the supplied diff.
+
+## Architecture and schema
+
+### Staged queue path
+
+```mermaid
+flowchart LR
+  Producer --> ExistingQueue
+  SharedPackage --> NewQueue
+```
+
+## Changed areas
+
+- **Queue:** Adds a staged shared queue package.
+
+## Coverage gaps
+
+- Live deployment state was not inspected.
+
+<details>
+<summary>Run and cost details</summary>
+
+Provider: cheaperinference
+Model: fixture/model
+Reviewed SHA: 0123456789abcdef0123456789abcdef01234567
+Run: fixture-1
+Skills: review-coordinator, i-have-adhd, stop-slop
+Tokens: 100000 input, 5000 output
+Estimated cost: $0.01325
+
+</details>

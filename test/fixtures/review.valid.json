@@ -1,0 +1,18 @@
+{
+  "overview": "The fixture stages a shared queue without changing the active production path.",
+  "findings": [],
+  "diagrams": [
+    {
+      "kind": "architecture",
+      "title": "Staged queue path",
+      "mermaid": "flowchart LR\n  Producer --> ExistingQueue\n  SharedPackage --> NewQueue"
+    }
+  ],
+  "changedAreas": [
+    {
+      "area": "Queue",
+      "summary": "Adds a staged shared queue package."
+    }
+  ],
+  "coverageGaps": ["Live deployment state was not inspected."]
+}
