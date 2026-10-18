@@ -23,6 +23,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "jsdom": "26.1.0",
     "mermaid": "12.2.0"
   }
 }

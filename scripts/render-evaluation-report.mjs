@@ -44,6 +44,7 @@ for (const candidate of results.matrix.candidates) {
       (run) =>
         run.status === "success" &&
         run.contextFormat === "plain-text-v1" &&
+        run.validatorFormat === "node-dom-v1" &&
         adjudication.runs[run.id] &&
         adjudicationPasses(adjudication.runs[run.id]),
     );
@@ -69,6 +70,8 @@ const lines = [
   `Generated from frozen SHA fixtures at ${new Date().toISOString()}.`,
   "",
   "Runs without `contextFormat: plain-text-v1` used JSON-escaped multiline evidence, which OpenCode's read tool truncates at 2,000 characters per line. Their output remains in the ledger for cost and failure accounting, but is not a valid model comparison. Interrupted reservations are preserved and are never replayed automatically. A production decision requires every repetition to use readable evidence.",
+  "",
+  "Runs without `validatorFormat: node-dom-v1` also predate the Node DOM initialization required by Mermaid's labeled flowchart parser. Some reported syntax failures were validator errors, so those runs cannot support a production selection. Raw-HTML and other explicit safety rejections remain enforced.",
   "",
   "| Provider | Model | Runs | Failures | Reconcile | Assessed | Accuracy | False claims/blockers | Gate failures (boundary/artifact/coverage/diagram/telemetry/loop) | Median latency | Tokens (in/cached/reasoning/out) | Calls/tools | Accounted cost | Status |",
   "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",

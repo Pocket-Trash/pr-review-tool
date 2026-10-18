@@ -16,6 +16,8 @@ Production routing and cross-provider failover remain disabled until the project
 
 The runner materializes each patch and source file as plain text under numeric `review-evidence/` paths and keeps references in `pull-request.json`. This avoids OpenCode's 2,000-character per-line truncation of JSON-escaped multiline strings. Runs without `contextFormat: plain-text-v1` predate this fix: retain their costs and failures, but do not use them to rank models. Interrupted attempts consume their original slot and are not replayed. Completing a fresh comparison for affected candidates requires an explicitly approved replacement matrix beyond those consumed slots.
 
+Mermaid also needs a DOM for labeled flowchart parsing in Node. Runs without `validatorFormat: node-dom-v1` predate that initialization and cannot support production selection because valid labeled diagrams could be misclassified as syntax failures. The validator continues to reject raw HTML and unsafe directives before parsing.
+
 Catalog availability can be verified without starting paid inference or requiring an OpenRouter key:
 
 ```sh

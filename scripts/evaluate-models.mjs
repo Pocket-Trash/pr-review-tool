@@ -314,6 +314,7 @@ for (const configuredCandidate of candidates) {
         repetition,
         status: "in-progress",
         contextFormat: "plain-text-v1",
+        validatorFormat: "node-dom-v1",
         invocations: 1,
         reservedCostUsd: reservation,
       });
@@ -356,6 +357,7 @@ for (const configuredCandidate of candidates) {
           repetition,
           status: "success",
           contextFormat: "plain-text-v1",
+          validatorFormat: "node-dom-v1",
           latencyMs: Date.now() - startedAt,
           invocations: 1,
           usage,
@@ -372,6 +374,7 @@ for (const configuredCandidate of candidates) {
           repetition,
           status: "error",
           contextFormat: "plain-text-v1",
+          validatorFormat: "node-dom-v1",
           latencyMs: Date.now() - startedAt,
           invocations: 1,
           ...(usage ? { usage } : {}),
