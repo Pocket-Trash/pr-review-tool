@@ -1,0 +1,16 @@
+{
+  "name": "@pocket-trash/pr-review-tool",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/review.mjs",
+  "scripts": {
+    "fixture": "node src/fixture.mjs test/fixtures/config.valid.json test/fixtures/review.valid.json test/fixtures/run.valid.json",
+    "format:check": "npx --yes prettier@3.6.2 --check .",
+    "test": "node --test",
+    "typecheck": "node --check src/review.mjs && node --check src/fixture.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
