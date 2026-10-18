@@ -1,0 +1,13 @@
+{
+  "provider": "cheaperinference",
+  "model": "gemini-3.8-flash",
+  "skills": ["review-coordinator", "i-have-adhd", "stop-slop"],
+  "prompt": "Review the prepared pull-request evidence for concrete risks.",
+  "generatedFiles": ["pnpm-lock.yaml", "packages/database/drizzle/meta/**"],
+  "limits": {
+    "maxFiles": 100,
+    "maxBytes": 1048576,
+    "maxChangedLines": 20000,
+    "maxFileBytes": 524288
+  }
+}

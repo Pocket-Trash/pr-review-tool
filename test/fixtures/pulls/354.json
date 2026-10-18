@@ -1,0 +1,32 @@
+[
+  {
+    "filename": "packages/database/drizzle/20261010021729_pens_catalog_schema/migration.sql",
+    "additions": 1145,
+    "deletions": 0,
+    "patch": "migration"
+  },
+  {
+    "filename": "packages/database/drizzle/20261010021729_pens_catalog_schema/snapshot.json",
+    "additions": 23741,
+    "deletions": 0,
+    "patch": "generated"
+  },
+  {
+    "filename": "packages/database/src/schema/pens.ts",
+    "additions": 1407,
+    "deletions": 0,
+    "patch": "schema"
+  },
+  {
+    "filename": "packages/database/src/schema/relations.ts",
+    "additions": 587,
+    "deletions": 5,
+    "patch": "relations"
+  },
+  {
+    "filename": "packages/database/test/pens-catalog.integration.test.ts",
+    "additions": 371,
+    "deletions": 0,
+    "patch": "tests"
+  }
+]

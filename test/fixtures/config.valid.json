@@ -1,7 +1,13 @@
 {
   "provider": "cheaperinference",
   "model": "fixture/model",
-  "generatedFiles": ["pnpm-lock.yaml", "packages/database/drizzle/meta/**"],
+  "skills": ["review-coordinator", "i-have-adhd", "stop-slop"],
+  "prompt": "Review the prepared pull-request evidence for concrete risks.",
+  "generatedFiles": [
+    "pnpm-lock.yaml",
+    "**/drizzle/meta/**",
+    "**/drizzle/**/snapshot.json"
+  ],
   "limits": {
     "maxFiles": 100,
     "maxBytes": 1048576,

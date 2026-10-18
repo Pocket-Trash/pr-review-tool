@@ -58,3 +58,15 @@ test("renderer rejects malformed model results", async () => {
     /review\.findings\[0\] must be free of unknown fields|review\.findings\[0\]\.severity/,
   );
 });
+
+test("renderer records trusted manual skill overrides", async () => {
+  const output = renderReview(
+    await json("config.valid.json"),
+    await json("review.valid.json"),
+    {
+      ...(await json("run.valid.json")),
+      skillOverrides: ["tanstack-router: trusted selection"],
+    },
+  );
+  assert.match(output, /Skill overrides: tanstack-router: trusted selection/);
+});

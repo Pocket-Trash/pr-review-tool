@@ -1,0 +1,81 @@
+{
+  "cli": "skills@1.7.2",
+  "sources": [
+    {
+      "repository": "tanstack-skills/tanstack-skills",
+      "commit": "6f5521ecbdfbfa3d54d335eba6c8b4df0b804c03",
+      "skills": [
+        { "name": "tanstack-ai", "dependencies": ["@tanstack/ai"] },
+        { "name": "tanstack-cli", "dependencies": ["@tanstack/cli"] },
+        { "name": "tanstack-config", "dependencies": ["@tanstack/config"] },
+        { "name": "tanstack-db", "dependencies": ["@tanstack/db"] },
+        { "name": "tanstack-devtools", "dependencies": ["@tanstack/devtools"] },
+        {
+          "name": "tanstack-form",
+          "dependencies": ["@tanstack/form-core", "@tanstack/react-form"]
+        },
+        { "name": "tanstack-pacer", "dependencies": ["@tanstack/pacer"] },
+        {
+          "name": "tanstack-query",
+          "dependencies": ["@tanstack/query-core", "@tanstack/react-query"]
+        },
+        { "name": "tanstack-ranger", "dependencies": ["@tanstack/ranger"] },
+        {
+          "name": "tanstack-router",
+          "dependencies": ["@tanstack/router-core", "@tanstack/react-router"]
+        },
+        {
+          "name": "tanstack-start",
+          "dependencies": ["@tanstack/react-start"],
+          "paths": ["app.config.*", "src/routes/**"]
+        },
+        { "name": "tanstack-store", "dependencies": ["@tanstack/store"] },
+        {
+          "name": "tanstack-table",
+          "dependencies": ["@tanstack/table-core", "@tanstack/react-table"]
+        },
+        {
+          "name": "tanstack-virtual",
+          "dependencies": ["@tanstack/virtual-core", "@tanstack/react-virtual"]
+        }
+      ]
+    },
+    {
+      "repository": "clerk/skills",
+      "commit": "8482d43fe12a5f06a2b5ab3008615875747a3e4e",
+      "skills": [
+        {
+          "name": "clerk-tanstack-patterns",
+          "dependencies": ["@clerk/tanstack-react-start"]
+        }
+      ]
+    },
+    {
+      "repository": "github/awesome-copilot",
+      "commit": "cb64ad12e32737ae764becd6885462e9b4c7cb00",
+      "skills": [
+        {
+          "name": "postgresql-code-review",
+          "dependencies": ["pg", "postgres", "drizzle-orm"],
+          "paths": ["**/*.sql", "**/migrations/**", "**/drizzle/**"],
+          "owners": ["packages/database"]
+        }
+      ]
+    },
+    {
+      "repository": "DietrichGebert/ponytail",
+      "commit": "1099dd9128da88e8470338679b6f2d266382482b",
+      "skills": [{ "name": "ponytail-review", "paths": ["**"] }]
+    },
+    {
+      "repository": "ayghri/i-have-adhd",
+      "commit": "1ecea1993b7fce257ffbd686c070948b5e07eda6",
+      "skills": [{ "name": "i-have-adhd", "mandatory": true }]
+    },
+    {
+      "repository": "hardikpandya/stop-slop",
+      "commit": "8da1f030185bdfe8471220585162991eaeb970e9",
+      "skills": [{ "name": "stop-slop", "mandatory": true }]
+    }
+  ]
+}

@@ -43,12 +43,16 @@ export function validateConfig(input) {
   exactKeys(config, "config", [
     "provider",
     "model",
+    "skills",
+    "prompt",
     "generatedFiles",
     "limits",
   ]);
   if (!providers.has(config.provider))
     fail("config.provider", "cheaperinference or openrouter");
   string(config.model, "config.model");
+  strings(config.skills, "config.skills");
+  string(config.prompt, "config.prompt");
   strings(config.generatedFiles, "config.generatedFiles");
 
   const limits = object(config.limits, "config.limits");
@@ -130,10 +134,17 @@ export function validateReview(input) {
 
 export function validateRun(input) {
   const run = object(input, "run");
-  exactKeys(run, "run", ["reviewedSha", "runId", "selectedSkills", "usage"]);
+  exactKeys(run, "run", [
+    "reviewedSha",
+    "runId",
+    "selectedSkills",
+    "skillOverrides",
+    "usage",
+  ]);
   string(run.reviewedSha, "run.reviewedSha");
   string(run.runId, "run.runId");
   strings(run.selectedSkills, "run.selectedSkills");
+  strings(run.skillOverrides, "run.skillOverrides");
 
   const usage = object(run.usage, "run.usage");
   exactKeys(usage, "run.usage", [
@@ -179,5 +190,8 @@ export function renderReview(configInput, reviewInput, runInput) {
     ? review.coverageGaps.map((gap) => `- ${gap}`).join("\n")
     : "- None.";
 
-  return `## Overview\n\n${review.overview}\n\n## Findings\n\n${findings}\n\n## Architecture and schema\n\n${diagrams}\n\n## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}\nTokens: ${run.usage.inputTokens} input, ${run.usage.outputTokens} output\nEstimated cost: $${run.usage.estimatedCostUsd.toFixed(5)}\n\n</details>\n`;
+  const overrides = run.skillOverrides.length
+    ? `\nSkill overrides: ${run.skillOverrides.join(", ")}`
+    : "";
+  return `## Overview\n\n${review.overview}\n\n## Findings\n\n${findings}\n\n## Architecture and schema\n\n${diagrams}\n\n## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}${overrides}\nTokens: ${run.usage.inputTokens} input, ${run.usage.outputTokens} output\nEstimated cost: $${run.usage.estimatedCostUsd.toFixed(5)}\n\n</details>\n`;
 }

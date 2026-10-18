@@ -1,0 +1,32 @@
+[
+  {
+    "filename": "apps/web/src/pages/trends-page.tsx",
+    "additions": 449,
+    "deletions": 33,
+    "patch": "page"
+  },
+  {
+    "filename": "packages/database/drizzle/20261014174635_nifty_marten_broadcloak/migration.sql",
+    "additions": 19,
+    "deletions": 0,
+    "patch": "migration"
+  },
+  {
+    "filename": "packages/database/drizzle/20261014174635_nifty_marten_broadcloak/snapshot.json",
+    "additions": 22255,
+    "deletions": 0,
+    "patch": "generated"
+  },
+  {
+    "filename": "packages/database/src/schema/trends.ts",
+    "additions": 64,
+    "deletions": 1,
+    "patch": "schema"
+  },
+  {
+    "filename": "packages/services/src/db/trends/index.ts",
+    "additions": 313,
+    "deletions": 0,
+    "patch": "service"
+  }
+]
