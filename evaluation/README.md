@@ -14,6 +14,8 @@ The runner refuses a matrix above 54 calls, disables retry inference inside a be
 
 Production routing and cross-provider failover remain disabled until the project owner records that decision.
 
+The runner materializes each patch and source file as plain text under numeric `review-evidence/` paths and keeps references in `pull-request.json`. This avoids OpenCode's 2,000-character per-line truncation of JSON-escaped multiline strings. Runs without `contextFormat: plain-text-v1` predate this fix: retain their costs and failures, but do not use them to rank models. Interrupted attempts consume their original slot and are not replayed. Completing a fresh comparison for affected candidates requires an explicitly approved replacement matrix beyond those consumed slots.
+
 Catalog availability can be verified without starting paid inference or requiring an OpenRouter key:
 
 ```sh

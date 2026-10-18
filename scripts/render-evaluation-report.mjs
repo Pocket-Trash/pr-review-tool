@@ -43,6 +43,7 @@ for (const candidate of results.matrix.candidates) {
     runs.every(
       (run) =>
         run.status === "success" &&
+        run.contextFormat === "plain-text-v1" &&
         adjudication.runs[run.id] &&
         adjudicationPasses(adjudication.runs[run.id]),
     );
@@ -66,6 +67,8 @@ const lines = [
   "# Provider and model evaluation",
   "",
   `Generated from frozen SHA fixtures at ${new Date().toISOString()}.`,
+  "",
+  "Runs without `contextFormat: plain-text-v1` used JSON-escaped multiline evidence, which OpenCode's read tool truncates at 2,000 characters per line. Their output remains in the ledger for cost and failure accounting, but is not a valid model comparison. Interrupted reservations are preserved and are never replayed automatically. A production decision requires every repetition to use readable evidence.",
   "",
   "| Provider | Model | Runs | Failures | Reconcile | Assessed | Accuracy | False claims/blockers | Gate failures (boundary/artifact/coverage/diagram/telemetry/loop) | Median latency | Tokens (in/cached/reasoning/out) | Calls/tools | Accounted cost | Status |",
   "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",

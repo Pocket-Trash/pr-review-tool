@@ -313,6 +313,7 @@ for (const configuredCandidate of candidates) {
         pull: fixture.pull,
         repetition,
         status: "in-progress",
+        contextFormat: "plain-text-v1",
         invocations: 1,
         reservedCostUsd: reservation,
       });
@@ -354,6 +355,7 @@ for (const configuredCandidate of candidates) {
           pull: fixture.pull,
           repetition,
           status: "success",
+          contextFormat: "plain-text-v1",
           latencyMs: Date.now() - startedAt,
           invocations: 1,
           usage,
@@ -369,6 +371,7 @@ for (const configuredCandidate of candidates) {
           pull: fixture.pull,
           repetition,
           status: "error",
+          contextFormat: "plain-text-v1",
           latencyMs: Date.now() - startedAt,
           invocations: 1,
           ...(usage ? { usage } : {}),
