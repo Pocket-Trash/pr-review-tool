@@ -207,6 +207,68 @@ test("restricted runner validates successful inference", async () => {
   ]);
 });
 
+test("evaluation can use a loopback budget proxy and strict peer result contract", async () => {
+  const result = { assessments: [] };
+  assert.deepEqual(
+    await runRestrictedReview({
+      apiKey: "proxy-token",
+      provider: "openrouter",
+      model: "z-ai/glm-5.3",
+      workspace: fixtureWorkspace,
+      openRouterBaseURL: "http://127.0.0.1:12345/api/v1",
+      resultFormat: {
+        instructions: "Return peer assessments only.",
+        validate: (value) => {
+          assert.deepEqual(value, result);
+          return value;
+        },
+      },
+      execute: async (_command, args, options) => {
+        const config = JSON.parse(options.env.OPENCODE_CONFIG_CONTENT);
+        assert.equal(
+          config.provider.openrouter.options.baseURL,
+          "http://127.0.0.1:12345/api/v1",
+        );
+        assert.equal(options.env.OPENROUTER_API_KEY, "proxy-token");
+        assert.match(args.at(-1), /Return peer assessments only/);
+        assert.doesNotMatch(args.at(-1), /exactly these five top-level keys/);
+        return {
+          stdout: JSON.stringify({
+            type: "text",
+            part: { text: JSON.stringify(result) },
+          }),
+        };
+      },
+    }),
+    result,
+  );
+});
+
+test("one explicit JSON fence can have prose but ambiguous envelopes stay rejected", async () => {
+  for (const [text, valid] of [
+    [
+      `Review follows.\n\n\`\`\`json\n${JSON.stringify(review)}\n\`\`\`\nDone.`,
+      true,
+    ],
+    [
+      `\`\`\`json\n${JSON.stringify(review)}\n\`\`\`\n\`\`\`json\n{}\n\`\`\``,
+      false,
+    ],
+    [`{}\n\`\`\`json\n${JSON.stringify(review)}\n\`\`\``, false],
+  ]) {
+    const run = runRestrictedReview({
+      apiKey: "test",
+      model: "test",
+      workspace: fixtureWorkspace,
+      execute: async () => ({
+        stdout: JSON.stringify({ type: "text", part: { text } }),
+      }),
+    });
+    if (valid) assert.deepEqual(await run, review);
+    else await assert.rejects(run, /valid structured review/);
+  }
+});
+
 test("restricted runner validates only the final assistant message", async () => {
   const json = JSON.stringify(review);
   const middle = Math.floor(json.length / 2);

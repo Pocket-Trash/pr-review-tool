@@ -1,5 +1,7 @@
 # Model evaluation
 
+For the separately approved OpenRouter Kimi K2.5 / GLM-5.3 independent and peer-filtered campaign, start with [peer-report.md](peer-report.md). Its raw results, peer verdicts, request billing, and source-grounded assessments are separate from this original 54-attempt matrix. See [Peer campaign](#peer-campaign) below.
+
 The fixed matrix in `matrix.json` evaluates the three approved models three times against Pocket Trash PRs #403, #354, and #376 through each provider where the exact catalog entry exists. The script atomically persists a reservation before every paid invocation. An interrupted `in-progress` row is never replayed automatically and must be reconciled as a failed attempt, which keeps the 54-run ceiling intact.
 
 ```sh
@@ -40,3 +42,18 @@ node scripts/evaluate-models.mjs all evaluation/catalogs.json
 ```
 
 The catalog checkpoint records OpenRouter's current per-model input and output prices before any OpenRouter evaluation. Unavailable exact model IDs are reported and skipped; they do not prevent other available candidates from running.
+
+## Peer campaign
+
+ENG-537 extends the evaluation with `moonshotai/kimi-k2.5` and `z-ai/glm-5.3`, OpenRouter only. The owner approved **$10 additional spend** on 2026-10-18. The original matrix and ledger are not reset or replayed.
+
+```sh
+EVALUATION_BUDGET_USD=10 OPENROUTER_API_KEY=... GITHUB_TOKEN=... npm run evaluate:peers
+npm run evaluate:peers:report
+```
+
+The same frozen fixtures run three times: 18 independent sessions and 18 opposite-model peer critiques. Three initial Kimi #403 attempts were rejected by prose-envelope handling and remain recorded; up to three explicitly identified replacement sessions may recover those slots within the same $10 (39 total sessions maximum). A Kimi #354 final JSON was recovered from the same local session without another model call. The runner now accepts a single unambiguous JSON fence with introductory prose, but rejects competing objects/fences. Initial reviews cannot see peer output. Critiques assess every peer finding against source with a strict accept/reject/uncertain verdict; the normal coordinator's review-only output contract is not loaded for critiques. A deterministic merger retains only peer-accepted original findings, removes exact duplicates, and records every disposition. It retains original summaries/visuals rather than paying for synthesis, labels original coverage by reviewer, and does not promote critique reasoning into review claims. Semantic duplication, overview errors, over-filtering, and unsupported peer agreement remain possible and must be assessed separately.
+
+`peer-results.json` persists sessions and **every underlying API request**. A loopback proxy is the only process holding the actual provider key; OpenCode receives a proxy token and uses its built-in OpenRouter provider with an overridden base URL. Requests have frozen model/price ceilings, a 16,384-token output cap, and a preflight reservation for the full context at uncached input price plus capped output with a 1% margin. Known billing replaces reservations; unmetered/interrupted requests retain their reservation and stop further requests. This is not a provider account-wide hard cap. An exclusive lock prevents duplicate campaign runners, and failed/interrupted session IDs are never silently replayed.
+
+Evaluate each independent review and combined result against the frozen source using the same adjudication fields as the original campaign. Record assessments under exact session/combined IDs in `peer-adjudication.json`. For combined results, also inspect which valid findings peer filtering lost and which false claims it removed or retained. Do not treat agreement or expected-fact recall as overall accuracy. No model selection, production activation, or cross-provider failover is authorized by this experiment.
