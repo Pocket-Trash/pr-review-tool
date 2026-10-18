@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { renderReview } from "../src/review.mjs";
+import { renderReview, validateProductionRoute } from "../src/review.mjs";
 
 const fixture = (name) => new URL(`fixtures/${name}`, import.meta.url);
 const json = async (name) => JSON.parse(await readFile(fixture(name), "utf8"));
@@ -69,4 +69,13 @@ test("renderer records trusted manual skill overrides", async () => {
     },
   );
   assert.match(output, /Skill overrides: tanstack-router: trusted selection/);
+});
+
+test("production routing remains CheaperInference-only before owner decision", async () => {
+  const config = await json("config.valid.json");
+  assert.equal(validateProductionRoute(config), config);
+  assert.throws(
+    () => validateProductionRoute({ ...config, provider: "openrouter" }),
+    /until the production routing decision is recorded/,
+  );
 });

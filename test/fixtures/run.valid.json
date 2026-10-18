@@ -5,7 +5,11 @@
   "skillOverrides": [],
   "usage": {
     "inputTokens": 100000,
+    "cachedInputTokens": null,
+    "reasoningTokens": null,
     "outputTokens": 5000,
+    "modelCalls": 1,
+    "toolIterations": 3,
     "estimatedCostUsd": 0.01325
   }
 }

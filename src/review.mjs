@@ -69,6 +69,16 @@ export function validateConfig(input) {
   return config;
 }
 
+export function validateProductionRoute(configInput) {
+  const config = validateConfig(configInput);
+  if (config.provider !== "cheaperinference")
+    fail(
+      "config.provider",
+      "cheaperinference until the production routing decision is recorded",
+    );
+  return config;
+}
+
 export function validateReview(input) {
   const review = object(input, "review");
   exactKeys(review, "review", [
@@ -149,11 +159,19 @@ export function validateRun(input) {
   const usage = object(run.usage, "run.usage");
   exactKeys(usage, "run.usage", [
     "inputTokens",
+    "cachedInputTokens",
+    "reasoningTokens",
     "outputTokens",
+    "modelCalls",
+    "toolIterations",
     "estimatedCostUsd",
   ]);
   integer(usage.inputTokens, "run.usage.inputTokens");
   integer(usage.outputTokens, "run.usage.outputTokens");
+  integer(usage.modelCalls, "run.usage.modelCalls");
+  integer(usage.toolIterations, "run.usage.toolIterations");
+  for (const field of ["cachedInputTokens", "reasoningTokens"])
+    if (usage[field] !== null) integer(usage[field], `run.usage.${field}`);
   if (
     typeof usage.estimatedCostUsd !== "number" ||
     usage.estimatedCostUsd < 0
@@ -193,5 +211,5 @@ export function renderReview(configInput, reviewInput, runInput) {
   const overrides = run.skillOverrides.length
     ? `\nSkill overrides: ${run.skillOverrides.join(", ")}`
     : "";
-  return `## Overview\n\n${review.overview}\n\n## Findings\n\n${findings}\n\n## Architecture and schema\n\n${diagrams}\n\n## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}${overrides}\nTokens: ${run.usage.inputTokens} input, ${run.usage.outputTokens} output\nEstimated cost: $${run.usage.estimatedCostUsd.toFixed(5)}\n\n</details>\n`;
+  return `## Overview\n\n${review.overview}\n\n## Findings\n\n${findings}\n\n## Architecture and schema\n\n${diagrams}\n\n## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}${overrides}\nTokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\nModel calls: ${run.usage.modelCalls}\nTool iterations: ${run.usage.toolIterations}\nEstimated cost: $${run.usage.estimatedCostUsd.toFixed(5)}\n\n</details>\n`;
 }

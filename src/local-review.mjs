@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { runRestrictedReview } from "./opencode.mjs";
-import { renderReview, validateConfig, validateRun } from "./review.mjs";
+import {
+  renderReview,
+  validateProductionRoute,
+  validateRun,
+} from "./review.mjs";
 
 const [configPath, workspace, runPath] = process.argv.slice(2);
 if (!configPath || !workspace || !runPath) {
@@ -9,9 +13,9 @@ if (!configPath || !workspace || !runPath) {
   );
 }
 
-const config = validateConfig(JSON.parse(await readFile(configPath, "utf8")));
-if (config.provider !== "cheaperinference")
-  throw new TypeError("local review requires the cheaperinference provider");
+const config = validateProductionRoute(
+  JSON.parse(await readFile(configPath, "utf8")),
+);
 const run = validateRun(JSON.parse(await readFile(runPath, "utf8")));
 const review = await runRestrictedReview({
   apiKey: process.env.CHEAPER_INFERENCE_API_KEY,

@@ -15,6 +15,7 @@ import {
   createOpenCodeConfig,
   executeFile,
   runRestrictedReview,
+  usageFromEvents,
 } from "../src/opencode.mjs";
 
 const review = {
@@ -27,6 +28,54 @@ const review = {
 const fixtureWorkspace = fileURLToPath(
   new URL("fixtures/workspace", import.meta.url),
 );
+
+test("OpenCode step events expose stable token and cost usage", () => {
+  assert.deepEqual(
+    usageFromEvents([
+      {
+        type: "step_finish",
+        part: {
+          tokens: {
+            input: 120,
+            cachedInput: 20,
+            reasoning: 4,
+            output: 30,
+          },
+          cost: 0.0042,
+        },
+      },
+      { type: "tool_use", part: { callID: "call-1" } },
+      { type: "tool_result", part: { callID: "call-1" } },
+      {
+        type: "step-finish",
+        tokens: {
+          inputTokens: 80,
+          cache: { read: 10 },
+          reasoningTokens: 6,
+          outputTokens: 20,
+        },
+        cost: 0.002,
+      },
+    ]),
+    {
+      inputTokens: 200,
+      cachedInputTokens: 30,
+      reasoningTokens: 10,
+      outputTokens: 50,
+      modelCalls: 2,
+      toolIterations: 1,
+      estimatedCostUsd: 0.0062,
+    },
+  );
+  assert.equal(usageFromEvents([{ type: "text", text: "done" }]), null);
+  assert.throws(
+    () =>
+      usageFromEvents([
+        { type: "step_finish", part: { tokens: { input: -1 } } },
+      ]),
+    /finite number >= 0/,
+  );
+});
 
 test("command capture resolves when the command exits even if a grandchild holds stdout", async () => {
   const startedAt = Date.now();
@@ -69,7 +118,7 @@ test(
       await assert.rejects(
         executeFile(process.execPath, ["-e", script], {
           env: process.env,
-          timeout: 100,
+          timeout: 1_000,
         }),
         /timed out/,
       );
@@ -159,17 +208,81 @@ test("restricted runner validates successful inference", async () => {
 });
 
 test("restricted runner rejects malformed model output", async () => {
+  let usage;
   await assert.rejects(
     runRestrictedReview({
       apiKey: "secret",
       model: "fixture-model",
       workspace: fixtureWorkspace,
+      onUsage: (value) => {
+        usage = value;
+      },
       execute: async () => ({
-        stdout: `${JSON.stringify({ type: "text", part: { text: "not json" } })}\n`,
+        stdout: `${JSON.stringify({ type: "step_finish", part: { tokens: { input: 50, output: 5 }, cost: 0.01 } })}\n${JSON.stringify({ type: "text", part: { text: "not json" } })}\n`,
       }),
     }),
     /valid structured review/,
   );
+  assert.deepEqual(usage, {
+    inputTokens: 50,
+    cachedInputTokens: null,
+    reasoningTokens: null,
+    outputTokens: 5,
+    modelCalls: 1,
+    toolIterations: 0,
+    estimatedCostUsd: 0.01,
+  });
+});
+
+test("restricted runner reports unknown metering and bounds transient retries", async () => {
+  let usageReports = 0;
+  let calls = 0;
+  const delays = [];
+  const result = await runRestrictedReview({
+    apiKey: "secret",
+    model: "fixture-model",
+    workspace: fixtureWorkspace,
+    onUsage: () => {
+      usageReports += 1;
+    },
+    retryDelay: async (delay) => delays.push(delay),
+    execute: async () => {
+      calls += 1;
+      if (calls < 3)
+        throw Object.assign(new Error("service unavailable 503"), {
+          stderr: "503",
+        });
+      return {
+        stdout: `${JSON.stringify({ type: "text", part: { text: JSON.stringify(review) } })}\n`,
+      };
+    },
+  });
+  assert.deepEqual(result, review);
+  assert.equal(calls, 3);
+  assert.deepEqual(delays, [250, 500]);
+  assert.equal(usageReports, 0);
+});
+
+test("OpenRouter uses the built-in provider and receives only its selected credential", async () => {
+  let invocation;
+  await runRestrictedReview({
+    apiKey: "openrouter-secret",
+    provider: "openrouter",
+    model: "google/gemini-3.8-flash",
+    workspace: fixtureWorkspace,
+    execute: async (_command, args, options) => {
+      invocation = { args, options };
+      return {
+        stdout: `${JSON.stringify({ type: "text", part: { text: JSON.stringify(review) } })}\n`,
+      };
+    },
+  });
+  assert.equal(invocation.args.at(-2), "openrouter/google/gemini-3.8-flash");
+  assert.equal(invocation.options.env.OPENROUTER_API_KEY, "openrouter-secret");
+  assert.ok(!("CHEAPER_INFERENCE_API_KEY" in invocation.options.env));
+  const config = JSON.parse(invocation.options.env.OPENCODE_CONFIG_CONTENT);
+  assert.equal(config.model, "openrouter/google/gemini-3.8-flash");
+  assert.ok(!("provider" in config));
 });
 
 test("restricted runner accepts one JSON code fence", async () => {
@@ -191,6 +304,8 @@ test("restricted runner accepts one JSON code fence", async () => {
 test("restricted runner falls back when an optional specialist cannot load", async () => {
   let calls = 0;
   let effectiveSkills;
+  let invocations = 0;
+  const usages = [];
   const result = await runRestrictedReview({
     apiKey: "secret",
     model: "fixture-model",
@@ -204,24 +319,76 @@ test("restricted runner falls back when an optional specialist cannot load", asy
     onSkillsResolved: (skills) => {
       effectiveSkills = skills;
     },
+    onInvocation: () => {
+      invocations += 1;
+    },
+    onUsage: (usage) => usages.push(usage),
     execute: async () => {
       calls += 1;
       if (calls === 1)
         throw Object.assign(new Error("failed"), {
           stderr: "skill tanstack-query failed to load",
+          stdout: `${JSON.stringify({ type: "step_finish", part: { tokens: { input: 40, output: 2 }, cost: 0.004 } })}\n`,
         });
       return {
-        stdout: `${JSON.stringify({ type: "text", part: { text: JSON.stringify(review) } })}\n`,
+        stdout: `${JSON.stringify({ type: "step_finish", part: { tokens: { input: 60, output: 8 }, cost: 0.006 } })}\n${JSON.stringify({ type: "text", part: { text: JSON.stringify(review) } })}\n`,
       };
     },
   });
   assert.equal(calls, 2);
+  assert.equal(invocations, 2);
+  assert.deepEqual(usages, [
+    {
+      inputTokens: 40,
+      cachedInputTokens: null,
+      reasoningTokens: null,
+      outputTokens: 2,
+      modelCalls: 1,
+      toolIterations: 0,
+      estimatedCostUsd: 0.004,
+    },
+    {
+      inputTokens: 60,
+      cachedInputTokens: null,
+      reasoningTokens: null,
+      outputTokens: 8,
+      modelCalls: 1,
+      toolIterations: 0,
+      estimatedCostUsd: 0.006,
+    },
+  ]);
   assert.deepEqual(effectiveSkills, [
     "review-coordinator",
     "i-have-adhd",
     "stop-slop",
   ]);
   assert.match(result.coverageGaps[0], /continued with the base reviewer/);
+});
+
+test("evaluation mode disables specialist fallback to preserve one invocation per run", async () => {
+  let calls = 0;
+  await assert.rejects(
+    runRestrictedReview({
+      apiKey: "secret",
+      model: "fixture-model",
+      skills: [
+        "review-coordinator",
+        "i-have-adhd",
+        "stop-slop",
+        "tanstack-query",
+      ],
+      allowSkillFallback: false,
+      workspace: fixtureWorkspace,
+      execute: async () => {
+        calls += 1;
+        throw Object.assign(new Error("failed"), {
+          stderr: "skill tanstack-query failed to load",
+        });
+      },
+    }),
+    /failed/,
+  );
+  assert.equal(calls, 1);
 });
 
 test("restricted runner rejects workspace symlinks", async () => {
@@ -272,6 +439,15 @@ test("restricted runner rejects a missing credential before execution", async ()
       execute: async () => assert.fail("must not execute"),
     }),
     /CHEAPER_INFERENCE_API_KEY is required/,
+  );
+  await assert.rejects(
+    runRestrictedReview({
+      provider: "openrouter",
+      model: "fixture-model",
+      workspace: fixtureWorkspace,
+      execute: async () => assert.fail("must not execute"),
+    }),
+    /OPENROUTER_API_KEY is required/,
   );
 });
 

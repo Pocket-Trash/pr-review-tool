@@ -1,0 +1,24 @@
+# Model evaluation
+
+The fixed matrix in `matrix.json` evaluates the three approved models three times against Pocket Trash PRs #403, #354, and #376 through each provider where the exact catalog entry exists. The script atomically persists a reservation before every paid invocation. An interrupted `in-progress` row is never replayed automatically and must be reconciled as a failed attempt, which keeps the 54-run ceiling intact.
+
+```sh
+EVALUATION_BUDGET_USD=10 \
+CHEAPER_INFERENCE_API_KEY=... \
+OPENROUTER_API_KEY=... \
+GITHUB_TOKEN=... \
+node scripts/evaluate-models.mjs all
+```
+
+The runner refuses a matrix above 54 calls, disables retry inference inside a benchmark run, stops CheaperInference at the $10 cumulative or reserved-cost boundary, and uses the same restricted OpenCode tool policy as production. The dedicated CheaperInference key must also have a provider-side hard limit of $10; the local reservation is a conservative preflight guard, while the provider limit prevents an in-flight call from crossing the cap. It records expected-fact recall signals, blocking claims for adjudication, diagram requirements, latency, input/cached-input/reasoning/output tokens when reported, model calls, tool iterations, and estimated cost. Factual accuracy, false claims, false blocking findings, tool-boundary behavior, generated-artifact omission, coverage accuracy, stable telemetry, and full-loop completion require final adjudication against the frozen SHA fixtures and runner security tests before a production route is selected.
+
+Production routing and cross-provider failover remain disabled until the project owner records that decision.
+
+Catalog availability can be verified without starting paid inference or requiring an OpenRouter key:
+
+```sh
+EVALUATION_CATALOG_ONLY=1 CHEAPER_INFERENCE_API_KEY=... \
+node scripts/evaluate-models.mjs all evaluation/catalogs.json
+```
+
+The catalog checkpoint records OpenRouter's current per-model input and output prices before any OpenRouter evaluation. Unavailable exact model IDs are reported and skipped; they do not prevent other available candidates from running.

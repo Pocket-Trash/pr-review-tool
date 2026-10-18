@@ -12,7 +12,7 @@ import {
   loadRepositoryFile,
 } from "./intake.mjs";
 import { runRestrictedReview } from "./opencode.mjs";
-import { renderReview } from "./review.mjs";
+import { renderReview, validateProductionRoute } from "./review.mjs";
 import { visualPrompt, visualRequirements } from "./visuals.mjs";
 import {
   discoverInstalledSkills,
@@ -46,6 +46,7 @@ const context = await collectInternalReviewContext(
   process.env.REVIEW_CONFIG_PATH,
   process.env.GITHUB_TOKEN,
 );
+validateProductionRoute(context.config);
 const prepared = await prepareReviewContext(
   context.files,
   context.config,
@@ -79,7 +80,15 @@ const baseRun = {
   runId: process.env.GITHUB_RUN_ID,
   selectedSkills: skillSelection.selected,
   skillOverrides: skillSelection.overrides,
-  usage: { inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 },
+  usage: {
+    inputTokens: 0,
+    cachedInputTokens: null,
+    reasoningTokens: null,
+    outputTokens: 0,
+    modelCalls: 0,
+    toolIterations: 0,
+    estimatedCostUsd: 0,
+  },
 };
 if (prepared.conclusion === "neutral") {
   await assertCurrentHead(identity, process.env.GITHUB_TOKEN);
@@ -117,6 +126,9 @@ try {
     `${JSON.stringify({ identity, pull: context.pull, files: prepared.files, packageEvidence: summarizePackageEvidence(packageEvidence, { maxBytes: packageEvidenceBudget }), omissions: prepared.omissions }, null, 2)}\n`,
   );
   let effectiveSkills = skillSelection.selected;
+  const effectiveUsage = { ...baseRun.usage };
+  let invocationCount = 0;
+  let usageReports = 0;
   const review = await runRestrictedReview({
     apiKey: process.env.CHEAPER_INFERENCE_API_KEY,
     provider: context.config.provider,
@@ -128,12 +140,30 @@ try {
     onSkillsResolved: (skills) => {
       effectiveSkills = skills;
     },
+    onUsage: (usage) => {
+      usageReports += 1;
+      effectiveUsage.inputTokens += usage.inputTokens;
+      for (const field of ["cachedInputTokens", "reasoningTokens"])
+        if (usage[field] !== null)
+          effectiveUsage[field] = (effectiveUsage[field] ?? 0) + usage[field];
+      effectiveUsage.outputTokens += usage.outputTokens;
+      effectiveUsage.modelCalls += usage.modelCalls;
+      effectiveUsage.toolIterations += usage.toolIterations;
+      effectiveUsage.estimatedCostUsd += usage.estimatedCostUsd;
+    },
+    onInvocation: () => {
+      invocationCount += 1;
+    },
   });
   await assertCurrentHead(identity, process.env.GITHUB_TOKEN);
   review.coverageGaps.push(
     ...prepared.omissions,
     ...skillSelection.coverageGaps,
   );
+  if (usageReports < invocationCount)
+    review.coverageGaps.push(
+      `${invocationCount - usageReports} model invocation(s) did not expose usage metadata; recorded usage is a lower bound.`,
+    );
   const effectiveOverrides = filterSkillOverrides(
     skillSelection.overrides,
     effectiveSkills,
@@ -142,6 +172,7 @@ try {
     ...baseRun,
     selectedSkills: effectiveSkills,
     skillOverrides: effectiveOverrides,
+    usage: effectiveUsage,
   };
   const markdown = renderReview(context.config, review, run);
   if (process.env.GITHUB_STEP_SUMMARY)
@@ -154,8 +185,10 @@ try {
       selectedSkills: run.selectedSkills,
       omissions: prepared.omissions,
       diagnostics: [
-        "OpenCode event-level token usage is not yet available.",
         ...effectiveOverrides,
+        ...(usageReports < invocationCount
+          ? ["One or more model invocations had unknown metering."]
+          : []),
       ],
     }),
   );
