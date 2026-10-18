@@ -16,7 +16,7 @@ CHEAPER_INFERENCE_API_KEY=... npm run review:local -- \
   test/fixtures/run.valid.json
 ```
 
-OpenCode is pinned to `opencode-ai@1.19.3`. The model can only read, glob, grep, and load the bundled `review-coordinator`, `i-have-adhd`, and `stop-slop` skills. Shell, edits, network tools, LSP, tasks, subagents, and paths outside the prepared workspace are denied.
+OpenCode is pinned to `opencode-ai@1.19.3`. The model can only read, glob, grep, and load the exact skills selected from the pinned `skills/manifest.json`; the coordinator and writing skills are always selected, while specialists are selected from changed paths, package ownership, and installed dependencies. Shell, edits, network tools, LSP, tasks, subagents, and paths outside the prepared workspace are denied.
 
 ## Dependency policy
 

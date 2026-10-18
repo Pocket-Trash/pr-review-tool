@@ -188,6 +188,42 @@ test("restricted runner accepts one JSON code fence", async () => {
   assert.deepEqual(result, review);
 });
 
+test("restricted runner falls back when an optional specialist cannot load", async () => {
+  let calls = 0;
+  let effectiveSkills;
+  const result = await runRestrictedReview({
+    apiKey: "secret",
+    model: "fixture-model",
+    skills: [
+      "review-coordinator",
+      "i-have-adhd",
+      "stop-slop",
+      "tanstack-query",
+    ],
+    workspace: fixtureWorkspace,
+    onSkillsResolved: (skills) => {
+      effectiveSkills = skills;
+    },
+    execute: async () => {
+      calls += 1;
+      if (calls === 1)
+        throw Object.assign(new Error("failed"), {
+          stderr: "skill tanstack-query failed to load",
+        });
+      return {
+        stdout: `${JSON.stringify({ type: "text", part: { text: JSON.stringify(review) } })}\n`,
+      };
+    },
+  });
+  assert.equal(calls, 2);
+  assert.deepEqual(effectiveSkills, [
+    "review-coordinator",
+    "i-have-adhd",
+    "stop-slop",
+  ]);
+  assert.match(result.coverageGaps[0], /continued with the base reviewer/);
+});
+
 test("restricted runner rejects workspace symlinks", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "pr-review-symlink-test-"));
   try {

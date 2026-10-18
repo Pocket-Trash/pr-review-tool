@@ -90,6 +90,39 @@ export async function loadChangedFile(
   };
 }
 
+export async function loadRepositoryFile(
+  identity,
+  filename,
+  token,
+  fetch = globalThis.fetch,
+  maxBytes = Infinity,
+) {
+  const [owner, repository] = identity.repository.split("/");
+  const path = filename.split("/").map(encodeURIComponent).join("%2F");
+  const response = await fetch(
+    `${API}/repos/${owner}/${repository}/contents/${path}?ref=${encodeURIComponent(identity.headSha)}`,
+    {
+      headers: {
+        accept: "application/vnd.github+json",
+        authorization: `Bearer ${token}`,
+        "x-github-api-version": "2022-11-28",
+      },
+    },
+  );
+  if (response.status === 404) return null;
+  if (!response.ok)
+    throw new Error(`GitHub API request failed: ${response.status}`);
+  const body = await response.json();
+  if (body.encoding !== "base64") return null;
+  if (body.size > maxBytes) return null;
+  const content = Buffer.from(body.content, "base64").toString("utf8");
+  if (Buffer.byteLength(content) > maxBytes) return null;
+  return {
+    filename,
+    content,
+  };
+}
+
 export async function assertCurrentHead(
   identity,
   token,

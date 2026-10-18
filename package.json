@@ -13,6 +13,7 @@
     "fixture": "node src/fixture.mjs test/fixtures/config.valid.json test/fixtures/review.valid.json test/fixtures/run.valid.json",
     "format:check": "npx --yes prettier@3.6.2 --check .",
     "review:local": "node src/local-review.mjs",
+    "skills:install": "node scripts/install-skills.mjs",
     "test": "node --test",
     "typecheck": "node --check src/*.mjs"
   },

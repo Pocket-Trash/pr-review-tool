@@ -1,6 +1,7 @@
 import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { resolveAutomaticEvent } from "./events.mjs";
 import { prepareReviewContext } from "./context.mjs";
 import {
@@ -8,9 +9,23 @@ import {
   buildArtifact,
   collectInternalReviewContext,
   loadChangedFile,
+  loadRepositoryFile,
 } from "./intake.mjs";
 import { runRestrictedReview } from "./opencode.mjs";
 import { renderReview } from "./review.mjs";
+import {
+  discoverInstalledSkills,
+  filterSkillOverrides,
+  loadSkillInstallFailures,
+  packageManifestPaths,
+  selectRelevantSkills,
+  summarizePackageEvidence,
+} from "./skills.mjs";
+
+const reviewerRoot = fileURLToPath(new URL("..", import.meta.url));
+const skillManifest = JSON.parse(
+  await readFile(join(reviewerRoot, "skills/manifest.json"), "utf8"),
+);
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
 const identity = resolveAutomaticEvent(event);
@@ -35,10 +50,33 @@ const prepared = await prepareReviewContext(
   context.config,
   (file) => loadChangedFile(identity, file, process.env.GITHUB_TOKEN),
 );
+const packageEvidence = (
+  await Promise.all(
+    packageManifestPaths(prepared.files).map((path) =>
+      loadRepositoryFile(
+        identity,
+        path,
+        process.env.GITHUB_TOKEN,
+        globalThis.fetch,
+        context.config.limits.maxFileBytes,
+      ),
+    ),
+  )
+).filter(Boolean);
+const skillSelection = selectRelevantSkills({
+  manifest: skillManifest,
+  installed: await discoverInstalledSkills(join(reviewerRoot, "skills")),
+  files: [...prepared.files, ...packageEvidence],
+  configured: context.config.skills,
+  failed: await loadSkillInstallFailures(
+    join(reviewerRoot, "skills/install-status.json"),
+  ),
+});
 const baseRun = {
   reviewedSha: identity.headSha,
   runId: process.env.GITHUB_RUN_ID,
-  selectedSkills: context.config.skills,
+  selectedSkills: skillSelection.selected,
+  skillOverrides: skillSelection.overrides,
   usage: { inputTokens: 0, outputTokens: 0, estimatedCostUsd: 0 },
 };
 if (prepared.conclusion === "neutral") {
@@ -53,9 +91,9 @@ if (prepared.conclusion === "neutral") {
     buildArtifact({
       review: null,
       run: baseRun,
-      selectedSkills: context.config.skills,
+      selectedSkills: skillSelection.selected,
       omissions: prepared.omissions,
-      diagnostics: [prepared.reason],
+      diagnostics: [prepared.reason, ...skillSelection.overrides],
     }),
   );
   if (process.env.GITHUB_OUTPUT)
@@ -64,21 +102,44 @@ if (prepared.conclusion === "neutral") {
 }
 const workspace = await mkdtemp(join(tmpdir(), "pr-review-workspace-"));
 try {
+  const packageEvidenceBudget = Math.min(
+    64 * 1024,
+    Math.max(
+      0,
+      context.config.limits.maxBytes -
+        Buffer.byteLength(JSON.stringify(prepared.files)),
+    ),
+  );
   await writeFile(
     join(workspace, "pull-request.json"),
-    `${JSON.stringify({ identity, pull: context.pull, files: prepared.files, omissions: prepared.omissions }, null, 2)}\n`,
+    `${JSON.stringify({ identity, pull: context.pull, files: prepared.files, packageEvidence: summarizePackageEvidence(packageEvidence, { maxBytes: packageEvidenceBudget }), omissions: prepared.omissions }, null, 2)}\n`,
   );
+  let effectiveSkills = skillSelection.selected;
   const review = await runRestrictedReview({
     apiKey: process.env.CHEAPER_INFERENCE_API_KEY,
     provider: context.config.provider,
     model: context.config.model,
-    skills: context.config.skills,
-    prompt: context.config.prompt,
+    skills: skillSelection.selected,
+    prompt: `${context.config.prompt}\nRepository evidence and installed package versions override conflicting skill advice.`,
     workspace,
+    onSkillsResolved: (skills) => {
+      effectiveSkills = skills;
+    },
   });
   await assertCurrentHead(identity, process.env.GITHUB_TOKEN);
-  review.coverageGaps.push(...prepared.omissions);
-  const run = baseRun;
+  review.coverageGaps.push(
+    ...prepared.omissions,
+    ...skillSelection.coverageGaps,
+  );
+  const effectiveOverrides = filterSkillOverrides(
+    skillSelection.overrides,
+    effectiveSkills,
+  );
+  const run = {
+    ...baseRun,
+    selectedSkills: effectiveSkills,
+    skillOverrides: effectiveOverrides,
+  };
   const markdown = renderReview(context.config, review, run);
   if (process.env.GITHUB_STEP_SUMMARY)
     await appendFile(process.env.GITHUB_STEP_SUMMARY, markdown);
@@ -89,7 +150,10 @@ try {
       run,
       selectedSkills: run.selectedSkills,
       omissions: prepared.omissions,
-      diagnostics: ["OpenCode event-level token usage is not yet available."],
+      diagnostics: [
+        "OpenCode event-level token usage is not yet available.",
+        ...effectiveOverrides,
+      ],
     }),
   );
   if (process.env.GITHUB_OUTPUT)

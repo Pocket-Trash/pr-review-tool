@@ -33,7 +33,18 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+      - id: preflight
+        name: Validate event and trusted configuration
+        run: node reviewer/src/preflight.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REVIEW_CONFIG_PATH: ${{ inputs.config-path }}
+      - name: Install pinned review skills
+        if: steps.preflight.outputs.runnable == 'true'
+        working-directory: reviewer
+        run: npm run skills:install
       - id: review
+        if: steps.preflight.outputs.runnable == 'true'
         run: node reviewer/src/automatic-review.mjs
         env:
           CHEAPER_INFERENCE_API_KEY: ${{ secrets.CHEAPER_INFERENCE_API_KEY }}

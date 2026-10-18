@@ -1,2 +1,5 @@
 node_modules/
 review.md
+.agents/
+.opencode/
+skills/install-status.json

@@ -4,6 +4,7 @@ import {
   assertCurrentHead,
   buildArtifact,
   collectInternalReviewContext,
+  loadRepositoryFile,
 } from "../src/intake.mjs";
 
 const identity = {
@@ -78,6 +79,55 @@ test("intake reads trusted config at the frozen base SHA and patches through Git
   );
   assert.match(requests[1], /pulls\/42$/);
   assert.match(requests[2], /compare\/base-sha\.\.\.head-sha$/);
+});
+
+test("repository evidence loads at the frozen head SHA and tolerates missing files", async () => {
+  const loaded = await loadRepositoryFile(
+    identity,
+    "apps/web/package.json",
+    "token",
+    async (url) => {
+      assert.match(url, /apps%2Fweb%2Fpackage\.json\?ref=head-sha$/);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          encoding: "base64",
+          content: Buffer.from('{"name":"web"}').toString("base64"),
+        }),
+      };
+    },
+  );
+  assert.deepEqual(loaded, {
+    filename: "apps/web/package.json",
+    content: '{"name":"web"}',
+  });
+  assert.equal(
+    await loadRepositoryFile(identity, "missing.json", "token", async () => ({
+      ok: false,
+      status: 404,
+    })),
+    null,
+  );
+});
+
+test("repository evidence rejects an oversized manifest", async () => {
+  const loaded = await loadRepositoryFile(
+    identity,
+    "package.json",
+    "token",
+    async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        encoding: "base64",
+        size: 10_000,
+        content: Buffer.from("{}").toString("base64"),
+      }),
+    }),
+    100,
+  );
+  assert.equal(loaded, null);
 });
 
 test("stale head checks reject a superseded run", async () => {
