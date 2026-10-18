@@ -11,7 +11,7 @@ Run the prepared fixture through CheaperInference with an isolated, default-deny
 
 ```sh
 CHEAPER_INFERENCE_API_KEY=... npm run review:local -- \
-  test/fixtures/config.valid.json \
+  test/fixtures/config.live.json \
   test/fixtures/workspace \
   test/fixtures/run.valid.json
 ```
