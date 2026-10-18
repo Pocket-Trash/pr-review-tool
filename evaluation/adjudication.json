@@ -1,3 +1,177 @@
 {
-  "runs": {}
+  "runs": {
+    "cheaperinference:deepseek-v4.1-flash:pr403:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "fail",
+      "fullToolLoop": "fail",
+      "passes": false,
+      "notes": "The review recalled the staged shared queue, Redis, and retained legacy path, but it explicitly reviewed truncated patches without a checkout, omitted the required architecture diagram, and did not expose model-call or tool-iteration telemetry. Its findings were checked against the frozen head and were not counted as false blockers."
+    },
+    "cheaperinference:deepseek-v4.1-flash:pr354:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "fail",
+      "fullToolLoop": "fail",
+      "passes": false,
+      "notes": "The overview covered the Pens catalog schema and its principal domains, but the run disclosed truncated inputs and no repository checkout, omitted the required domain map, and lacked stable model-call and tool-loop telemetry."
+    },
+    "cheaperinference:deepseek-v4.1-flash:pr354:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "fail",
+      "fullToolLoop": "fail",
+      "passes": false,
+      "notes": "The factual summary was accurate and the namespace defect exists at the frozen head, but the review operated on truncated patches, omitted the mandatory domain map, and produced no stable call or iteration telemetry."
+    },
+    "cheaperinference:deepseek-v4.1-flash:pr354:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "fail",
+      "fullToolLoop": "fail",
+      "passes": false,
+      "notes": "The run recalled the schema scope but acknowledged truncated patches and unexecuted checks. It omitted the required domain map and did not record model-call or tool-iteration telemetry."
+    },
+    "cheaperinference:gemini-3.8-flash:pr403:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The review accurately described the queue package, Redis staging, and retained legacy path with complete telemetry, but its architecture diagram was rejected as unsafe Mermaid and therefore absent from the structured result."
+    },
+    "cheaperinference:gemini-3.8-flash:pr403:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Human review confirmed all three fixture facts despite the conservative keyword signal. Full telemetry was present, but invalid Mermaid left the required architecture diagram unsatisfied."
+    },
+    "cheaperinference:gemini-3.8-flash:pr403:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The review accurately covered the changed queue architecture and retained migration path, but invalid Mermaid meant the required architecture diagram did not survive validation."
+    },
+    "cheaperinference:gemini-3.8-flash:pr354:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The review correctly described the Pens catalog schema and omitted the trusted generated snapshot, but it produced only an ER slice; the required domain map was invalid and omitted."
+    },
+    "cheaperinference:gemini-3.8-flash:pr354:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The hard-coded canonical namespace finding is present at the frozen head and telemetry is complete. The mandatory domain map was nevertheless invalid and omitted, so the diagram gate fails."
+    },
+    "cheaperinference:gemini-3.8-flash:pr354:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The schema summary and focused ER output were accurate, and telemetry was complete, but every attempted domain or hierarchy diagram was invalid and omitted."
+    },
+    "cheaperinference:gemini-3.8-flash:pr376:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "fail",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The review and ER diagram accurately captured material trend entities, but it declared no coverage gaps despite omitting the trusted generated migration snapshot, so omission disclosure and coverage accuracy fail."
+    },
+    "cheaperinference:gemini-3.8-flash:pr376:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The ER diagram names the referenced tables material and material_specific; the frozen schema uses materials and material_specifics."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "fail",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The narrative recalled the expected facts, but the diagram contains hallucinated singular table names and the empty coverage-gaps list did not disclose the omitted generated snapshot."
+    },
+    "cheaperinference:gemini-3.8-flash:pr376:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The finding says arbitrary material IDs trigger unfiltered service lookups; the shown parser preserves a valid positive ID as a filter, so a nonexistent ID yields an empty filtered result rather than an unfiltered lookup."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "fail",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The overview, expected facts, telemetry, and ER diagram were otherwise sound. The material-ID finding misstates the behavior, and the coverage gaps do not disclose omission of the generated migration snapshot."
+    }
+  }
 }

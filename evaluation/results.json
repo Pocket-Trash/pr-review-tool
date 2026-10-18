@@ -1,0 +1,1476 @@
+{
+  "generatedAt": "2026-10-18T04:15:26.387Z",
+  "matrix": {
+    "repetitions": 3,
+    "maxRuns": 54,
+    "budgetUsd": 10,
+    "context": {
+      "generatedFiles": [
+        "pnpm-lock.yaml",
+        "**/drizzle/meta/**",
+        "**/drizzle/**/snapshot.json"
+      ],
+      "limits": {
+        "maxFiles": 100,
+        "maxBytes": 1048576,
+        "maxChangedLines": 20000,
+        "maxFileBytes": 524288
+      }
+    },
+    "candidates": [
+      {
+        "provider": "cheaperinference",
+        "model": "deepseek-v4.1-flash",
+        "inputPerMillionUsd": 0.11,
+        "outputPerMillionUsd": 0.45
+      },
+      {
+        "provider": "cheaperinference",
+        "model": "gemini-3.8-flash",
+        "inputPerMillionUsd": 0.49,
+        "outputPerMillionUsd": 2.44
+      },
+      {
+        "provider": "cheaperinference",
+        "model": "claude-sonnet-5.5",
+        "inputPerMillionUsd": 1.3,
+        "outputPerMillionUsd": 6.5
+      },
+      {
+        "provider": "openrouter",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "inputPerMillionUsd": 0.11,
+        "outputPerMillionUsd": 0.45
+      },
+      {
+        "provider": "openrouter",
+        "model": "google/gemini-3.8-flash",
+        "inputPerMillionUsd": 0.49,
+        "outputPerMillionUsd": 2.44
+      },
+      {
+        "provider": "openrouter",
+        "model": "anthropic/claude-sonnet-5.5",
+        "inputPerMillionUsd": 1.3,
+        "outputPerMillionUsd": 6.5
+      }
+    ],
+    "fixtures": [
+      {
+        "pull": 403,
+        "title": "feat: stage shared Railway queue",
+        "baseSha": "bf39b9ac64ebfc70a63cd878b9d09c12af087a46",
+        "headSha": "143990e030030f5d6bd2c2b51306c0750f8c9bbf",
+        "expectedFacts": [
+          ["shared queue", "queue package"],
+          ["redis"],
+          ["staged", "no cutover", "not cut over", "existing queue"]
+        ]
+      },
+      {
+        "pull": 354,
+        "title": "feat(database): add Pens catalog schema",
+        "baseSha": "bb113ecd82a2aab50e18941fc090a3dc21a52cfc",
+        "headSha": "0c3e8fe0d5cd58f2841f479cdeffd901b416f4fb",
+        "expectedFacts": [["pen"], ["catalog"], ["schema", "table"]]
+      },
+      {
+        "pull": 376,
+        "title": "feat: add material Trends drill-downs",
+        "baseSha": "572891683ca3a377fdeaf91ed86cd368bb2712e6",
+        "headSha": "7fd6eeb5ecec326cd2e77b940c7e2a5cb340a9f5",
+        "expectedFacts": [["trend"], ["material"], ["drill", "breakdown"]]
+      }
+    ]
+  },
+  "catalogs": {
+    "cheaperinference": {
+      "verifiedAt": "2026-10-18T04:39:26.825Z",
+      "authenticated": true,
+      "models": {
+        "deepseek-v4.1-flash": {
+          "available": true
+        },
+        "gemini-3.8-flash": {
+          "available": true
+        },
+        "claude-sonnet-5.5": {
+          "available": true
+        }
+      }
+    },
+    "openrouter": {
+      "verifiedAt": "2026-10-18T04:37:14.409Z",
+      "authenticated": false,
+      "models": {
+        "deepseek/deepseek-v4.1-flash": {
+          "available": true,
+          "pricing": {
+            "inputPerMillionUsd": 0.0648,
+            "outputPerMillionUsd": 0.144
+          }
+        },
+        "google/gemini-3.8-flash": {
+          "available": true,
+          "pricing": {
+            "inputPerMillionUsd": 0.8250000000000001,
+            "outputPerMillionUsd": 4.125
+          }
+        },
+        "anthropic/claude-sonnet-5.5": {
+          "available": true,
+          "pricing": {
+            "inputPerMillionUsd": 2,
+            "outputPerMillionUsd": 10
+          }
+        }
+      }
+    }
+  },
+  "runs": [
+    {
+      "id": "cheaperinference:deepseek-v4.1-flash:pr403:1",
+      "provider": "cheaperinference",
+      "model": "deepseek-v4.1-flash",
+      "pull": 403,
+      "repetition": 1,
+      "latencyMs": 113691,
+      "usage": {
+        "cachedInputTokens": null,
+        "reasoningTokens": null,
+        "modelCalls": null,
+        "toolIterations": null,
+        "inputTokens": 41429,
+        "outputTokens": 2568,
+        "estimatedCostUsd": 0.00571279
+      },
+      "review": {
+        "overview": "PR #403 stages a shared Railway Redis service, adds a typed @package/queue boundary with BullMQ and in-memory adapters, and moves the scraper producers and processor onto it while keeping the legacy scraper-queue. The assumed load is the existing single scheduled scraper service with BullMQ workers and a few producers, not many concurrent writers. The main risks are that the new queue has no volume in the visible plan, the Redis client stops reconnecting after three attempts, and shutdown can drop pending enqueues. The docs also tell operators to cut over immediately, which conflicts with the PR claim that cutover is separately approved.",
+        "findings": [
+          {
+            "severity": "high",
+            "title": "Staged queue writes to a volume the plan does not provision",
+            "file": ".railway/railway.ts",
+            "line": 44,
+            "evidence": "The sharedQueue start command writes RDB and AOF to $RAILWAY_VOLUME_MOUNT_PATH, but railway-config.test.mjs expects exactly four resources including only volume.redis-volume, which the legacy queue uses. No distinct volume is attached to sharedQueue in the visible plan.",
+            "impact": "If the env var is unset the redis-server start command receives --dir with no value and crash-loops. If Railway supplies ephemeral storage instead, AOF and RDB vanish on redeploy and the durable queue claim is false.",
+            "recommendation": "Attach a new volume to sharedQueue, for example pocket-trash-queue-volume, assert it in railway-config.test.mjs, and never mount redis-volume into two Redis services."
+          },
+          {
+            "severity": "high",
+            "title": "Redis client gives up reconnecting after about two seconds",
+            "file": "packages/queue/src/bullmq.ts",
+            "line": 44,
+            "evidence": "retryStrategy returns null once times exceeds 3, so ioredis stops reconnecting after roughly 1.75 seconds. BullMQ workers are long-lived and expect the connection to recover.",
+            "impact": "A Redis restart, failover, or slow Railway deploy leaves the scraper process alive but unable to enqueue or process jobs until someone restarts it. Cron runs then fail silently.",
+            "recommendation": "Return a capped delay for every attempt on worker connections, and reserve fail-fast retry limits for short-lived commands or tests."
+          },
+          {
+            "severity": "medium",
+            "title": "Shutdown disconnects before pending commands flush",
+            "file": "packages/queue/src/bullmq.ts",
+            "line": 62,
+            "evidence": "close() calls connection.disconnect(), which closes the socket immediately instead of waiting for pending commands to flush.",
+            "impact": "On SIGTERM during an enqueue or completion ack, the command can be lost. Producers may drop jobs and workers may leave work unacknowledged.",
+            "recommendation": "Await connection.quit() after closing queues, with a short timeout that falls back to disconnect()."
+          },
+          {
+            "severity": "medium",
+            "title": "Shared queue exposes a public Redis TCP proxy",
+            "file": ".railway/railway.ts",
+            "line": 48,
+            "evidence": "sharedQueue copies the legacy tcpProxies: { \"6379\": {} }, so the new Redis is reachable through a public TCP proxy. The docs say clients should use the private REDIS_URL and never copy the public endpoint.",
+            "impact": "The shared queue adds another internet-facing Redis endpoint protected only by a password, which increases brute-force and scanning exposure for no stated benefit.",
+            "recommendation": "Remove the TCP proxy from sharedQueue and keep only the private network endpoint, unless a documented external consumer needs public access."
+          },
+          {
+            "severity": "medium",
+            "title": "Docs prescribe a cutover the PR says is not approved",
+            "file": "docs/environment-variables.md",
+            "line": 45,
+            "evidence": "The new paragraph tells operators to point the scraper and Discord bot at ${{pocket-trash-queue.REDIS_URL}}. The PR body says the legacy queue is retained and previews stay on it until a separately approved cutover, and deploy.yml changes no REDIS_URL.",
+            "impact": "An operator following the docs can switch the scraper to an empty queue before the approved cutover, leaving jobs already in scraper-queue unprocessed with no drain step.",
+            "recommendation": "State that existing services keep the legacy scraper-queue reference until the cutover PR, and move the switch instruction into that PR."
+          },
+          {
+            "severity": "medium",
+            "title": "Durability claim has no restart test",
+            "file": "packages/queue/src/bullmq.integration.test.ts",
+            "line": 16,
+            "evidence": "The integration fixture starts Redis with --appendonly no and kills it without a restart. No test exercises the RDB and AOF flags or a Redis restart; railway-config.test.mjs only regex-matches the start command.",
+            "impact": "A missing volume or wrong persistence flag ships without a failing test, so the core durability claim of this PR is unverified.",
+            "recommendation": "Add one test that starts Redis with the production persistence flags, writes a key or job, restarts the process, and asserts the data survives. Assert the volume attachment in the Railway test as well."
+          }
+        ],
+        "diagrams": [],
+        "changedAreas": [
+          {
+            "area": "packages/queue",
+            "summary": "New transport-independent queue API with BullMQ and in-memory adapters, shared contract tests, and payload validation."
+          },
+          {
+            "area": "apps/scraper",
+            "summary": "Producers, processor, and job context now use @package/queue; BullMQ is no longer a direct scraper dependency."
+          },
+          {
+            "area": "Railway infrastructure",
+            "summary": "Adds pocket-trash-queue with RDB and AOF, keeps scraper-queue, and adds railpack.json install authentication plus upload-context entries."
+          },
+          {
+            "area": "CI and validation",
+            "summary": "Installs redis-server for adapter integration tests and updates change classification and Railway context checks."
+          },
+          {
+            "area": "Documentation",
+            "summary": "Updates Railway ownership, environment variables, infrastructure diagrams, and the erasure matrix."
+          }
+        ],
+        "coverageGaps": [
+          "Patches were truncated at 2,000 characters per file; the full bodies of packages/queue/src/index.ts, packages/queue/src/bullmq.ts, and .railway/railway.ts were not available.",
+          "No repository checkout was available, so callers outside the changed files, the redis() and volume() helper semantics, and deployed Railway state were not inspected.",
+          "Tests and Railway plans were not run; the CI results in the PR body were taken as reported.",
+          "The Discord bot referenced by the docs is not in this PR, so its queue usage and erasure behavior were not verified.",
+          "No test exercises RDB or AOF restart durability; the integration test disables AOF.",
+          "Omitted Shared queue staging: affected components and retained paths: unsafe Mermaid raw HTML.",
+          "Architecture change had no valid architecture flowchart."
+        ]
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [
+          {
+            "severity": "high",
+            "title": "Staged queue writes to a volume the plan does not provision",
+            "file": ".railway/railway.ts",
+            "line": 44,
+            "evidence": "The sharedQueue start command writes RDB and AOF to $RAILWAY_VOLUME_MOUNT_PATH, but railway-config.test.mjs expects exactly four resources including only volume.redis-volume, which the legacy queue uses. No distinct volume is attached to sharedQueue in the visible plan.",
+            "impact": "If the env var is unset the redis-server start command receives --dir with no value and crash-loops. If Railway supplies ephemeral storage instead, AOF and RDB vanish on redeploy and the durable queue claim is false.",
+            "recommendation": "Attach a new volume to sharedQueue, for example pocket-trash-queue-volume, assert it in railway-config.test.mjs, and never mount redis-volume into two Redis services."
+          },
+          {
+            "severity": "high",
+            "title": "Redis client gives up reconnecting after about two seconds",
+            "file": "packages/queue/src/bullmq.ts",
+            "line": 44,
+            "evidence": "retryStrategy returns null once times exceeds 3, so ioredis stops reconnecting after roughly 1.75 seconds. BullMQ workers are long-lived and expect the connection to recover.",
+            "impact": "A Redis restart, failover, or slow Railway deploy leaves the scraper process alive but unable to enqueue or process jobs until someone restarts it. Cron runs then fail silently.",
+            "recommendation": "Return a capped delay for every attempt on worker connections, and reserve fail-fast retry limits for short-lived commands or tests."
+          }
+        ],
+        "diagramRequirementsMet": false
+      },
+      "status": "success"
+    },
+    {
+      "id": "cheaperinference:deepseek-v4.1-flash:pr403:2",
+      "provider": "cheaperinference",
+      "model": "deepseek-v4.1-flash",
+      "pull": 403,
+      "repetition": 2,
+      "latencyMs": 171843,
+      "error": "OpenCode did not return a valid structured review",
+      "reservedCostUsd": 0.01325,
+      "status": "error"
+    },
+    {
+      "id": "cheaperinference:deepseek-v4.1-flash:pr403:3",
+      "provider": "cheaperinference",
+      "model": "deepseek-v4.1-flash",
+      "pull": 403,
+      "repetition": 3,
+      "latencyMs": 166996,
+      "error": "OpenCode did not return a valid structured review",
+      "reservedCostUsd": 0.01325,
+      "status": "error"
+    },
+    {
+      "id": "cheaperinference:deepseek-v4.1-flash:pr354:1",
+      "provider": "cheaperinference",
+      "model": "deepseek-v4.1-flash",
+      "pull": 354,
+      "repetition": 1,
+      "latencyMs": 179578,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": null,
+        "reasoningTokens": null,
+        "modelCalls": null,
+        "toolIterations": null,
+        "inputTokens": 39785,
+        "outputTokens": 3572,
+        "estimatedCostUsd": 0.00598375
+      },
+      "review": {
+        "overview": "PR #354 adds a normalized Pens catalog schema covering market geography, source provenance and evidence, pens and parts, mechanisms, refill offerings, compatibility, terminology, and product configuration. The review covered the visible Drizzle schema, migration prefix, relations, catalog service, and tests. The main risks are an alias-concept migration that needs a backfill, a schema import cycle, containment cycles, and locking index builds on existing catalog tables.",
+        "findings": [
+          {
+            "severity": "high",
+            "title": "Alias concept_id migration needs a backfill for existing rows",
+            "file": "packages/services/src/db/catalog/index.ts",
+            "line": 2456,
+            "evidence": "createAlias now fails when no catalog_terminology_concept matches (`if (!concept) throw new Error(...)`) and inserts only `conceptId`; existing catalog_terminology_alias rows were written with canonical_key and have no concept_id, and the visible migration prefix shows no concept seed or concept_id backfill.",
+            "impact": "Deploying with existing aliases either fails when concept_id is added NOT NULL or leaves old aliases unreadable through the new concept relation.",
+            "recommendation": "Seed concepts from existing namespace and key pairs, map every alias to its concept id, then set concept_id NOT NULL in the same migration; add an integration test that starts with a pre-existing alias."
+          },
+          {
+            "severity": "medium",
+            "title": "Schema modules form an import cycle",
+            "file": "packages/database/src/schema/collection.ts",
+            "line": 19,
+            "evidence": "collection.ts imports catalogTerminologyConcept from ./pens.js, while pens.ts imports collectionItem, finishOption, product, productImage, and productMaterial from ./collection.js.",
+            "impact": "ESM evaluates one side first; any non-lazy use of a table binding can throw 'Cannot access ... before initialization' or produce an undefined table at startup.",
+            "recommendation": "Move catalogTerminologyConcept into a neutral module imported by both schemas, or define the cross-schema reference only in relations.ts."
+          },
+          {
+            "severity": "medium",
+            "title": "Market containment accepts cycles",
+            "file": "packages/database/drizzle/20261010021729_pens_catalog_schema/migration.sql",
+            "line": 17,
+            "evidence": "catalog_market_containment only checks parent_market_id <> child_market_id; nothing prevents A containing B and B containing A, or longer cycles.",
+            "impact": "Recursive market rollups and ancestor or descendant queries can loop or return a wrong market scope.",
+            "recommendation": "Reject cycles with a deferred constraint trigger, or store the hierarchy in a closure table and validate inserts in one transaction."
+          },
+          {
+            "severity": "medium",
+            "title": "Unique constraints on existing catalog tables lock writes",
+            "file": "packages/database/src/schema/collection.ts",
+            "line": 368,
+            "evidence": "The PR adds unique(\"product_id_maker_unique\") to product and unique(\"product_material_id_product_unique\") to product_material at line 562, both existing tables.",
+            "impact": "The migration builds new unique indexes under an exclusive lock; on a large product catalog, writes block for the index build and the deploy can stall.",
+            "recommendation": "Check table sizes first. If they are large, create the indexes concurrently in a separate migration and attach the constraints afterward."
+          },
+          {
+            "severity": "low",
+            "title": "Catalog tests no longer fail on extra product types",
+            "file": "packages/services/src/db/catalog/index.integration.test.ts",
+            "line": 62,
+            "evidence": "Two exact resolves.toEqual([...]) assertions became resolves.toEqual(expect.arrayContaining([...])), so unexpected rows are ignored.",
+            "impact": "Duplicate or leaked product types can appear without failing the test, hiding seed and isolation bugs.",
+            "recommendation": "Filter by the test's maker or type IDs and assert the exact rows, or assert the expected length plus contents."
+          },
+          {
+            "severity": "low",
+            "title": "updated_at is never refreshed on update",
+            "file": "packages/database/src/schema/pens.ts",
+            "line": 32,
+            "evidence": "entityTimestamps gives updatedAt only defaultNow(); the visible schema and migration define no BEFORE UPDATE trigger.",
+            "impact": "updated_at stays at insert time unless every service explicitly sets it, so ordering, cache invalidation, and audit views go stale.",
+            "recommendation": "Add a shared BEFORE UPDATE trigger, or set updated_at in every Pens update path and test it."
+          },
+          {
+            "severity": "low",
+            "title": "Serial numbers are validated with trim but stored untrimmed",
+            "file": "packages/database/src/schema/collection.ts",
+            "line": 206,
+            "evidence": "collection_item_serial_number_valid uses char_length(trim(serial_number)) between 1 and 200, but serial_number itself is stored as plain text.",
+            "impact": "'123' and ' 123 ' are accepted as different values, so duplicate serials can coexist and lookups by exact value miss rows.",
+            "recommendation": "Add a check that serial_number = trim(serial_number), or normalize the value before insert."
+          }
+        ],
+        "diagrams": [
+          {
+            "kind": "schema-er",
+            "title": "Pens and parts core ER",
+            "mermaid": "erDiagram\n  product {\n    bigint id PK\n    bigint maker_id FK\n    bigint product_type_id FK\n  }\n  product_detail_pen {\n    bigint id PK,FK\n    timestamptz created_at\n    timestamptz updated_at\n  }\n  product_detail_pen_part {\n    bigint id PK,FK\n    timestamptz created_at\n    timestamptz updated_at\n  }\n  mechanism {\n    bigint id PK\n  }\n  product ||--o| product_detail_pen : pen\n  product ||--o| product_detail_pen_part : part\n  product_detail_pen ||--o{ product_detail_pen_mechanism : supports\n  mechanism ||--o{ product_detail_pen_mechanism : uses"
+          },
+          {
+            "kind": "schema-er",
+            "title": "Market and provenance ER slice",
+            "mermaid": "erDiagram\n  catalog_market {\n    bigint id PK\n    text kind\n    text code UK\n    text display_name\n    text display_name_key\n    timestamptz created_at\n    timestamptz updated_at\n  }\n  catalog_market_containment {\n    bigint parent_market_id PK,FK\n    bigint child_market_id PK,FK\n  }\n  catalog_source_evidence {\n    bigint id PK\n    bigint listing_id FK\n    text publisher\n    text source_kind\n    text original_url\n    date capture_date\n    date publication_date\n    text catalog_edition\n    text preserved_source_identity\n    text preserved_source_checksum\n    text claim\n    bigint market_id FK\n    timestamptz created_at\n  }\n  catalog_market ||--o{ catalog_market_containment : parent\n  catalog_market ||--o{ catalog_market_containment : child\n  catalog_source_listing ||--o{ catalog_source_evidence : supports\n  catalog_market ||--o{ catalog_source_evidence : scopes"
+          }
+        ],
+        "changedAreas": [
+          {
+            "area": "Database schema",
+            "summary": "Adds pens.ts with shared identity helpers and tables for pens, pen parts, mechanisms, refills, compatibility, provenance, market, evidence, and product configuration."
+          },
+          {
+            "area": "Migration",
+            "summary": "Adds a 1,145-line migration that creates market, containment, source evidence, and related Pens tables; foreign-key, index, and backfill sections were truncated in the supplied diff."
+          },
+          {
+            "area": "Relations",
+            "summary": "Adds Pens relations, links makers to source listings and refill identifiers, and replaces the alias canonicalKey to productType relation with conceptId to concept."
+          },
+          {
+            "area": "Catalog service",
+            "summary": "Alias creation now resolves a catalog terminology concept before insert and maps the renamed alias constraint to a user-facing error."
+          },
+          {
+            "area": "Collection schema",
+            "summary": "Adds collection item serial numbers and composite unique keys on product and product_material to support Pens foreign keys."
+          },
+          {
+            "area": "Tests and docs",
+            "summary": "Adds Pens constraint tests, updates existing seeds to resolve product type IDs, loosens product-type assertions, and expands the schema diagram."
+          }
+        ],
+        "coverageGaps": [
+          "Omitted tables from the ER diagrams: catalog_terminology_concept, catalog_terminology_alias, catalog_source_listing, refill_offering, refill_offering_identifier, compatibility tables, product-configuration tables, and collection_item.",
+          "Omitted relationships: alias to concept, maker to source listings and refill identifiers, refill offering to identifier, pen to compatibility, pen to configuration, and collection item to pen.",
+          "The supplied patches are truncated at 2,000 characters per file; foreign keys, ON DELETE actions, indexes, constraint renames, and data backfills in the 1,145-line migration were not verified.",
+          "Existing catalog_terminology_alias rows and the concept_id backfill and constraint rename path could not be inspected in the truncated migration.",
+          "Only pull-request.json was present in the workspace, so callers of the removed catalogTerminologyAlias.productType relation and the new Pens relations were not searched.",
+          "Tests were not executed; findings come from diff review.",
+          "Omitted Pens catalog schema domains: invalid Mermaid syntax.",
+          "Large schema change had no valid domain map."
+        ]
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [
+          {
+            "severity": "high",
+            "title": "Alias concept_id migration needs a backfill for existing rows",
+            "file": "packages/services/src/db/catalog/index.ts",
+            "line": 2456,
+            "evidence": "createAlias now fails when no catalog_terminology_concept matches (`if (!concept) throw new Error(...)`) and inserts only `conceptId`; existing catalog_terminology_alias rows were written with canonical_key and have no concept_id, and the visible migration prefix shows no concept seed or concept_id backfill.",
+            "impact": "Deploying with existing aliases either fails when concept_id is added NOT NULL or leaves old aliases unreadable through the new concept relation.",
+            "recommendation": "Seed concepts from existing namespace and key pairs, map every alias to its concept id, then set concept_id NOT NULL in the same migration; add an integration test that starts with a pre-existing alias."
+          }
+        ],
+        "diagramRequirementsMet": false
+      },
+      "status": "success"
+    },
+    {
+      "id": "cheaperinference:deepseek-v4.1-flash:pr354:2",
+      "provider": "cheaperinference",
+      "model": "deepseek-v4.1-flash",
+      "pull": 354,
+      "repetition": 2,
+      "latencyMs": 128572,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": null,
+        "reasoningTokens": null,
+        "modelCalls": null,
+        "toolIterations": null,
+        "inputTokens": 16699,
+        "outputTokens": 3011,
+        "estimatedCostUsd": 0.00319184
+      },
+      "review": {
+        "overview": "PR #354 adds the Pens catalog schema: a 1,407-line Drizzle module, a 1,145-line native migration, 587 lines of relations, catalog-service changes, integration tests, and a large schema-diagram update. The visible excerpts show a sound shared-primary-key and provenance design, but market code uniqueness, containment cycles, and alias namespace handling need correction before merge.",
+        "findings": [
+          {
+            "severity": "high",
+            "title": "Market code uniqueness blocks regions that share a country code",
+            "file": "packages/database/drizzle/20261010021729_pens_catalog_schema/migration.sql",
+            "line": 4,
+            "evidence": "`catalog_market` defines `\"code\" text NOT NULL CONSTRAINT \"catalog_market_code_unique\" UNIQUE`; `catalog_market_code_valid` then allows `kind = 'region'` codes of 2-40 characters, so a region code like `CA` cannot coexist with the country code `CA`.",
+            "impact": "A state or province market such as California or Ontario cannot be stored beside Canada, or must use a non-standard code that breaks code-based lookup.",
+            "recommendation": "Replace the column UNIQUE with `UNIQUE (kind, code)`, or require region codes to carry a country prefix such as `US-CA` and enforce that format in the CHECK."
+          },
+          {
+            "severity": "medium",
+            "title": "Region market codes are case-sensitive and not normalized",
+            "file": "packages/database/drizzle/20261010021729_pens_catalog_schema/migration.sql",
+            "line": 10,
+            "evidence": "The `region` branch of `catalog_market_code_valid` only checks `char_length(trim(\"code\")) between 2 and 40 and \"code\" <> 'GLOBAL'`; it does not require uppercase, and the unique constraint is case-sensitive, so `us` and `US` both pass and both can be inserted.",
+            "impact": "Market lookup by code can miss rows depending on casing, and duplicate-looking markets pollute the hierarchy.",
+            "recommendation": "Add `code = upper(code)` for country and region, or use CITEXT, and compare `upper(code) <> 'GLOBAL'`."
+          },
+          {
+            "severity": "medium",
+            "title": "Market containment allows cycles and multiple parents",
+            "file": "packages/database/drizzle/20261010021729_pens_catalog_schema/migration.sql",
+            "line": 15,
+            "evidence": "`catalog_market_containment` has only `PRIMARY KEY (parent_market_id, child_market_id)` and `CHECK (parent_market_id <> child_market_id)`. Rows `(A,B)` and `(B,A)` both satisfy both constraints.",
+            "impact": "Recursive parent or ancestor queries can loop forever or return duplicate markets; a market can also have multiple parents, which may conflict with a tree model.",
+            "recommendation": "If containment is a tree, add `UNIQUE (child_market_id)`; otherwise add a recursive cycle check or trigger and document the DAG model."
+          },
+          {
+            "severity": "low",
+            "title": "Containment child lookups have no supporting index",
+            "file": "packages/database/drizzle/20261010021729_pens_catalog_schema/migration.sql",
+            "line": 14,
+            "evidence": "The containment primary key is `(parent_market_id, child_market_id)`; no index begins with `child_market_id`. Finding a market's parents scans the whole table.",
+            "impact": "Ancestor resolution becomes O(n) per market as the hierarchy grows.",
+            "recommendation": "Add `CREATE INDEX catalog_market_containment_child_idx ON catalog_market_containment (child_market_id);`."
+          },
+          {
+            "severity": "medium",
+            "title": "Alias creation hardcodes product-type namespace and input key",
+            "file": "packages/services/src/db/catalog/index.ts",
+            "line": 2476,
+            "evidence": "The service looks up the concept with `input.canonicalNamespace` and `canonicalKey`, but the returned row overwrites `canonicalNamespace: \"product-type\"`; the insert also stores the input key rather than `concept.key`.",
+            "impact": "Aliases for any other namespace are reported as product-type, and a concept key that differs from the normalized input key splits the alias from its concept.",
+            "recommendation": "Return the namespace from the concept or input and use `concept.key` for `canonicalKey`; consider dropping the duplicated canonical columns now that `concept_id` exists."
+          },
+          {
+            "severity": "low",
+            "title": "Product-type tests weakened to arrayContaining",
+            "file": "packages/services/src/db/catalog/index.integration.test.ts",
+            "line": 64,
+            "evidence": "`listProductTypes` assertions changed from `resolves.toEqual([...])` to `resolves.toEqual(expect.arrayContaining([...]))` in two places.",
+            "impact": "Extra or duplicate product types now pass the test; the assertion no longer proves the service returns only the expected set.",
+            "recommendation": "Keep exact matching against a filtered result, or assert the length plus contents; seed the Pens product types explicitly in the test."
+          }
+        ],
+        "diagrams": [
+          {
+            "kind": "schema-er",
+            "title": "Market and provenance evidence",
+            "mermaid": "erDiagram\n  catalog_market {\n    bigint id PK\n    text kind\n    text code UK\n    text display_name\n    text display_name_key\n    timestamptz created_at\n    timestamptz updated_at\n  }\n  catalog_market_containment {\n    bigint parent_market_id PK, FK\n    bigint child_market_id PK, FK\n  }\n  catalog_source_listing {\n    bigint id PK\n  }\n  catalog_source_evidence {\n    bigint id PK\n    bigint listing_id FK\n    text publisher\n    text source_kind\n    text original_url\n    date capture_date\n    date publication_date\n    text catalog_edition\n    text preserved_source_identity\n    text preserved_source_checksum\n    text claim\n    bigint market_id FK\n    timestamptz created_at\n  }\n  catalog_market ||--o{ catalog_market_containment : parent\n  catalog_market ||--o{ catalog_market_containment : child\n  catalog_source_listing ||--o{ catalog_source_evidence : supports\n  catalog_market ||--o{ catalog_source_evidence : scopes"
+          },
+          {
+            "kind": "schema-er",
+            "title": "Terminology concept and alias scope",
+            "mermaid": "erDiagram\n  catalog_terminology_concept {\n    bigint id PK\n    text namespace\n    text key\n  }\n  catalog_terminology_alias {\n    bigint id PK\n    bigint concept_id FK\n    bigint maker_id FK\n    text canonical_namespace\n    text canonical_key\n    text label\n    boolean is_preferred\n  }\n  makers {\n    bigint id PK\n    text name\n    text slug\n  }\n  catalog_terminology_concept ||--o{ catalog_terminology_alias : labels\n  makers ||--o{ catalog_terminology_alias : scopes"
+          }
+        ],
+        "changedAreas": [
+          {
+            "area": "Pens schema",
+            "summary": "New 1,407-line `pens.ts` defines shared product and collection detail keys, pen and pen-part markers, refills, compatibility, mechanisms, provenance, markets, evidence, terminology, and product configuration."
+          },
+          {
+            "area": "Database migration",
+            "summary": "New 1,145-line native migration creates the Pens tables with identity primary keys, checks, composite keys, and foreign keys."
+          },
+          {
+            "area": "Drizzle relations",
+            "summary": "`relations.ts` adds 587 lines and reworks terminology aliases from product-type keys to `catalog_terminology_concept`; maker gains source-listing and refill-identifier relations."
+          },
+          {
+            "area": "Collection schema",
+            "summary": "`collection.ts` adds `serial_number` with a length check and adds composite unique constraints on product and product_material."
+          },
+          {
+            "area": "Catalog service",
+            "summary": "Alias creation now resolves a concept by namespace and key, stores `concept_id`, and maps the renamed alias uniqueness constraint."
+          },
+          {
+            "area": "Tests",
+            "summary": "Adds a Pens constraint integration suite; existing catalog and baseline tests switch some hardcoded IDs to slug lookups and loosen product-type assertions."
+          },
+          {
+            "area": "Schema docs",
+            "summary": "The HTML schema diagram gains 1,171 lines of table metadata for the new catalog, provenance, market, and terminology tables."
+          }
+        ],
+        "coverageGaps": [
+          "The workspace contains only pull-request.json, and each file patch is truncated near 2,000 characters; the full bodies of pens.ts, migration.sql, relations.ts, the docs HTML, and the tests were not available.",
+          "Omitted tables from the diagrams include the remaining pen and part product-detail tables, the refill offering core tables, product configuration tables, collection pen detail tables, and all link tables not visible in the excerpts.",
+          "Omitted relationships include the product-to-product compatibility link table or tables, refill offering to identifier, pen mechanism to mechanism, and the collection-item detail links.",
+          "Could not search the full repository for callers of the removed `catalogTerminologyAlias.productType` and `productType.catalogTerminologyAliases` relations.",
+          "Could not verify the backfill and nullability of `catalog_terminology_alias.concept_id` or that the new `catalog_terminology_alias_scope_value_unique` constraint exists in the migration.",
+          "No production load profile or query plans were available; the index finding assumes a catalog that grows beyond a few markets.",
+          "Could not verify that the HTML schema diagram matches the generated Drizzle schema or that every new table is listed.",
+          "Omitted Pens catalog schema domains: invalid Mermaid syntax.",
+          "Large schema change had no valid domain map."
+        ]
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [
+          {
+            "severity": "high",
+            "title": "Market code uniqueness blocks regions that share a country code",
+            "file": "packages/database/drizzle/20261010021729_pens_catalog_schema/migration.sql",
+            "line": 4,
+            "evidence": "`catalog_market` defines `\"code\" text NOT NULL CONSTRAINT \"catalog_market_code_unique\" UNIQUE`; `catalog_market_code_valid` then allows `kind = 'region'` codes of 2-40 characters, so a region code like `CA` cannot coexist with the country code `CA`.",
+            "impact": "A state or province market such as California or Ontario cannot be stored beside Canada, or must use a non-standard code that breaks code-based lookup.",
+            "recommendation": "Replace the column UNIQUE with `UNIQUE (kind, code)`, or require region codes to carry a country prefix such as `US-CA` and enforce that format in the CHECK."
+          }
+        ],
+        "diagramRequirementsMet": false
+      },
+      "status": "success"
+    },
+    {
+      "id": "cheaperinference:deepseek-v4.1-flash:pr354:3",
+      "provider": "cheaperinference",
+      "model": "deepseek-v4.1-flash",
+      "pull": 354,
+      "repetition": 3,
+      "latencyMs": 115016,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": null,
+        "reasoningTokens": null,
+        "modelCalls": null,
+        "toolIterations": null,
+        "inputTokens": 39269,
+        "outputTokens": 3246,
+        "estimatedCostUsd": 0.0057802899999999996
+      },
+      "review": {
+        "overview": "PR #354 adds a normalized Pens catalog schema: shared-primary-key pen and part detail tables, mechanisms, refills, compatibility, markets and containment, source listings and evidence, and terminology concepts. It also adds a 1,145-line migration, central relation wiring, service lookup changes, integration tests, and an updated schema diagram. The visible hunks are broadly guarded by checks, but the review found a schema import cycle, non-updating updated_at columns, and a market hierarchy that permits cycles.",
+        "findings": [
+          {
+            "severity": "medium",
+            "title": "Circular import between collection and pens schema modules",
+            "file": "packages/database/src/schema/collection.ts",
+            "line": 19,
+            "evidence": "collection.ts adds `import { catalogTerminologyConcept } from \"./pens.js\";`; pens.ts:18-24 imports `collectionItem`, `finishOption`, `product`, `productImage`, and `productMaterial` from `./collection.js`.",
+            "impact": "ESM finishes one module before the other, so a top-level use of the imported table can throw a temporal-dead-zone error; at minimum, drizzle-kit must resolve a cycle every time it loads the schema.",
+            "recommendation": "Move the concept table to a neutral module such as catalog-terminology.ts and import it from both schema files, keeping the import graph acyclic."
+          },
+          {
+            "severity": "medium",
+            "title": "updated_at never changes on row updates",
+            "file": "packages/database/src/schema/pens.ts",
+            "line": 32,
+            "evidence": "`entityTimestamps` at pens.ts:28-35 defines `updatedAt: timestamp(\"updated_at\", { withTimezone: true }).defaultNow().notNull()`; there is no `$onUpdate`, and the migration only sets `DEFAULT now()`.",
+            "impact": "Updates leave updated_at at the creation time, so cache invalidation, audit, and recent-change queries read stale values.",
+            "recommendation": "Add `.$onUpdate(() => new Date())` to the column or a `BEFORE UPDATE` trigger that assigns `CURRENT_TIMESTAMP`."
+          },
+          {
+            "severity": "medium",
+            "title": "Market containment allows cycles",
+            "file": "packages/database/drizzle/20261010021729_pens_catalog_schema/migration.sql",
+            "line": 17,
+            "evidence": "`catalog_market_containment` has PRIMARY KEY (parent_market_id, child_market_id) and only `CHECK (\"parent_market_id\" <> \"child_market_id\")`; nothing rejects A -> B plus B -> A.",
+            "impact": "Recursive market nesting or permission inheritance can loop indefinitely, and the hierarchy can store contradictory containment.",
+            "recommendation": "Reject cycles in an insert/update trigger with a recursive check, or document the acyclic contract and bound traversal depth in every consumer."
+          },
+          {
+            "severity": "low",
+            "title": "No reverse index for market containment child",
+            "file": "packages/database/drizzle/20261010021729_pens_catalog_schema/migration.sql",
+            "line": 15,
+            "evidence": "The containment primary key is `(parent_market_id, child_market_id)`; `child_market_id` has no separate index in the visible migration.",
+            "impact": "Deleting or re-keying a market forces a sequential scan of containment for the FK check, and child-to-parent lookups are slow.",
+            "recommendation": "Add `CREATE INDEX catalog_market_containment_child_idx ON catalog_market_containment (child_market_id);`."
+          },
+          {
+            "severity": "low",
+            "title": "Composite unique indexes duplicate the primary key",
+            "file": "packages/database/src/schema/collection.ts",
+            "line": 368,
+            "evidence": "collection.ts:368 adds `unique(\"product_id_maker_unique\").on(table.id, table.makerId)` and collection.ts:562 adds `unique(\"product_material_id_product_unique\").on(table.id, table.productId)`; both `id` columns are already primary keys.",
+            "impact": "Each extra unique constraint writes and stores a second B-tree for a uniqueness rule the primary key already enforces; it only pays off if a composite FK targets it.",
+            "recommendation": "Confirm a composite FK needs these targets; otherwise drop both constraints and keep only the existing primary keys."
+          },
+          {
+            "severity": "low",
+            "title": "Region market codes are validated untrimmed",
+            "file": "packages/database/drizzle/20261010021729_pens_catalog_schema/migration.sql",
+            "line": 10,
+            "evidence": "`catalog_market_code_valid` checks `char_length(trim(\"code\"))` and `\"code\" <> 'GLOBAL'`, but `code` is stored and uniquely indexed as entered.",
+            "impact": "`'US '` and `'US'` both pass the region branch and coexist under the unique constraint, so code lookups and joins miss rows.",
+            "recommendation": "Add `CHECK (\"code\" = btrim(\"code\"))` or normalize the value before insert, and make the case rule explicit."
+          }
+        ],
+        "diagrams": [
+          {
+            "kind": "schema-er",
+            "title": "Pen parts, mechanisms, and refills",
+            "mermaid": "erDiagram\n  PRODUCT ||--|| PRODUCT_DETAIL_PEN : \"pen identity\"\n  PRODUCT ||--o| PRODUCT_DETAIL_PEN_PART : \"part identity\"\n  PRODUCT_DETAIL_PEN ||--o{ PRODUCT_DETAIL_PEN_MECHANISM : \"uses\"\n  MECHANISM ||--o{ PRODUCT_DETAIL_PEN_MECHANISM : \"typed by\"\n  PRODUCT_DETAIL_PEN_PART ||--o{ PEN_PART_COMPATIBILITY : \"hosts\"\n  PRODUCT_DETAIL_PEN ||--o{ PEN_PART_COMPATIBILITY : \"accepts\"\n  PRODUCT_DETAIL_PEN_PART ||--o{ REFILL_OFFERING : \"takes refill\"\n  REFILL_OFFERING ||--o{ REFILL_OFFERING_IDENTIFIER : \"identified by\"\n  MAKER ||--o{ REFILL_OFFERING_IDENTIFIER : \"issues\""
+          },
+          {
+            "kind": "schema-er",
+            "title": "Market hierarchy and source evidence",
+            "mermaid": "erDiagram\n  CATALOG_MARKET {\n    bigint id PK\n    text kind\n    text code UK\n    text display_name\n    text display_name_key\n  }\n  CATALOG_MARKET_CONTAINMENT {\n    bigint parent_market_id PK, FK\n    bigint child_market_id PK, FK\n  }\n  CATALOG_SOURCE_LISTING {\n    bigint id PK\n    bigint maker_id FK\n  }\n  CATALOG_SOURCE_EVIDENCE {\n    bigint id PK\n    bigint listing_id FK\n    bigint market_id FK\n    text publisher\n    text claim\n    date capture_date\n  }\n  MAKER ||--o{ CATALOG_SOURCE_LISTING : \"publishes\"\n  CATALOG_SOURCE_LISTING ||--o{ CATALOG_SOURCE_EVIDENCE : \"supports\"\n  CATALOG_MARKET ||--o{ CATALOG_SOURCE_EVIDENCE : \"scopes\"\n  CATALOG_MARKET ||--o{ CATALOG_MARKET_CONTAINMENT : \"parent of\"\n  CATALOG_MARKET ||--o{ CATALOG_MARKET_CONTAINMENT : \"child of\""
+          }
+        ],
+        "changedAreas": [
+          {
+            "area": "Database schema",
+            "summary": "Adds pens.ts with shared-PK pen and part details, mechanisms, refills, compatibility, markets, evidence, and terminology concepts; exports the new row types from the package index."
+          },
+          {
+            "area": "Collection schema",
+            "summary": "Adds collection_item.serial_number with a length check and adds composite unique constraints to product and product_material."
+          },
+          {
+            "area": "Migration",
+            "summary": "Adds a 1,145-line Drizzle migration creating the Pens catalog tables with checks, identities, and constraints."
+          },
+          {
+            "area": "Relations",
+            "summary": "Wires new tables into the central relation map, adds maker source and identifier relations, and replaces alias-to-productType with alias-to-concept."
+          },
+          {
+            "area": "Services",
+            "summary": "Creates terminology aliases through a concept lookup and renames the alias uniqueness conflict message."
+          },
+          {
+            "area": "Tests",
+            "summary": "Adds Pens catalog constraint tests and changes existing baseline tests to resolve product type ids by slug."
+          },
+          {
+            "area": "Docs",
+            "summary": "Updates the embedded database schema diagram with the new tables, fields, and statuses."
+          }
+        ],
+        "coverageGaps": [
+          "Full patches were truncated at 2,000 characters per file, so columns, constraints, indexes, foreign-key actions, and triggers after the first hunk were not available for review.",
+          "Omitted tables: existing product subtype tables such as product_detail_spinner, product_detail_spinner_button, product_detail_slider, product_detail_slider_plate, and product_detail_slider_insert are not shown in the diagrams.",
+          "Omitted relationships: the full compatibility, refill, product-configuration, and collection-item links beyond the visible relation names could not be mapped.",
+          "Not verified: migration backfill of catalog_terminology_concept rows for existing catalog_terminology_alias data, and whether concept_id is NOT NULL.",
+          "Not run: the migration, PGlite integration tests, drizzle-kit schema load, lint, and typecheck.",
+          "Omitted Pens catalog schema domains: invalid Mermaid syntax.",
+          "Large schema change had no valid domain map."
+        ]
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [],
+        "diagramRequirementsMet": false
+      },
+      "status": "success"
+    },
+    {
+      "id": "cheaperinference:deepseek-v4.1-flash:pr376:1",
+      "provider": "cheaperinference",
+      "model": "deepseek-v4.1-flash",
+      "pull": 376,
+      "repetition": 1,
+      "status": "in-progress",
+      "invocations": 1,
+      "reservedCostUsd": 0.01325,
+      "reconciliation": "Interrupted while upgrading telemetry; treated as a spent failed attempt and never replayed."
+    },
+    {
+      "id": "cheaperinference:deepseek-v4.1-flash:pr376:2",
+      "provider": "cheaperinference",
+      "model": "deepseek-v4.1-flash",
+      "pull": 376,
+      "repetition": 2,
+      "status": "in-progress",
+      "invocations": 1,
+      "reservedCostUsd": 0.01325
+    },
+    {
+      "id": "cheaperinference:deepseek-v4.1-flash:pr376:3",
+      "provider": "cheaperinference",
+      "model": "deepseek-v4.1-flash",
+      "pull": 376,
+      "repetition": 3,
+      "status": "error",
+      "latencyMs": 185467,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 97024,
+        "reasoningTokens": 32830,
+        "modelCalls": 7,
+        "toolIterations": 12,
+        "inputTokens": 23236,
+        "outputTokens": 668,
+        "estimatedCostUsd": 0.0028565599999999997
+      },
+      "reservedCostUsd": 0.01325,
+      "error": "OpenCode did not return a valid structured review"
+    },
+    {
+      "id": "cheaperinference:gemini-3.8-flash:pr403:1",
+      "provider": "cheaperinference",
+      "model": "gemini-3.8-flash",
+      "pull": 403,
+      "repetition": 1,
+      "status": "success",
+      "latencyMs": 479803,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 11824657,
+        "reasoningTokens": 0,
+        "modelCalls": 83,
+        "toolIterations": 86,
+        "inputTokens": 678617,
+        "outputTokens": 6957,
+        "estimatedCostUsd": 0.34949741
+      },
+      "review": {
+        "overview": "PR #403 establishes an isolated, transport-independent queue package (@package/queue) backed by BullMQ and ioredis, refactors @app/scraper to consume the shared queue abstraction, stages a new shared Redis queue (pocket-trash-queue) with RDB and AOF persistence in Railway IaC alongside the retained legacy queue, and configures native Railpack installation scripts.",
+        "findings": [],
+        "diagrams": [],
+        "changedAreas": [
+          {
+            "area": "Packages: Queue Abstraction",
+            "summary": "Introduced `@package/queue` with unified BullMQ and in-memory adapters, runtime Zod payload validation, and deterministic contract tests."
+          },
+          {
+            "area": "Apps: Scraper Queue Migration",
+            "summary": "Updated scraper producers, processor, and contexts to consume `@package/queue` instead of importing BullMQ directly."
+          },
+          {
+            "area": "Infrastructure: Railway IaC & Configuration",
+            "summary": "Staged `pocket-trash-queue` with AOF and RDB persistence in `.railway/railway.ts` while keeping `scraper-queue` during migration."
+          },
+          {
+            "area": "Tooling: CI & Change Classification",
+            "summary": "Added redis-server installation in CI workflow, updated change classification rules for `@package/queue`, and verified Railpack configuration."
+          },
+          {
+            "area": "Documentation",
+            "summary": "Updated infrastructure architecture diagrams, environment variable guidelines, complete erasure policies, and Railway deployment documentation."
+          }
+        ],
+        "coverageGaps": [
+          "Omitted Staged Shared Queue Architecture and Migration Flow: unsafe Mermaid raw HTML.",
+          "Architecture change had no valid architecture flowchart."
+        ]
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [],
+        "diagramRequirementsMet": false
+      }
+    },
+    {
+      "id": "cheaperinference:gemini-3.8-flash:pr403:2",
+      "provider": "cheaperinference",
+      "model": "gemini-3.8-flash",
+      "pull": 403,
+      "repetition": 2,
+      "status": "success",
+      "latencyMs": 373178,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 9119862,
+        "reasoningTokens": 0,
+        "modelCalls": 59,
+        "toolIterations": 62,
+        "inputTokens": 515257,
+        "outputTokens": 4884,
+        "estimatedCostUsd": 0.26439289
+      },
+      "review": {
+        "overview": "PR #403 extracts queue orchestration from apps/scraper into @package/queue, stages pocket-trash-queue on Railway with AOF and RDB persistence, and preserves the legacy scraper-queue service during migration.",
+        "findings": [],
+        "diagrams": [],
+        "changedAreas": [
+          {
+            "area": "packages/queue",
+            "summary": "Introduces @package/queue providing a transport-independent queue contract, an in-memory test adapter, and a production BullMQ adapter."
+          },
+          {
+            "area": "apps/scraper",
+            "summary": "Migrates scraper producers, CLI, and processor jobs from BullMQ direct calls to typed @package/queue methods and updates queue reference variables."
+          },
+          {
+            "area": "infrastructure",
+            "summary": "Provisions pocket-trash-queue with AOF and RDB persistence in Railway IaC, configures Railpack install scripts, and retains legacy scraper-queue."
+          },
+          {
+            "area": "documentation & tooling",
+            "summary": "Updates complete erasure guidelines, environment variable matrices, architecture decision records, infrastructure diagrams, and change classification rules."
+          }
+        ],
+        "coverageGaps": [
+          "Omitted Staged Queue Migration Architecture: invalid Mermaid syntax.",
+          "Architecture change had no valid architecture flowchart."
+        ]
+      },
+      "signals": {
+        "expectedFactRecallSignal": 0.3333333333333333,
+        "matchedFacts": [false, false, true],
+        "blockingFindingsForAdjudication": [],
+        "diagramRequirementsMet": false
+      }
+    },
+    {
+      "id": "cheaperinference:gemini-3.8-flash:pr403:3",
+      "provider": "cheaperinference",
+      "model": "gemini-3.8-flash",
+      "pull": 403,
+      "repetition": 3,
+      "status": "success",
+      "latencyMs": 192450,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 2663964,
+        "reasoningTokens": 0,
+        "modelCalls": 27,
+        "toolIterations": 30,
+        "inputTokens": 372672,
+        "outputTokens": 2733,
+        "estimatedCostUsd": 0.1892778
+      },
+      "review": {
+        "overview": "PR #403 abstracts BullMQ operations into a dedicated `@package/queue` workspace package and provisions a shared Redis instance (`pocket-trash-queue`) with RDB snapshots and AOF persistence in Railway. The scraper CLI and worker pipelines migrate to the transport-independent queue boundary, retaining `scraper-queue` as a legacy instance for zero-downtime migration.",
+        "findings": [],
+        "diagrams": [],
+        "changedAreas": [
+          {
+            "area": "Infrastructure & Deployment",
+            "summary": "Added `pocket-trash-queue` Redis resource with RDB and AOF persistence in `.railway/railway.ts`, updated `.railwayignore` and `railpack.json`, and configured Railway deployment workflows."
+          },
+          {
+            "area": "Queue Abstraction Package",
+            "summary": "Introduced `@package/queue` with BullMQ and in-memory queue adapters, strict payload schemas, contract test suites, and lifecycle management."
+          },
+          {
+            "area": "Scraper Application",
+            "summary": "Migrated scraper producers and worker drain logic from direct BullMQ dependencies to `@package/queue`, pointing connection configurations to `pocket-trash-queue`."
+          },
+          {
+            "area": "Documentation & Compliance",
+            "summary": "Updated erasure matrix, infrastructure topology diagrams, environment variable maps, and architecture decisions for the shared queue boundary."
+          }
+        ],
+        "coverageGaps": [
+          "Redis child process spawn test in bullmq.integration.test.ts requires local redis-server binary not run during workspace evaluation",
+          "PostgreSQL code review rules evaluated: PR contains no database migrations or PostgreSQL-specific query changes",
+          "Omitted Staged Railway Queue and Migration Flow: invalid Mermaid syntax.",
+          "Architecture change had no valid architecture flowchart."
+        ]
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [],
+        "diagramRequirementsMet": false
+      }
+    },
+    {
+      "id": "cheaperinference:gemini-3.8-flash:pr354:1",
+      "provider": "cheaperinference",
+      "model": "gemini-3.8-flash",
+      "pull": 354,
+      "repetition": 1,
+      "status": "success",
+      "latencyMs": 213709,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 1345853,
+        "reasoningTokens": 0,
+        "modelCalls": 30,
+        "toolIterations": 33,
+        "inputTokens": 193338,
+        "outputTokens": 3318,
+        "estimatedCostUsd": 0.10283154
+      },
+      "review": {
+        "overview": "PR #354 introduces the Pens catalog domain into the database layer, adding schema definitions, relational mappings, and migrations for pens, pen parts, refills, compatibility rules, market listings, evidence provenance, and product configurations. It also refactors catalog terminology aliases to link to catalog terminology concepts and adjusts catalog services and tests to match.",
+        "findings": [],
+        "diagrams": [
+          {
+            "kind": "schema-er",
+            "title": "Pens Core Subtypes and Compatibility ER",
+            "mermaid": "erDiagram\n  product ||--o| product_detail_pen : \"specializes\"\n  product ||--o| product_detail_pen_part : \"specializes\"\n  product_detail_pen_part ||--o| product_detail_pen_clip : \"is\"\n  product_detail_pen_part ||--o| product_detail_pen_mechanism : \"is\"\n  product ||--o{ collection_item : \"owned as\"\n  catalog_market ||--o{ catalog_source_evidence : \"scopes\"\n  product {\n    bigint id PK\n    bigint maker_id FK\n    text name\n    text slug\n  }\n  product_detail_pen {\n    bigint id PK,FK\n    timestamptz created_at\n    timestamptz updated_at\n  }\n  product_detail_pen_part {\n    bigint id PK,FK\n    timestamptz created_at\n    timestamptz updated_at\n  }\n  product_detail_pen_clip {\n    bigint id PK,FK\n    text clip_type\n  }\n  product_detail_pen_mechanism {\n    bigint id PK,FK\n    bigint mechanism_id FK\n  }\n  collection_item {\n    bigint id PK\n    bigint product_id FK\n    bigint collection_id FK\n    text serial_number\n  }\n  catalog_market {\n    bigint id PK\n    text kind\n    text code\n  }\n  catalog_source_evidence {\n    bigint id PK\n    bigint market_id FK\n    text publisher\n    text original_url\n  }"
+          }
+        ],
+        "changedAreas": [
+          {
+            "area": "Database Schema & Migrations",
+            "summary": "Added migration and Drizzle definitions for Pens catalog entities including pens, parts, mechanisms, clips, refill offerings, market scoping, evidence provenance, and terminology concepts."
+          },
+          {
+            "area": "Relations & Foreign Keys",
+            "summary": "Mapped relations in Drizzle schema linking products, makers, mechanisms, and collection items to the new pen detail entities and revised catalog terminology alias links."
+          },
+          {
+            "area": "Catalog Service & Tests",
+            "summary": "Updated terminology alias queries in createCatalogService to resolve against catalogTerminologyConcept and aligned baseline integration test fixtures."
+          }
+        ],
+        "coverageGaps": [
+          "Omitted secondary ER slice for catalog_manifest_record, catalog_market_containment, and raw scraper ingestion tables as they are outside the core pen compatibility and detail hierarchy.",
+          "Database migration snapshot JSON was omitted from PR review diff payload based on repository trusted generated-file pattern.",
+          "Omitted Pens Catalog Domain Architecture: invalid Mermaid syntax.",
+          "Large schema change had no valid domain map."
+        ]
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [],
+        "diagramRequirementsMet": false
+      }
+    },
+    {
+      "id": "cheaperinference:gemini-3.8-flash:pr354:2",
+      "provider": "cheaperinference",
+      "model": "gemini-3.8-flash",
+      "pull": 354,
+      "repetition": 2,
+      "status": "success",
+      "latencyMs": 556734,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 3768755,
+        "reasoningTokens": 0,
+        "modelCalls": 59,
+        "toolIterations": 62,
+        "inputTokens": 423526,
+        "outputTokens": 5613,
+        "estimatedCostUsd": 0.22122345999999998
+      },
+      "review": {
+        "overview": "Adds the normalized Pens domain schema to the database package and migrates catalog terminology aliases to reference catalogTerminologyConcept. Includes new tables for pens, pen parts, refill offerings, compatibility, provenance, markets, evidence, and product configurations alongside comprehensive constraint integration tests.",
+        "findings": [
+          {
+            "severity": "medium",
+            "title": "Hardcoded product-type canonical namespace in createCatalogService return object",
+            "file": "packages/services/src/db/catalog/index.ts",
+            "line": 2476,
+            "evidence": "canonicalNamespace: \"product-type\",",
+            "impact": "When createCatalogService inserts a terminology alias for namespaces other than 'product-type', the returned object still hardcodes canonicalNamespace to 'product-type' instead of reflecting input.canonicalNamespace.",
+            "recommendation": "Return canonicalNamespace: input.canonicalNamespace instead of hardcoding 'product-type'."
+          }
+        ],
+        "diagrams": [
+          {
+            "kind": "schema-er",
+            "title": "Pens Product and Parts Subtypes",
+            "mermaid": "erDiagram\n    product ||--o| product_detail_pen : \"specializes\"\n    product ||--o| product_detail_pen_part : \"specializes\"\n    product_detail_pen_part ||--o| product_detail_pen_clip : \"is\"\n    product_detail_pen_part ||--o| product_detail_pen_tip : \"is\"\n    product_detail_pen_part ||--o| product_detail_pen_body : \"is\"\n    product_detail_pen_part ||--o| product_detail_pen_cap : \"is\"\n    product_detail_pen_part ||--o| product_detail_pen_mechanism : \"is\"\n    product_detail_pen ||--o{ pen_refill_compatibility : \"accepts\"\n    refill_offering ||--o{ pen_refill_compatibility : \"compatible_with\""
+          },
+          {
+            "kind": "schema-er",
+            "title": "Market, Evidence, and Refill Governance",
+            "mermaid": "erDiagram\n    catalog_market ||--o{ catalog_market_containment : \"parent\"\n    catalog_market ||--o{ catalog_market_containment : \"child\"\n    catalog_market ||--o{ catalog_source_evidence : \"scopes\"\n    catalog_source_listing ||--o{ catalog_source_evidence : \"documents\"\n    catalog_terminology_concept ||--o{ catalog_terminology_alias : \"maps\"\n    refill_offering ||--o{ refill_offering_identifier : \"identifies\""
+          }
+        ],
+        "changedAreas": [
+          {
+            "area": "database-schema",
+            "summary": "Introduces normalized Pens catalog tables, subtypes, compatibility models, market evidence structures, and updates collection_item and product tables."
+          },
+          {
+            "area": "catalog-service",
+            "summary": "Updates catalog terminology alias resolution to look up concepts via catalogTerminologyConcept instead of directly querying product types."
+          },
+          {
+            "area": "tests",
+            "summary": "Adds comprehensive integration tests for Pens catalog relational constraints and updates baseline subtype tests."
+          }
+        ],
+        "coverageGaps": [
+          "Omitted full ER relationships for legacy tmp_* tables and scraper staging entities.",
+          "Omitted historical audit log relationships and attachment file lifecycle tables from the ER slice.",
+          "Omitted Pens Catalog Domain Architecture: invalid Mermaid syntax.",
+          "Large schema change had no valid domain map."
+        ]
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [],
+        "diagramRequirementsMet": false
+      }
+    },
+    {
+      "id": "cheaperinference:gemini-3.8-flash:pr354:3",
+      "provider": "cheaperinference",
+      "model": "gemini-3.8-flash",
+      "pull": 354,
+      "repetition": 3,
+      "status": "success",
+      "latencyMs": 724120,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 5034701,
+        "reasoningTokens": 0,
+        "modelCalls": 97,
+        "toolIterations": 99,
+        "inputTokens": 526447,
+        "outputTokens": 8851,
+        "estimatedCostUsd": 0.27955547
+      },
+      "review": {
+        "overview": "Adds normalized Pens catalog entities, domain constraints, relations, and migration schema spanning pens, parts, refill offerings, compatibility, provenance, and markets. Updates catalog terminology aliases to link directly to catalogTerminologyConcept.",
+        "findings": [],
+        "diagrams": [
+          {
+            "kind": "schema-er",
+            "title": "Refill Offerings & Compatibility ER",
+            "mermaid": "erDiagram\n  REFILL_OFFERING ||--o{ REFILL_OFFERING_IDENTIFIER : identifies\n  PRODUCT_DETAIL_PEN ||--o{ PEN_REFILL_COMPATIBILITY : supports\n  REFILL_OFFERING ||--o{ PEN_REFILL_COMPATIBILITY : matches\n  MAKER ||--o{ REFILL_OFFERING : manufactures\n  REFILL_OFFERING {\n    bigint id PK\n    bigint maker_id FK\n    text name\n    text slug\n    text kind\n  }\n  REFILL_OFFERING_IDENTIFIER {\n    bigint id PK\n    bigint refill_offering_id FK\n    text kind\n    text identifier\n  }\n  PEN_REFILL_COMPATIBILITY {\n    bigint pen_id PK_FK\n    bigint refill_offering_id PK_FK\n    text note\n  }"
+          }
+        ],
+        "changedAreas": [
+          {
+            "area": "packages/database/src/schema/pens.ts",
+            "summary": "Defines tables and constraints for pens, parts, refill offerings, market containment, and catalog evidence."
+          },
+          {
+            "area": "packages/database/src/schema/relations.ts",
+            "summary": "Establishes Drizzle relational mapping across the new pens tables, makers, mechanisms, and products."
+          },
+          {
+            "area": "packages/database/src/schema/collection.ts",
+            "summary": "Adds serial number validation to collectionItem and unique product-maker indices."
+          },
+          {
+            "area": "packages/database/drizzle/20261010021729_pens_catalog_schema/migration.sql",
+            "summary": "PostgreSQL DDL migration defining tables, foreign keys, identity sequences, and CHECK constraints."
+          },
+          {
+            "area": "packages/services/src/db/catalog/index.ts",
+            "summary": "Updates terminology alias creation to resolve and link catalogTerminologyConcept references."
+          },
+          {
+            "area": "packages/database/test/pens-catalog.integration.test.ts",
+            "summary": "Integration tests validating pens catalog constraints, market structures, and product extensions."
+          }
+        ],
+        "coverageGaps": [
+          "snapshot.json was omitted from the PR inspection payload as a trusted generated-file pattern.",
+          "Omitted full diagramming of catalog_manifest_record, catalog_terminology_alias, and collection_detail_pen_part relationships to keep schema-er diagrams focused.",
+          "Omitted Pens Catalog Sub-domains: invalid Mermaid syntax.",
+          "Omitted Pen & Part Product Hierarchy ER: invalid Mermaid syntax.",
+          "Large schema change had no valid domain map."
+        ]
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [],
+        "diagramRequirementsMet": false
+      }
+    },
+    {
+      "id": "cheaperinference:gemini-3.8-flash:pr376:1",
+      "provider": "cheaperinference",
+      "model": "gemini-3.8-flash",
+      "pull": 376,
+      "repetition": 1,
+      "status": "success",
+      "latencyMs": 385327,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 3347230,
+        "reasoningTokens": 0,
+        "modelCalls": 54,
+        "toolIterations": 57,
+        "inputTokens": 205700,
+        "outputTokens": 4638,
+        "estimatedCostUsd": 0.11210972
+      },
+      "review": {
+        "overview": "Adds exact catalog and privacy-preserving collection material Trends rollups, route endpoints, UI drill-downs, and a backing database table.",
+        "findings": [],
+        "diagrams": [
+          {
+            "kind": "schema-er",
+            "mermaid": "erDiagram\n  public_trends_generation ||--o{ public_collection_item_material_trend : \"generation_id\"\n  product_types ||--o{ public_collection_item_material_trend : \"product_type_id\"\n  materials ||--o{ public_collection_item_material_trend : \"material_id\"\n  material_specifics ||--o{ public_collection_item_material_trend : \"material_specific_id\"\n\n  public_trends_generation {\n    bigint id PK\n    boolean active\n    timestamp generated_at\n    boolean has_suppressed_values\n    boolean has_suppressed_part_accessory_values\n    boolean has_suppressed_material_values\n  }\n\n  public_collection_item_material_trend {\n    bigint id PK\n    bigint generation_id FK\n    bigint product_type_id FK\n    bigint material_id FK\n    bigint material_specific_id FK\n    boolean is_specific_breakdown\n    integer rounded_item_count\n    integer rounded_collector_count\n  }",
+            "title": "Material Trends Schema Relationships"
+          }
+        ],
+        "changedAreas": [
+          {
+            "area": "Database Schema & Migrations",
+            "summary": "Introduces `public_collection_item_material_trend` table with foreign key constraints, uniqueness rules, and a suppression flag on `public_trends_generation`."
+          },
+          {
+            "area": "Trends Services & Queries",
+            "summary": "Adds exact catalog material counting and threshold-rounded collection material queries to `packages/services`."
+          },
+          {
+            "area": "Web Routing & UI Drill-Downs",
+            "summary": "Exposes server functions for material trends, adds search parameters for material filters, and integrates material breakdowns into `TrendsPage`."
+          }
+        ],
+        "coverageGaps": []
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [],
+        "diagramRequirementsMet": true
+      }
+    },
+    {
+      "id": "cheaperinference:gemini-3.8-flash:pr376:2",
+      "provider": "cheaperinference",
+      "model": "gemini-3.8-flash",
+      "pull": 376,
+      "repetition": 2,
+      "status": "success",
+      "latencyMs": 238431,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 2232783,
+        "reasoningTokens": 0,
+        "modelCalls": 39,
+        "toolIterations": 42,
+        "inputTokens": 167777,
+        "outputTokens": 3619,
+        "estimatedCostUsd": 0.09104108999999999
+      },
+      "review": {
+        "overview": "PR #376 adds exact catalog product and privacy-safe collection material trend queries, backing schema migrations, and route/UI drill-downs for material-level trend analytics.",
+        "findings": [],
+        "diagrams": [
+          {
+            "kind": "schema-er",
+            "mermaid": "erDiagram\n    public_trends_generation ||--o{ public_collection_item_material_trend : \"generates\"\n    product_types ||--o{ public_collection_item_material_trend : \"categorizes\"\n    material ||--o{ public_collection_item_material_trend : \"classifies\"\n    material_specific ||--o{ public_collection_item_material_trend : \"specifies\"\n\n    public_trends_generation {\n        bigint id PK\n        boolean active\n        timestamptz generated_at\n        boolean has_suppressed_values\n        boolean has_suppressed_part_accessory_values\n        boolean has_suppressed_material_values\n    }\n\n    public_collection_item_material_trend {\n        bigint id PK\n        bigint generation_id FK\n        bigint product_type_id FK\n        bigint material_id FK\n        bigint material_specific_id FK\n        boolean is_specific_breakdown\n        integer rounded_item_count\n        integer rounded_collector_count\n    }\n\n    product_types {\n        bigint id PK\n    }\n\n    material {\n        bigint id PK\n    }\n\n    material_specific {\n        bigint id PK\n        bigint material_id FK\n    }",
+            "title": "Public Collection Item Material Trend Schema and Direct Relationships"
+          }
+        ],
+        "changedAreas": [
+          {
+            "area": "packages/database",
+            "summary": "Adds public_collection_item_material_trend table, migration script, foreign key constraints, composite unique index, check constraints, and has_suppressed_material_values column on public_trends_generation."
+          },
+          {
+            "area": "packages/services",
+            "summary": "Implements getPublicCatalogMaterialTrends and getPublicCollectionMaterialTrends methods, refresh aggregation logic, and Vitest integration coverage."
+          },
+          {
+            "area": "apps/web",
+            "summary": "Exposes material trend server functions, extends route search parameters and loader with material filters, and updates the Trends page UI and Storybook stories."
+          }
+        ],
+        "coverageGaps": []
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [],
+        "diagramRequirementsMet": true
+      }
+    },
+    {
+      "id": "cheaperinference:gemini-3.8-flash:pr376:3",
+      "provider": "cheaperinference",
+      "model": "gemini-3.8-flash",
+      "pull": 376,
+      "repetition": 3,
+      "status": "success",
+      "latencyMs": 646902,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 10599073,
+        "reasoningTokens": 0,
+        "modelCalls": 99,
+        "toolIterations": 102,
+        "inputTokens": 641093,
+        "outputTokens": 8539,
+        "estimatedCostUsd": 0.33497073
+      },
+      "review": {
+        "overview": "PR #376 adds exact catalog product material trends and privacy-safe collection material trends with drill-down filters by general and specific material. It introduces the `public_collection_item_material_trend` table, extends trends refresh and retrieval services, and updates the public web routes, page components, and search normalization.",
+        "findings": [
+          {
+            "severity": "medium",
+            "title": "Unvalidated material identifiers in collection material queries",
+            "file": "apps/web/src/lib/catalog-filters.ts",
+            "line": 32,
+            "evidence": "const hasMaterialId = Number.isSafeInteger(materialId) && materialId > 0; return { ...(hasMaterialId ? { materialId } : {}), ...(hasMaterialId && Number.isSafeInteger(materialSpecificId) && materialSpecificId > 0 ? { materialSpecificId } : {}) };",
+            "impact": "Arbitrary integer IDs passed via query parameters trigger unfiltered service lookups for nonexistent material records, returning empty datasets instead of falling back to default aggregates.",
+            "recommendation": "Validate materialId and materialSpecificId against known catalog material IDs or handle missing lookup entities by stripping non-matching search params."
+          }
+        ],
+        "diagrams": [
+          {
+            "kind": "schema-er",
+            "title": "Changed Entities and Direct Relationships",
+            "mermaid": "erDiagram\n    public_trends_generation ||--o{ public_collection_item_material_trend : \"generation_id\"\n    product_types ||--o{ public_collection_item_material_trend : \"product_type_id\"\n    materials ||--o{ public_collection_item_material_trend : \"material_id\"\n    material_specifics ||--o{ public_collection_item_material_trend : \"material_specific_id, material_id\"\n\n    public_trends_generation {\n        bigint id PK\n        boolean active\n        timestamp generated_at\n        boolean has_suppressed_values\n        boolean has_suppressed_part_accessory_values\n        boolean has_suppressed_material_values\n    }\n\n    public_collection_item_material_trend {\n        bigint id PK\n        bigint generation_id FK\n        bigint product_type_id FK\n        bigint material_id FK\n        bigint material_specific_id FK\n        boolean is_specific_breakdown\n        integer rounded_item_count\n        integer rounded_collector_count\n    }"
+          }
+        ],
+        "changedAreas": [
+          {
+            "area": "Database Schema & Migrations",
+            "summary": "Introduces public_collection_item_material_trend table with foreign keys, uniqueness constraints, and suppression flag on public_trends_generation."
+          },
+          {
+            "area": "Services Trends Service",
+            "summary": "Implements exact catalog material aggregation and privacy-threshold rounded collection material trends in TrendsService."
+          },
+          {
+            "area": "Web Trends Routes & UI",
+            "summary": "Adds URL search normalization and interactive UI drill-downs for material and specific material breakdowns on the trends page."
+          }
+        ],
+        "coverageGaps": [
+          "Load test coverage for refreshPublicCollectionItemTrends with large material volumes.",
+          "Boundary tests for invalid or deleted material IDs passed to parseCatalogTrendsSearch."
+        ]
+      },
+      "signals": {
+        "expectedFactRecallSignal": 1,
+        "matchedFacts": [true, true, true],
+        "blockingFindingsForAdjudication": [],
+        "diagramRequirementsMet": true
+      }
+    },
+    {
+      "id": "cheaperinference:claude-sonnet-5.5:pr403:1",
+      "provider": "cheaperinference",
+      "model": "claude-sonnet-5.5",
+      "pull": 403,
+      "repetition": 1,
+      "status": "error",
+      "latencyMs": 88676,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 38213,
+        "reasoningTokens": 0,
+        "modelCalls": 8,
+        "toolIterations": 13,
+        "inputTokens": 313105,
+        "outputTokens": 7627,
+        "estimatedCostUsd": 0.456612
+      },
+      "reservedCostUsd": 0.456612,
+      "error": "OpenCode did not return a valid structured review"
+    },
+    {
+      "id": "cheaperinference:claude-sonnet-5.5:pr403:2",
+      "provider": "cheaperinference",
+      "model": "claude-sonnet-5.5",
+      "pull": 403,
+      "repetition": 2,
+      "status": "error",
+      "latencyMs": 75969,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 32754,
+        "reasoningTokens": 0,
+        "modelCalls": 7,
+        "toolIterations": 10,
+        "inputTokens": 244569,
+        "outputTokens": 6738,
+        "estimatedCostUsd": 0.3617367
+      },
+      "reservedCostUsd": 0.3617367,
+      "error": "OpenCode did not return a valid structured review"
+    },
+    {
+      "id": "cheaperinference:claude-sonnet-5.5:pr403:3",
+      "provider": "cheaperinference",
+      "model": "claude-sonnet-5.5",
+      "pull": 403,
+      "repetition": 3,
+      "status": "error",
+      "latencyMs": 95780,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 43672,
+        "reasoningTokens": 0,
+        "modelCalls": 9,
+        "toolIterations": 12,
+        "inputTokens": 404200,
+        "outputTokens": 7783,
+        "estimatedCostUsd": 0.5760495
+      },
+      "reservedCostUsd": 0.5760495,
+      "error": "OpenCode did not return a valid structured review"
+    },
+    {
+      "id": "cheaperinference:claude-sonnet-5.5:pr354:1",
+      "provider": "cheaperinference",
+      "model": "claude-sonnet-5.5",
+      "pull": 354,
+      "repetition": 1,
+      "status": "error",
+      "latencyMs": 93170,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 54590,
+        "reasoningTokens": 0,
+        "modelCalls": 11,
+        "toolIterations": 16,
+        "inputTokens": 285331,
+        "outputTokens": 7656,
+        "estimatedCostUsd": 0.42069429999999997
+      },
+      "reservedCostUsd": 0.42069429999999997,
+      "error": "OpenCode did not return a valid structured review"
+    },
+    {
+      "id": "cheaperinference:claude-sonnet-5.5:pr354:2",
+      "provider": "cheaperinference",
+      "model": "claude-sonnet-5.5",
+      "pull": 354,
+      "repetition": 2,
+      "status": "error",
+      "latencyMs": 59901,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 27265,
+        "reasoningTokens": 0,
+        "modelCalls": 6,
+        "toolIterations": 9,
+        "inputTokens": 108952,
+        "outputTokens": 4692,
+        "estimatedCostUsd": 0.1721356
+      },
+      "reservedCostUsd": 0.1721356,
+      "error": "OpenCode did not return a valid structured review"
+    },
+    {
+      "id": "cheaperinference:claude-sonnet-5.5:pr354:3",
+      "provider": "cheaperinference",
+      "model": "claude-sonnet-5.5",
+      "pull": 354,
+      "repetition": 3,
+      "status": "error",
+      "latencyMs": 122309,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 38255,
+        "reasoningTokens": 0,
+        "modelCalls": 8,
+        "toolIterations": 11,
+        "inputTokens": 170803,
+        "outputTokens": 6605,
+        "estimatedCostUsd": 0.2649764
+      },
+      "reservedCostUsd": 0.2649764,
+      "error": "OpenCode did not return a valid structured review"
+    },
+    {
+      "id": "cheaperinference:claude-sonnet-5.5:pr376:1",
+      "provider": "cheaperinference",
+      "model": "claude-sonnet-5.5",
+      "pull": 376,
+      "repetition": 1,
+      "status": "error",
+      "latencyMs": 69108,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 32718,
+        "reasoningTokens": 0,
+        "modelCalls": 7,
+        "toolIterations": 11,
+        "inputTokens": 154537,
+        "outputTokens": 6188,
+        "estimatedCostUsd": 0.2411201
+      },
+      "reservedCostUsd": 0.2411201,
+      "error": "OpenCode did not return a valid structured review"
+    },
+    {
+      "id": "cheaperinference:claude-sonnet-5.5:pr376:2",
+      "provider": "cheaperinference",
+      "model": "claude-sonnet-5.5",
+      "pull": 376,
+      "repetition": 2,
+      "status": "error",
+      "latencyMs": 57555,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 32754,
+        "reasoningTokens": 0,
+        "modelCalls": 7,
+        "toolIterations": 11,
+        "inputTokens": 153787,
+        "outputTokens": 3958,
+        "estimatedCostUsd": 0.2256501
+      },
+      "reservedCostUsd": 0.2256501,
+      "error": "OpenCode did not return a valid structured review"
+    },
+    {
+      "id": "cheaperinference:claude-sonnet-5.5:pr376:3",
+      "provider": "cheaperinference",
+      "model": "claude-sonnet-5.5",
+      "pull": 376,
+      "repetition": 3,
+      "status": "error",
+      "latencyMs": 97039,
+      "invocations": 1,
+      "usage": {
+        "cachedInputTokens": 43720,
+        "reasoningTokens": 0,
+        "modelCalls": 9,
+        "toolIterations": 12,
+        "inputTokens": 229785,
+        "outputTokens": 5763,
+        "estimatedCostUsd": 0.33618
+      },
+      "reservedCostUsd": 0.33618,
+      "error": "OpenCode did not return a valid structured review"
+    }
+  ]
+}
