@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateReview } from "./review.mjs";
+import { sanitizeVisuals } from "./visuals.mjs";
 
 const OPENCODE_PACKAGE = "opencode-ai@1.19.3";
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
@@ -205,6 +206,7 @@ export async function runRestrictedReview({
   execute = executeFile,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   onSkillsResolved = () => {},
+  visualRequirements,
 }) {
   if (!apiKey) throw new TypeError("CHEAPER_INFERENCE_API_KEY is required");
   if (provider !== "cheaperinference")
@@ -260,7 +262,10 @@ export async function runRestrictedReview({
           timeout: timeoutMs,
         },
       );
-      return validateReview(JSON.parse(structuredText(stdout)));
+      return sanitizeVisuals(
+        validateReview(JSON.parse(structuredText(stdout))),
+        visualRequirements,
+      );
     };
     try {
       const review = await invoke(skills);

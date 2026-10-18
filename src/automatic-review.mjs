@@ -13,6 +13,7 @@ import {
 } from "./intake.mjs";
 import { runRestrictedReview } from "./opencode.mjs";
 import { renderReview } from "./review.mjs";
+import { visualPrompt, visualRequirements } from "./visuals.mjs";
 import {
   discoverInstalledSkills,
   filterSkillOverrides,
@@ -63,6 +64,7 @@ const packageEvidence = (
     ),
   )
 ).filter(Boolean);
+const requestedVisuals = visualRequirements(prepared.files);
 const skillSelection = selectRelevantSkills({
   manifest: skillManifest,
   installed: await discoverInstalledSkills(join(reviewerRoot, "skills")),
@@ -120,8 +122,9 @@ try {
     provider: context.config.provider,
     model: context.config.model,
     skills: skillSelection.selected,
-    prompt: `${context.config.prompt}\nRepository evidence and installed package versions override conflicting skill advice.`,
+    prompt: `${context.config.prompt}\nRepository evidence and installed package versions override conflicting skill advice.\n${visualPrompt(requestedVisuals)}`,
     workspace,
+    visualRequirements: requestedVisuals,
     onSkillsResolved: (skills) => {
       effectiveSkills = skills;
     },

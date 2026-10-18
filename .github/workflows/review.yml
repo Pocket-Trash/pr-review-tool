@@ -43,6 +43,10 @@ jobs:
         if: steps.preflight.outputs.runnable == 'true'
         working-directory: reviewer
         run: npm run skills:install
+      - name: Install pinned reviewer dependencies
+        if: steps.preflight.outputs.runnable == 'true'
+        working-directory: reviewer
+        run: npm ci --ignore-scripts
       - id: review
         if: steps.preflight.outputs.runnable == 'true'
         run: node reviewer/src/automatic-review.mjs
