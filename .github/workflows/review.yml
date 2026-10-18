@@ -1,0 +1,53 @@
+name: Pocket Trash PR review
+
+on:
+  workflow_call:
+    inputs:
+      reviewer-sha:
+        description: Full commit SHA used to call this workflow
+        required: true
+        type: string
+      config-path:
+        description: Trusted configuration path on the base SHA
+        required: false
+        default: .github/pr-review.json
+        type: string
+    secrets:
+      CHEAPER_INFERENCE_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Validate immutable reviewer reference
+        env:
+          REVIEWER_SHA: ${{ inputs.reviewer-sha }}
+        run: node -e 'if (!/^[0-9a-f]{40}$/.test(process.env.REVIEWER_SHA)) process.exit(1)'
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: Pocket-Trash/pr-review-tool
+          ref: ${{ inputs.reviewer-sha }}
+          path: reviewer
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - id: review
+        run: node reviewer/src/automatic-review.mjs
+        env:
+          CHEAPER_INFERENCE_API_KEY: ${{ secrets.CHEAPER_INFERENCE_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REVIEW_ARTIFACT_PATH: ${{ runner.temp }}/review-result.json
+          REVIEW_CONFIG_PATH: ${{ inputs.config-path }}
+      - if: steps.review.outputs.reviewed == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pr-review-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/review-result.json
+          retention-days: 90

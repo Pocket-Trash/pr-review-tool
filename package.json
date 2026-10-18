@@ -5,6 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/review.mjs",
+    "./events": "./src/events.mjs",
+    "./intake": "./src/intake.mjs",
     "./opencode": "./src/opencode.mjs"
   },
   "scripts": {
@@ -12,7 +14,7 @@
     "format:check": "npx --yes prettier@3.6.2 --check .",
     "review:local": "node src/local-review.mjs",
     "test": "node --test",
-    "typecheck": "node --check src/review.mjs && node --check src/fixture.mjs && node --check src/opencode.mjs && node --check src/local-review.mjs"
+    "typecheck": "node --check src/*.mjs"
   },
   "engines": {
     "node": ">=22"
