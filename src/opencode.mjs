@@ -195,11 +195,21 @@ function outputEvents(output) {
 }
 
 function modelText(events) {
-  return events
-    .map(
-      (event) => event.part?.text ?? (event.type === "text" ? event.text : ""),
-    )
-    .join("");
+  const textEvents = events.filter(
+    (event) =>
+      event.type === "text" &&
+      typeof (event.part?.text ?? event.text) === "string",
+  );
+  const last = textEvents.at(-1);
+  if (!last) return "";
+  const messageId = last.part?.messageID;
+  const finalEvents = messageId
+    ? textEvents.filter((event) => event.part?.messageID === messageId)
+    : [last];
+  const parts = new Map();
+  for (const [index, event] of finalEvents.entries())
+    parts.set(event.part?.id ?? index, event.part?.text ?? event.text);
+  return [...parts.values()].join("");
 }
 
 function structuredText(events) {

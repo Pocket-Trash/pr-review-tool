@@ -73,8 +73,12 @@ const lines = [
   "",
   "Runs without `validatorFormat: node-dom-v1` also predate the Node DOM initialization required by Mermaid's labeled flowchart parser. Some reported syntax failures were validator errors, so those runs cannot support a production selection. Raw-HTML and other explicit safety rejections remain enforced.",
   "",
-  "| Provider | Model | Runs | Failures | Reconcile | Assessed | Accuracy | False claims/blockers | Gate failures (boundary/artifact/coverage/diagram/telemetry/loop) | Median latency | Tokens (in/cached/reasoning/out) | Calls/tools | Accounted cost | Status |",
-  "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+  "Accounted costs combine reported usage and local reservations. Interrupted calls can cost more than their reservation and have no final token telemetry; these amounts are estimates, not an authoritative provider bill. Reconcile the interrupted rows with the dedicated provider key's usage ledger before approving replacement runs.",
+  "",
+  "Runs without `outputFormat: final-message-v1` used a parser that concatenated narration from earlier assistant messages with the final answer. Their structured-output errors may be runner errors rather than invalid final model responses. Successful JSON results remain available for factual adjudication, but earlier parse failures cannot establish model reliability.",
+  "",
+  "| Provider | Model | Runs | Corrected runner | Failures | Reconcile | Assessed | Accuracy | False claims/blockers | Gate failures (boundary/artifact/coverage/diagram/telemetry/loop) | Median latency | Tokens (in/cached/reasoning/out) | Calls/tools | Accounted cost | Status |",
+  "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
 ];
 for (const row of rows) {
   const input = row.runs.reduce(
@@ -129,7 +133,7 @@ for (const row of rows) {
     results.catalogs[row.candidate.provider]?.models[row.candidate.model],
   );
   lines.push(
-    `| ${row.candidate.provider} | ${row.candidate.model} | ${row.runs.length}/9 | ${row.runs.filter(({ status, error }) => status === "error" || error).length} | ${row.runs.filter(({ status }) => status === "in-progress").length} | ${row.assessed.length}/${row.runs.length} | ${accuracy === null ? "—" : accuracy.toFixed(3)} | ${falseClaims}/${falseBlockers} | ${boundaryFailures}/${artifactFailures}/${coverageFailures}/${diagramFailures}/${telemetryFailures}/${loopFailures} | ${row.medianLatency === null ? "—" : `${(row.medianLatency / 1000).toFixed(1)}s`} | ${input}/${nullableTotal("cachedInputTokens")}/${nullableTotal("reasoningTokens")}/${output} | ${nullableTotal("modelCalls")}/${nullableTotal("toolIterations")} | ${money(row.accountedCost)} | ${row.passes ? "pass" : !available ? "unavailable" : row.runs.length ? "incomplete/fail" : "blocked"} |`,
+    `| ${row.candidate.provider} | ${row.candidate.model} | ${row.runs.length}/9 | ${row.runs.filter(({ contextFormat, validatorFormat }) => contextFormat === "plain-text-v1" && validatorFormat === "node-dom-v1").length}/9 | ${row.runs.filter(({ status, error }) => status === "error" || error).length} | ${row.runs.filter(({ status }) => status === "in-progress").length} | ${row.assessed.length}/${row.runs.length} | ${accuracy === null ? "—" : accuracy.toFixed(3)} | ${falseClaims}/${falseBlockers} | ${boundaryFailures}/${artifactFailures}/${coverageFailures}/${diagramFailures}/${telemetryFailures}/${loopFailures} | ${row.medianLatency === null ? "—" : `${(row.medianLatency / 1000).toFixed(1)}s`} | ${input}/${nullableTotal("cachedInputTokens")}/${nullableTotal("reasoningTokens")}/${output} | ${nullableTotal("modelCalls")}/${nullableTotal("toolIterations")} | ${money(row.accountedCost)} | ${row.passes ? "pass" : !available ? "unavailable" : row.runs.length ? "incomplete/fail" : "blocked"} |`,
   );
 }
 lines.push(

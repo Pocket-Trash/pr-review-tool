@@ -18,6 +18,8 @@ The runner materializes each patch and source file as plain text under numeric `
 
 Mermaid also needs a DOM for labeled flowchart parsing in Node. Runs without `validatorFormat: node-dom-v1` predate that initialization and cannot support production selection because valid labeled diagrams could be misclassified as syntax failures. The validator continues to reject raw HTML and unsafe directives before parsing.
 
+Runs without `outputFormat: final-message-v1` also predate selection of the final assistant message. The earlier parser concatenated all assistant narration into the final JSON; its parse failures cannot establish that the model's final response was invalid. New runs group final text parts by message ID and exclude reasoning and earlier narration.
+
 Catalog availability can be verified without starting paid inference or requiring an OpenRouter key:
 
 ```sh

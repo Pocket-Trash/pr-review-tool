@@ -207,6 +207,66 @@ test("restricted runner validates successful inference", async () => {
   ]);
 });
 
+test("restricted runner validates only the final assistant message", async () => {
+  const json = JSON.stringify(review);
+  const middle = Math.floor(json.length / 2);
+  const events = [
+    {
+      type: "text",
+      part: {
+        id: "narration",
+        messageID: "earlier",
+        text: "I will inspect the evidence.",
+      },
+    },
+    {
+      type: "reasoning",
+      part: { text: "Private reasoning is not the review." },
+    },
+    {
+      type: "text",
+      part: { id: "first", messageID: "final", text: json.slice(0, middle) },
+    },
+    {
+      type: "text",
+      part: { id: "second", messageID: "final", text: json.slice(middle) },
+    },
+    {
+      type: "text",
+      part: { id: "second", messageID: "final", text: json.slice(middle) },
+    },
+  ];
+  const result = await runRestrictedReview({
+    apiKey: "secret",
+    model: "fixture-model",
+    workspace: fixtureWorkspace,
+    execute: async () => ({
+      stdout: events.map((event) => JSON.stringify(event)).join("\n"),
+    }),
+  });
+  assert.deepEqual(result, review);
+
+  await assert.rejects(
+    runRestrictedReview({
+      apiKey: "secret",
+      model: "fixture-model",
+      workspace: fixtureWorkspace,
+      execute: async () => ({
+        stdout: [
+          ...events,
+          {
+            type: "text",
+            part: { id: "invalid", messageID: "last", text: "not a review" },
+          },
+        ]
+          .map((event) => JSON.stringify(event))
+          .join("\n"),
+      }),
+    }),
+    /valid structured review/,
+  );
+});
+
 test("restricted runner rejects malformed model output", async () => {
   let usage;
   await assert.rejects(
