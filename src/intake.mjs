@@ -139,6 +139,8 @@ export async function assertCurrentHead(
 }
 
 export function buildArtifact({
+  conclusion,
+  config,
   review,
   run,
   selectedSkills,
@@ -146,7 +148,15 @@ export function buildArtifact({
   diagnostics,
 }) {
   const artifact = JSON.stringify(
-    { review, run, selectedSkills, omissions, diagnostics },
+    {
+      conclusion,
+      config,
+      review,
+      run,
+      selectedSkills,
+      omissions,
+      diagnostics,
+    },
     null,
     2,
   );

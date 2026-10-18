@@ -100,6 +100,8 @@ if (prepared.conclusion === "neutral") {
   await writeFile(
     process.env.REVIEW_ARTIFACT_PATH,
     buildArtifact({
+      conclusion: "neutral",
+      config: context.config,
       review: null,
       run: baseRun,
       selectedSkills: skillSelection.selected,
@@ -180,6 +182,8 @@ try {
   await writeFile(
     process.env.REVIEW_ARTIFACT_PATH,
     buildArtifact({
+      conclusion: "success",
+      config: context.config,
       review,
       run,
       selectedSkills: run.selectedSkills,

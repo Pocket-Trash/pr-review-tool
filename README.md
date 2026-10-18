@@ -18,6 +18,12 @@ CHEAPER_INFERENCE_API_KEY=... npm run review:local -- \
 
 OpenCode is pinned to `opencode-ai@1.19.3`. The model can only read, glob, grep, and load the exact skills selected from the pinned `skills/manifest.json`; the coordinator and writing skills are always selected, while specialists are selected from changed paths, package ownership, and installed dependencies. Shell, edits, network tools, LSP, tasks, subagents, and paths outside the prepared workspace are denied.
 
+## GitHub App publication
+
+The reusable workflow expects the `Pocket Trash PR Review` App with slug `pockettrash`, selected-repository installation access, and only these repository permissions: metadata read, contents read, pull requests read, checks write, and issues write. Callers pass the App ID through `app-id` and its private key through the `APP_PRIVATE_KEY` secret.
+
+Analysis and publication run in separate jobs. The model key exists only in analysis; publication receives only a repository-scoped, short-lived App token. The publisher updates one App-owned marker comment and one check run for the exact reviewed SHA, refuses stale-head writes, and publishes operational conclusions independently of review prose.
+
 ## Dependency policy
 
 Third-party GitHub Actions must be pinned to full commit SHAs, and downloaded command-line tools must use exact versions. Pull-request content is untrusted data: the reusable reviewer must never execute it, load configuration from it, or expose credentials to it.
