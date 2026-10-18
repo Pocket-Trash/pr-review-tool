@@ -9,6 +9,6 @@ npm run fixture
 
 ## Dependency policy
 
-GitHub Actions and command-line tools must be pinned to immutable full commit SHAs or exact versions. Pull-request content is untrusted data: workflows must never execute it, load configuration from it, or expose credentials to it.
+Third-party GitHub Actions must be pinned to full commit SHAs, and downloaded command-line tools must use exact versions. Pull-request content is untrusted data: the reusable reviewer must never execute it, load configuration from it, or expose credentials to it.
 
 See [SECURITY.md](SECURITY.md) for the trust boundary and vulnerability reporting process.
