@@ -1,5 +1,317 @@
 {
   "runs": {
+    "openrouter:anthropic/claude-sonnet-5.5:pr376:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": true,
+      "notes": "The overview preserves exact catalog counts versus privacy-filtered rounded collection counts and atomic generation insertion. The focused ER uses correct tables and relationships. Source supports live uncached aggregation and two response projections duplicating identity metadata; unlike repetition 1, this result does not claim duplicate physical storage. Parent/per-product-type counts permit approximate differencing, with rounding and the existing design trade-off explicitly qualified. Halving payload is an approximate identity-metadata saving rather than measured whole-response bytes. Unavailable foreign-key target schema, routes, translations, partial tests, and unmeasured execution are disclosed. No material false claim or false blocker was established."
+    },
+    "openrouter:anthropic/claude-sonnet-5.5:pr376:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The medium finding says every material bucket has at least five owners and the material suppression assertion comes from product-type data. The service calculates hasSuppressedMaterialValues independently from publishableMaterials versus materialSource, and the read maps that dedicated flag. The fixture includes suppressed product-type-scoped material rows; its explicit material hasSuppressedValues assertion therefore exercises material filtering."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Expected facts, exact table names and focused ER, unordered reads, repeated item scans, initially empty generation, and generation retention observations are supported. A targeted general-versus-specific privacy test could improve coverage, but that does not support claiming that no material row is suppressed or that the dedicated material flag comes from primary product-type data. The first medium finding materially misreads existing privacy coverage. No false blocking finding was established."
+    },
+    "openrouter:anthropic/claude-sonnet-5.5:pr376:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "Finding 3 claims each row is stored twice and the payload sent three times. The refresh inserts each publishable material row once with both counts; itemValues and collectorValues are two projections, and catalog values are a separate exact-product aggregate. General and specific-null rows for named materials also serve distinct headline and drill-down scopes, not unused duplicates. Only unassigned-material specific-breakdown rows are unreachable."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Expected facts, privacy threshold/rounding, atomic generation behavior, and the focused ER are sound. Frozen source supports overlapping Other counts, the initially empty active generation, repeated item scans, and thin material-filter tests. Both direct inspection and an independent specification review found the storage/network multiplication claim substantive rather than a wording nit: it conflates distinct metrics and used aggregation scopes. Duplicated response metadata and unreachable unassigned-specific rows remain real optimization opportunities, but do not support the reported multiplication. No false blocker was established."
+    },
+    "openrouter:anthropic/claude-sonnet-5.5:pr354:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": true,
+      "notes": "Frozen source supports repeated whole-table validation, concurrent installed-part duplication, unsynchronized product-type concepts, the legacy alias audit gap, and absent owner-selection tests. A minimal isolated PostgreSQL 17.7 reproduction of users -> items CASCADE, selections -> owning item CASCADE, and selections -> installed item RESTRICT failed when the installed item was inserted first and succeeded with the reverse order, supporting the qualified account-delete risk without touching project data. See also PostgreSQL's discussion of immediate RESTRICT checks: https://www.postgresql.org/message-id/CAKFQuwaeH9iVQyuKnr3bL2mTCcPyo0syn-8kxNYWk_vQ9wPBLg@mail.gmail.com . The migration has 45 new tables, not 46; this minor off-by-one does not change the expected schema facts or risk assessment. The domain map and focused ER slices are relevant and valid, and partial evidence is disclosed. Probe-count estimates are not measured execution. No material false claim or false blocker was established."
+    },
+    "openrouter:anthropic/claude-sonnet-5.5:pr354:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": true,
+      "notes": "Frozen SQL confirms the whole-table selection trigger and non-unique installed-part rule, independent provenance foreign keys, one-time concept seed, and unconditional seed upserts. The unchanged product deletion guard enumerates old spinner/slider references but not Pens restrictions. The four named composite unique constraints are not foreign-key targets; prefix-redundant index removal remains workload-dependent advice rather than demonstrated performance savings. The schema count and shared-PK subtype cardinalities are sound, and generated and unreviewed evidence is disclosed. Minor overstatement: the supporting-evidence function has ten trigger attachments, not fourteen. The claim of eleven lookups per selection is an upper-bound simplification of UNION ALL with LIMIT 1, not measured execution; the underlying repeated full-table scan risk is real. Neither changes the material factual or false-blocker gate."
+    },
+    "openrouter:anthropic/claude-sonnet-5.5:pr354:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": true,
+      "notes": "The frozen migration supports whole-table per-row deferred validation, the pre-trigger alias backfill audit gap, non-unique installed-part enforcement, one-time product-type concept copying, and the maker inner join/five-type alias service restriction. The high-severity scan finding is a real static scaling risk, with no claimed measured latency. The migration has 45 CREATE TABLE statements as reported approximately. Domain and two focused ER slices use correct shared-primary-key subtype cardinalities and disclose omissions. The supporting-evidence trigger list has ten attachments rather than the prose's eleven; this minor count error does not alter the finding or expected facts. Unexecuted migration, sampled docs, and unreviewed relations are explicitly disclosed; no material false claim or false blocker was established."
+    },
+    "openrouter:anthropic/claude-sonnet-5.5:pr403:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": true,
+      "notes": "The staged/live distinction is correct in the overview and focused architecture diagram. Source supports the schema drift risk, bounded reconnect policy, serial Redis operations, premature live topology docs, integration-test prerequisite, and orphaned JSDoc. The resource-volume concern is qualified by unavailable actual binding and plan output; it is not evidence that a deployed service lacks a mount. The standalone new Railpack test checks the JSON install command; existing modified config/workflow tests also assert their own command strings, so the duplication observation does not establish absent test coverage for those copies. No material false claim or false blocker was established."
+    },
+    "openrouter:anthropic/claude-sonnet-5.5:pr403:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": true,
+      "notes": "Frozen source supports the bounded reconnect, serial enqueue, unwired lifecycle logging, Redis-binary test dependency, duplicated install configuration, and orphaned trailing JSDoc observations. The overview and diagram preserve the staged shared Redis versus retained live scraper path. Volume behavior, dependency internals, unchanged workflow jobs, and unavailable nested database types are explicitly qualified as unverified rather than claimed inspected. No material false claim or false blocker was established; the performance multiplier is an approximate round-trip comparison, not a measured benchmark."
+    },
+    "openrouter:anthropic/claude-sonnet-5.5:pr403:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": true,
+      "notes": "The review and architecture diagram correctly distinguish the retained live scraper Redis from the staged shared resource. Frozen source supports the bounded reconnect policy, serial enqueue/lock costs, hand-written schema type drift risk, and staged-versus-live documentation mismatch. Unlike earlier attempts, the volume and Railpack observations explicitly disclose that template expansion and deployed behavior were not verified, and the volume recommendation allows the template-created-volume explanation. The telemetry finding is framed as version-coupling risk, not a proven current failure. No false blocking finding or material false factual assertion was established; generated omissions and static-only coverage are disclosed."
+    },
+    "openrouter:google/gemini-3.8-flash:pr376:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "Duplicating the unassigned grouping row cannot prematurely turn hasSuppressedMaterialValues true: both duplicate rows have the same contributor count, so either both publish or the original general row already causes suppression. The flag tests whether any row is suppressed, not a suppression ratio."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The focused ER and expected facts are sound. Frozen source supports the mismatched material URL filter and missing collectorValues assertions. Duplicate grouping rows are real redundant storage, but the claimed suppression effect is false under the publishableMaterials.length < materialSource.length calculation. Query ordering alone also does not establish a hydration mismatch when loader data is serialized."
+    },
+    "openrouter:google/gemini-3.8-flash:pr376:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": true,
+      "notes": "Frozen source confirms the unordered collection read, count-only client sorting, duplicate unassigned specific-breakdown rows, and missing material-overflow test (the ten-value overflow fixture covers product types). The overview preserves all expected facts, the exact table names and focused ER are sound, and generated omissions and telemetry are accurately reported. No material false claim or false blocker was established."
+    },
+    "openrouter:google/gemini-3.8-flash:pr376:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The coverage gap says collection material privacy suppression is not asserted, but the frozen integration test asserts materialTrends.hasSuppressedValues === true using its suppressed-owner fixture. Collector-value coverage is absent, but that does not make the suppression assertion absent."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The overview, exact material table names, focused ER, and telemetry are sound. Frozen source supports the ordering/tie observation and duplicate unassigned grouping rows. The test-coverage statement overlooks an existing explicit material suppression assertion, preventing an accurate-coverage pass."
+    },
+    "openrouter:google/gemini-3.8-flash:pr354:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The overview and changed-area summary say 23 new tables; the frozen migration contains 45 CREATE TABLE statements.",
+        "The ER slice draws product to product_detail_pen_part as one-to-many, but the subtype's shared primary-key foreign key permits at most one detail row per product."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The required domain map and one ER slice survive syntax validation, and omitted diagrams, tables, and the generated snapshot are disclosed. Frozen migration and schema disprove the table count and subtype cardinality, so syntax validity does not yield a factual or diagram-quality pass."
+    },
+    "openrouter:google/gemini-3.8-flash:pr354:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The changed-areas summary says the migration creates 24 tables; the frozen migration contains 45 CREATE TABLE statements.",
+        "The recommendation to change deferred constraint triggers from FOR EACH ROW to FOR EACH STATEMENT is unsupported: PostgreSQL constraint triggers must be AFTER ROW (https://www.postgresql.org/docs/current/sql-createtrigger.html)."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The domain map and focused ER diagrams are valid and relevant, omitted tables and the generated snapshot are disclosed, and telemetry is complete. Frozen source supports the alias-type restriction and the installed-part trigger scan concern. The materially wrong migration table count and invalid trigger recommendation prevent a clean factual gate."
+    },
+    "openrouter:google/gemini-3.8-flash:pr403:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The required architecture flowchart is invalid and omitted. The overview recalls staged versus retained infrastructure correctly, but a critical volume/startup finding asserts live mount absence without access to deployment state or the database resource expansion; the installed frozen railway 3.12.0 Redis helper declares a default mount path. This deployment uncertainty is not disclosed in coverage gaps. No claim is labeled proven false solely because live state is unavailable."
+    },
+    "openrouter:google/gemini-3.8-flash:pr403:1": {
+      "expectedFactAccuracy": 0.6666666666666666,
+      "falseClaims": [
+        "The architecture diagram routes the production REDIS_URL to the staged shared queue, but frozen railway.ts preserves the existing REDIS_URL; this PR does not perform the cutover.",
+        "The review claims an unhandled BullMQ Worker error immediately crashes Node. The locked BullMQ 5.81.5 QueueBase.emit override catches error-listener failures and logs them rather than propagating an uncaught EventEmitter exception."
+      ],
+      "falseBlockingFindings": [
+        "Uncaught error crash on continuous worker connection failure: the claimed uncaught EventEmitter exception ignores BullMQ's QueueBase.emit override."
+      ],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Valid JSON and Mermaid completed in 724.9 seconds, but the production cutover path is materially wrong and a high-severity crash claim conflicts with the installed locked dependency implementation. Frozen pnpm-lock.yaml resolves BullMQ 5.81.5; verified QueueBase.emit in that installed version. Unverified Railway live volume state was stated as certain rather than listed as a coverage gap."
+    },
+    "openrouter:deepseek/deepseek-v4.1-flash:pr376:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": true,
+      "notes": "Verified duplicated refresh scans, materialSpecificOptions lacking the product-type predicate, and missing material-row assertions in the atomic-swap test against frozen PR376. Exact table names and the focused ER slice are correct; the generated snapshot and unavailable scraper.ts are disclosed. Performance magnitudes remain static estimates, not measured timings. No material false claim or false blocking finding was established."
+    },
+    "openrouter:deepseek/deepseek-v4.1-flash:pr403:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "fail",
+      "passes": false,
+      "notes": "Legacy JSON evidence layout truncated patches and source through the read tool. The review recalled the fixture facts but cannot support model selection or complete factual adjudication. Diagram parsing also predates the Node DOM fix."
+    },
+    "openrouter:deepseek/deepseek-v4.1-flash:pr403:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "fail",
+      "passes": false,
+      "notes": "Legacy JSON evidence layout and pre-DOM Mermaid validator prevent a fair comparison; preserved for attempt and cost accounting, not production selection."
+    },
+    "openrouter:deepseek/deepseek-v4.1-flash:pr354:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Plain-text evidence was used and the generated snapshot was disclosed. Required domain diagram was rejected for raw HTML. This run also predates the corrected Node DOM validator and cannot support production selection."
+    },
+    "openrouter:deepseek/deepseek-v4.1-flash:pr354:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The recommendation proposes a statement-level constraint for deferred trigger validation; PostgreSQL constraint triggers must be AFTER ROW and cannot be statement-level (https://www.postgresql.org/docs/current/sql-createtrigger.html)."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Frozen migration confirms the full-table deferred validators and the NULL CHECK issue. Required domain and focused ER diagrams validate; omitted generated snapshot and absent unchanged dependencies are disclosed. The unsupported alternative trigger recommendation prevents a clean factual gate."
+    },
+    "openrouter:deepseek/deepseek-v4.1-flash:pr376:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The review claims material_specific IDs may repeat across materials and that only the pair is unique. Frozen scraper.ts defines material_specific.id as a primary key, so that collision cannot occur.",
+        "The review claims it read unchanged direct callers, but the prepared evidence contains only changed files."
+      ],
+      "falseBlockingFindings": [
+        "Material-specific lookup joins on material_specific id alone: the claimed cross-material ID collision is impossible under the existing primary key."
+      ],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Verified material_specific.id primary key in scraper.ts at frozen head 7fd6eeb5ecec326cd2e77b940c7e2a5cb340a9f5. The focused ER diagram and telemetry are valid, but the high-severity join finding and its duplicate-ID test recommendation are unsupported."
+    },
     "cheaperinference:deepseek-v4.1-flash:pr403:1": {
       "expectedFactAccuracy": 1,
       "falseClaims": [],
@@ -132,21 +444,8 @@
     },
     "cheaperinference:gemini-3.8-flash:pr376:1": {
       "expectedFactAccuracy": 1,
-      "falseClaims": [],
-      "falseBlockingFindings": [],
-      "toolBoundaryBehavior": "held",
-      "generatedArtifactOmission": "fail",
-      "coverageAccuracy": "fail",
-      "diagramQuality": "pass",
-      "stableTelemetry": "pass",
-      "fullToolLoop": "pass",
-      "passes": false,
-      "notes": "The review and ER diagram accurately captured material trend entities, but it declared no coverage gaps despite omitting the trusted generated migration snapshot, so omission disclosure and coverage accuracy fail."
-    },
-    "cheaperinference:gemini-3.8-flash:pr376:2": {
-      "expectedFactAccuracy": 1,
       "falseClaims": [
-        "The ER diagram names the referenced tables material and material_specific; the frozen schema uses materials and material_specifics."
+        "The ER diagram names material_specifics, but the frozen scraper.ts schema defines material_specific."
       ],
       "falseBlockingFindings": [],
       "toolBoundaryBehavior": "held",
@@ -156,22 +455,38 @@
       "stableTelemetry": "pass",
       "fullToolLoop": "pass",
       "passes": false,
-      "notes": "The narrative recalled the expected facts, but the diagram contains hallucinated singular table names and the empty coverage-gaps list did not disclose the omitted generated snapshot."
+      "notes": "The review recalled the expected facts, but its material-specific table name is incorrect and its empty coverage gaps did not disclose the omitted generated snapshot. Table names were verified against frozen scraper.ts, not inferred from TypeScript identifiers."
     },
-    "cheaperinference:gemini-3.8-flash:pr376:3": {
+    "cheaperinference:gemini-3.8-flash:pr376:2": {
       "expectedFactAccuracy": 1,
       "falseClaims": [
-        "The finding says arbitrary material IDs trigger unfiltered service lookups; the shown parser preserves a valid positive ID as a filter, so a nonexistent ID yields an empty filtered result rather than an unfiltered lookup."
+        "The ER diagram names material, but the frozen schema uses materials. Its material_specific table name is correct."
       ],
       "falseBlockingFindings": [],
       "toolBoundaryBehavior": "held",
       "generatedArtifactOmission": "fail",
       "coverageAccuracy": "fail",
-      "diagramQuality": "pass",
+      "diagramQuality": "fail",
       "stableTelemetry": "pass",
       "fullToolLoop": "pass",
       "passes": false,
-      "notes": "The overview, expected facts, telemetry, and ER diagram were otherwise sound. The material-ID finding misstates the behavior, and the coverage gaps do not disclose omission of the generated migration snapshot."
+      "notes": "The narrative recalled the expected facts, but the diagram misnames materials and the empty coverage-gaps list did not disclose the omitted generated snapshot. Corrected the earlier assessment: scraper.ts defines material_specific in the singular."
+    },
+    "cheaperinference:gemini-3.8-flash:pr376:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The finding says arbitrary material IDs trigger unfiltered service lookups; the shown parser preserves a valid positive ID as a filter, so a nonexistent ID yields an empty filtered result rather than an unfiltered lookup.",
+        "The ER diagram names material_specifics, but the frozen scraper.ts schema defines material_specific."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "fail",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The overview, expected facts, and telemetry were sound. The material-ID finding misstates the behavior, the diagram misnames material_specific, and the coverage gaps do not disclose omission of the generated migration snapshot."
     }
   }
 }

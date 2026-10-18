@@ -85,7 +85,7 @@
   },
   "catalogs": {
     "cheaperinference": {
-      "verifiedAt": "2026-10-18T05:59:00.172Z",
+      "verifiedAt": "2026-10-18T09:31:38.826Z",
       "authenticated": true,
       "models": {
         "deepseek-v4.1-flash": {
@@ -100,8 +100,8 @@
       }
     },
     "openrouter": {
-      "verifiedAt": "2026-10-18T05:59:00.317Z",
-      "authenticated": false,
+      "verifiedAt": "2026-10-18T09:31:39.171Z",
+      "authenticated": true,
       "models": {
         "deepseek/deepseek-v4.1-flash": {
           "available": true,
