@@ -35,14 +35,14 @@ const lines = [
   "",
   "## Quality results",
   "",
-  "**Completed** means schema-valid output, not factual correctness. **Passed** requires source-grounded findings without material false claims or false blockers, accurate coverage/omission reporting, relevant and semantically correct diagrams, stable telemetry, and a completed tool loop within the runtime limit. Unassessed metrics are N/A, not zero defects. Expected-fact recall remains in the detailed assessment JSON; it is not an overall accuracy score. Peer acceptance is not ground truth.",
+  "**Completed** means schema-valid output, not factual correctness. **Passed** requires source-grounded findings without material false claims or false blockers, accurate coverage/omission reporting, relevant and semantically correct diagrams, stable telemetry, and a completed tool loop within the runtime limit. Unassessed metrics are N/A, not zero defects. Expected-fact recall remains in the detailed assessment JSON; it is not an overall accuracy score. Peer acceptance is not ground truth. Assessments are agent source-checks, not a blinded human adjudication or a measurement of recall across every real defect.",
   "",
   "Three initial Kimi infrastructure attempts were rejected by prose-envelope handling and remain unassessed; their replacements use repaired extraction. One schema review was recovered from the same local session without another paid inference. OpenRouter confirmed that two GLM schema attempts ended at the runner's original 16,384-native-token cap (finish_reason: length); their replacements use 32,768 tokens. The early completed outputs and later larger-cap outputs are exploratory observations under these recorded runner changes, not a controlled model-only reliability ranking. Attempt failures and their costs remain visible below.",
   "",
   "| Candidate | Completed / planned | Assessed | Passed / planned | Material false claims | False blockers |",
   "| --- | ---: | ---: | ---: | ---: | ---: |",
 ];
-for (const candidate of [
+const candidates = [
   ...ledger.models.map((model) => ({
     name: model.id,
     rows: ledger.sessions.filter(
@@ -51,7 +51,8 @@ for (const candidate of [
     ),
   })),
   { name: "Combined, peer-filtered", rows: ledger.combined },
-]) {
+];
+for (const candidate of candidates) {
   const assessed = candidate.rows
     .map((row) => adjudication.runs[row.id])
     .filter(Boolean)
@@ -65,9 +66,40 @@ for (const candidate of [
 }
 lines.push(
   "",
+  "### Why assessed reviews failed",
+  "",
+  "Claim counts above are occurrences across assessed outputs, including repeated errors, not unique defect types. Counts below are reviews failing each gate, not counts of defects. One review can fail several gates. Unavailable output is reported in completion and operational failures, never adjudicated as zero defects.",
+  "",
+  "| Candidate | Material claim/blocker error | Diagram gate | Coverage/omission gate | Tool/telemetry/loop gate |",
+  "| --- | ---: | ---: | ---: | ---: |",
+  ...candidates.map((candidate) => {
+    const rows = candidate.rows
+      .map((row) => adjudication.runs[row.id])
+      .filter(Boolean);
+    const count = (predicate) =>
+      rows.length ? rows.filter(predicate).length : "N/A";
+    return `| ${candidate.name} | ${count((a) => a.falseClaims.length > 0 || a.falseBlockingFindings.length > 0)} | ${count((a) => a.diagramQuality === "fail")} | ${count((a) => a.coverageAccuracy !== "pass" || a.generatedArtifactOmission !== "pass")} | ${count((a) => a.toolBoundaryBehavior !== "held" || a.stableTelemetry !== "pass" || a.fullToolLoop !== "pass")} |`;
+  }),
+);
+if (
+  candidates.every((candidate) =>
+    candidate.rows.some((row) => {
+      const assessment = adjudication.runs[row.id];
+      return assessment && !adjudicationPasses(assessment);
+    }),
+  )
+)
+  lines.push(
+    "",
+    "Neither independent model nor the combined pipeline satisfies the every-repetition gate: each has at least one assessed failure. These results do not select a production route. Further paid attempts beyond this recorded campaign require a new approval.",
+  );
+lines.push(
+  "",
   "## Cost and execution",
   "",
   `Accounted additional spend: **${money(budgetTotal(ledger.requests))} / $10** across ${ledger.requests.length} underlying API requests and ${ledger.sessions.length}/${ledger.maxSessions} started sessions.`,
+  "",
+  `Returned request billing totals ${money(ledger.requests.reduce((sum, request) => sum + (request.costUsd ?? 0), 0))}; requests without a known returned charge retain ${money(budgetTotal(ledger.requests.filter((request) => request.costUsd === undefined)))} in reservations. Retained reservations are conservative budget charges, not proof those amounts were billed.`,
   "",
   "A session is an OpenCode tool loop, not one API call. Each underlying request is reserved before transmission at the full model context's uncached price plus capped output, with a 1% margin and upstream price ceilings. Actual returned billing cost replaces the reservation when known. Interrupted/unmetered requests retain their reservation; unmetered execution stops further requests. These controls are local to this campaign, not an account-wide provider spending cap.",
   "",
@@ -127,15 +159,47 @@ lines.push(
   "",
   "Only accepted original findings enter the combined finding list; no finding text or severity is rewritten. Exact duplicate objects are removed, but semantic duplicates may remain. Original overviews, changed areas, reviewer-scoped coverage gaps, and up to four validated diagrams are retained rather than synthesized. Rejected and uncertain findings remain traceable in dispositions; their reasoning is not promoted into review claims. Consequently the combined output can still contain false claims outside findings and must be adjudicated independently.",
   "",
-  "| Fixture | Repetition | Original findings | Peer accepted | Rejected | Uncertain | Combined findings |",
-  "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+  "| Fixture | Repetition | Original findings | Peer accepted | Rejected | Uncertain | Combined findings | Accounted pipeline cost |",
+  "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
 );
 for (const result of ledger.combined) {
   const dispositions = result.dispositions;
+  const sessionIds = new Set(
+    ledger.sessions
+      .filter(
+        (session) =>
+          session.pull === result.pull &&
+          session.repetition === result.repetition,
+      )
+      .map((session) => session.id),
+  );
+  const pipelineCost = budgetTotal(
+    ledger.requests.filter((request) => sessionIds.has(request.session)),
+  );
   lines.push(
-    `| #${result.pull} | ${result.repetition} | ${dispositions.length} | ${dispositions.filter((a) => a.verdict === "accept").length} | ${dispositions.filter((a) => a.verdict === "reject").length} | ${dispositions.filter((a) => a.verdict === "uncertain").length} | ${result.review.findings.length} |`,
+    `| #${result.pull} | ${result.repetition} | ${dispositions.length} | ${dispositions.filter((a) => a.verdict === "accept").length} | ${dispositions.filter((a) => a.verdict === "reject").length} | ${dispositions.filter((a) => a.verdict === "uncertain").length} | ${result.review.findings.length} | ${money(pipelineCost)} |`,
   );
 }
+lines.push(
+  "",
+  "Per-pair pipeline cost includes both reviewers, both critics, and any recorded failed/replacement attempts for that fixture and repetition. Costs of unavailable pairs remain in the campaign and stage totals.",
+);
+const unavailable = ledger.fixtures.flatMap((fixture) =>
+  Array.from({ length: ledger.repetitions }, (_, index) => index + 1)
+    .filter(
+      (repetition) =>
+        !ledger.combined.some(
+          (result) =>
+            result.pull === fixture.pull && result.repetition === repetition,
+        ),
+    )
+    .map((repetition) => `#${fixture.pull} repetition ${repetition}`),
+);
+if (unavailable.length)
+  lines.push(
+    "",
+    `Combined output unavailable for: ${unavailable.join("; ")}. Every pair requires both independent reviews and both critiques; no partial pair is substituted or scored as zero defects. See the operational records below.`,
+  );
 lines.push(
   "",
   "Source-grounded adjudication must separately identify false claims removed, false claims retained, and valid findings lost; rejection alone does not prove an improvement. See `peer-adjudication.json` for individual assessments and `peer-results.json` for reviews, critiques, provenance, model price snapshots, and request costs.",
@@ -151,6 +215,13 @@ lines.push(
   "",
   "Counts are finding-level judgments, not percentages of all real defects. A rejected mixed finding may contain a real risk already retained from the other reviewer. Consult the detailed notes before interpreting a rejection as either a success or a missed defect.",
   "",
+  "### Concrete examples",
+  "",
+  "- Schema #354, repetition 1: GLM rejected Kimi's proposed missing installed-part index because the migration already creates it, and rejected the claimed cross-product choice hole because a composite foreign key already prevents it.",
+  "- Schema #354, repetition 2: GLM removed the false RLS precedent and already-configured ORM-relation findings. It also rejected an overstated recursive-validation performance finding, losing its real but unmeasured write-cost concern.",
+  "- Queue #403, repetition 3: Kimi accepted GLM's claim that Redis commands buffer forever after reconnection stops. The pinned ioredis implementation instead closes and flushes the queued commands. Agreement retained a material error.",
+  "- Filtering applies to findings, not inherited summaries or diagrams. Schema cardinality errors and unsupported topology can therefore survive even when the accepted findings are accurate. The combined review is assessed as a whole, not declared correct because the critics agreed.",
+  "",
   "## Operational failures",
   "",
 );
@@ -161,10 +232,15 @@ lines.push(
   ...(failures.length
     ? failures.map(
         (session) =>
-          `- ${session.id}: ${session.status}${session.error ? ` — ${session.error.replaceAll("\n", " ")}` : ""}`,
+          `- ${session.id}: ${session.status}${session.error ? ` — ${session.error.replaceAll("\n", " ")}` : ""}${session.validationDetail ? ` (${session.validationDetail.replaceAll("\n", " ")})` : ""}`,
       )
     : ["None recorded."]),
 );
+if (failures.some((session) => session.stage === "critique"))
+  lines.push(
+    "",
+    "Failed critique finals are unavailable. Their parsing/timeout records establish unavailable structured output, not a factual-quality assessment or a proven model-only cause. No paid replay or silent JSON repair was used for these failures.",
+  );
 lines.push(
   "",
   "## Verified model price ceilings",

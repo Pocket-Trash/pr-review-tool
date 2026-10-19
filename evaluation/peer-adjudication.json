@@ -1,0 +1,466 @@
+{
+  "methodology": "Agent adjudication against frozen source and relevant pinned dependency implementation. Expected-fact accuracy is fixture-fact recall, not overall correctness. Assessments do not treat peer acceptance as ground truth. Diagram quality includes semantic topology, not only syntax.",
+  "runs": {
+    "independent:z-ai/glm-5.3:pr403:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Frozen source supports the dry-run discrepancy (processor.ts:599-658; grimsmo.ts sync/reconcile functions have no dry-run option), 10 ms lock poll without a deadline, five-minute forced worker closure, drained-before-delayed-retry concern, and local redis-server prerequisite. The overview correctly preserves the legacy queue and staged new Redis. However the architecture draws a solid BullMQ-to-staged-Redis connection while also labelling that node not yet referenced; this materially ambiguous live/staged topology fails diagram quality. The runtime and dependency behavior are qualified as unverified; no material false finding or false blocker established."
+    },
+    "independent:z-ai/glm-5.3:pr403:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The high-severity Redis-outage finding claims commands hang forever and polling spins despite retryStrategy terminating reconnection after three attempts. The configured ioredis 5.11.1 close handler transitions to end and flushes pending commands with a connection-closed error.",
+        "The connection-count finding and diagram assert the scraper is already using pocket-trash-queue with the Discord bot. The preview workflow explicitly retains scraper-queue, the new Redis is staged, and no active Discord consumer is established."
+      ],
+      "falseBlockingFindings": [
+        "The high-severity outage finding falsely attributes an infinite connection failure to maxRetriesPerRequest:null while ignoring the terminating reconnect policy."
+      ],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Verified packages/queue/src/bullmq.ts:33-45 and ioredis 5.11.1 built/redis/event_handler.js:183-214: retryStrategy returning null invokes close(), which flushes queued commands. Real lock-contention waiting is distinct from the claimed forever-outage failure. A second Redis connection is real, but the asserted active shared Redis/Discord topology is not; .github/workflows/deploy.yml:30 names scraper-queue. The volume concern is conditional and asks for plan evidence, not a proven missing mount. Continuous in-memory retries without backoff can occupy microtasks until finite attempts are exhausted; the review acknowledges the unusual definition. The telemetry recommendation is not proof the installed version is broken."
+    },
+    "independent:z-ai/glm-5.3:pr403:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The Redis-outage finding says retryStrategy returning null buffers commands indefinitely. ioredis closes and flushes pending commands when reconnection is terminated.",
+        "The failed-attempt finding claims tests run only against the in-memory adapter and the divergence is invisible in CI. bullmq.integration.test.ts runs the same shared adapter contract, and ci.yml installs redis-server.",
+        "The bounded-memory comparison categorically asserts delayed retries complete inside the BullMQ drain, but that implementation closes on drained and can stop before delayed jobs become eligible; the claimed reliable contrast is not established."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Overview and diagram accurately distinguish retained legacy Redis from staged shared Redis. Lock-poll pressure and forced timeout are source-supported. The high-level failed-attempt versus terminal-job accounting deserves scrutiny, but its CI coverage assertion is directly false, and the four-jobs-times-five example does not establish that sixteen already-waiting jobs remain untouched. Source verification used bullmq.ts:33-45,274-317, shared test-contract invocation in both adapter suites, ci.yml:448, and index.ts's waiting snapshot. The claimed migration omission is intentional staging, not proof of a missing required cutover; deployment/volume uncertainty is disclosed. No high/critical false blocker was emitted."
+    },
+    "independent:moonshotai/kimi-k2.5:pr354:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "COALESCE(NEW.id,OLD.id) does not become null merely because a row is deleted: OLD.id identifies the deleted row. The claimed orphan mechanism also ignores ON DELETE CASCADE foreign keys.",
+        "The proposed missing installed-part index already exists verbatim at migration.sql:589: collection_item_configuration_selection_installed_part_idx.",
+        "The claimed cross-product configuration-choice hole is already prevented by product_configuration_choice_slot_product_fk on (slot_id,product_id), migration.sql:657.",
+        "The maker-ID finding claims inconsistent refill ownership can be inserted despite a NOT NULL composite (id,maker_id) foreign key to product. Requiring makerId explicitly is not a demonstrated integrity defect; making it nullable would weaken enforcement."
+      ],
+      "falseBlockingFindings": [
+        "High finding 1 asserts an invalid DELETE/COALESCE orphan mechanism.",
+        "High finding 2 recommends creating an index the migration already creates."
+      ],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The same paid session's final fenced JSON was recovered locally and passed schema/Mermaid validation after envelope handling was repaired; no inference replay. Frozen migration lines 717-725,589,657,679 and pens.ts:128-143 contradict four substantive findings, including both high findings. The recursive all-market reach CTE at 1069-1074 is a genuine static scaling concern (not measured performance). The comment-capitalization nit is not a demonstrated bug but is not counted as a material false claim. Overview retains expected Pens/catalog/schema facts, and focused shared-PK/refill diagrams are syntactically valid; general coverage gaps acknowledge untested performance/concurrency. Further diagram verification: refillCompatibilityAssertion.requiredTipProductId and both target FKs are nullable, with num_nonnulls(targetGroupId,targetRefillProductId)=1 (pens.ts:1149-1198). The ER instead makes tip, group, and refill relationships all mandatory, contradicting the exactly-one-target constraint."
+    },
+    "independent:moonshotai/kimi-k2.5:pr403:1:envelope-replacement": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The volume finding asserts both Redis instances share a volume although the frozen IaC does not establish either attachment; the topology must be verified, not asserted.",
+        "The telemetry finding says no test covers the token-matching path. The shared real-BullMQ contract asserts accepted:true, which requires that exact persisted-token check to succeed."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Frozen bullmq.ts:191-201 supplies a 30-second PX lease: a crashed holder alone cannot cause an infinite lock wait. The unbounded acquisition loop under ongoing contention is a real issue, so the high finding is mixed/overstated rather than counted as a wholly false blocker. Sequential multi-round-trip enqueue and hardcoded forced drain timeout are real; test-only sorting is low-impact and the processor-coupling finding explicitly says no fix needed. The actual BullMQ integration calls defineQueueAdapterContract, whose test-contract.ts:45,52,103,125 asserts acceptance behavior. The generated architecture contained raw HTML and was safely omitted, leaving no requested architecture diagram. Deployment-to-shared-Redis phrasing is also imprecise: preview retains scraper-queue."
+    },
+    "combined:pr403:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Source-grounded comparison confirms peer filtering removes Kimi's false missing-telemetry-test claim and withholds the unverified shared-volume topology. The rejected high lock finding had an incorrect crash/TTL explanation but a real unbounded-contention core; that core remains in GLM's accepted medium lock finding, so no unique valid risk is lost. All five GLM findings and four remaining Kimi findings are retained. Similar enqueue/timeout findings remain semantic duplicates and the no-fix-needed processor observation is noise. GLM's architecture still shows an ambiguous solid edge to explicitly staged/not-referenced Redis, so the combined result does not pass every quality gate. Critique reasoning remains in provenance rather than being endorsed as new findings, and coverage is scoped to its original reviewer."
+    },
+    "independent:moonshotai/kimi-k2.5:pr403:2:envelope-replacement": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The architecture and changed-area summary say scraper REDIS_URL now references pocket-trash-queue. IaC preserves the current value and the preview deployment explicitly targets legacy scraper-queue; the shared Redis remains staged.",
+        "Coverage says the BullMQ integration only checks connectivity and lacks concurrent enqueue contention tests. It runs the shared contract, including accepts-only-one concurrent enqueue."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Verified frozen bullmq.ts lock poll/sequential enqueue/empty connection error listener/cleanup catch/five-minute drain cap/thirty-second graceful-close cap. Logging cleanup failures is reasonable, but TTL bounds stale-key lifetime; it is not proof of an unbounded leak. The RDB/AOF comparison is approximate operational context, not measured durability. The high contention concern has a real unbounded acquisition loop and is not a wholly false blocker. Concrete false claims are the premature live cutover and missing concurrent contract coverage (test-contract.ts:107-125, called by the real Redis suite)."
+    },
+    "independent:moonshotai/kimi-k2.5:pr403:3:envelope-replacement": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The high unlock finding asserts a failed EVAL can make locks persist beyond their 30-second TTL. Failing to delete does not extend the Redis PX expiry.",
+        "The retry-duration finding conflates a short enqueue/deduplication lease with the job's processing/retry lifecycle. Existing non-completed jobs are rejected by stable ID; retry delay does not require holding the enqueue lock for 480 seconds.",
+        "The architecture connects both Redis services to the same redis-volume despite attachment topology being unverified in this source."
+      ],
+      "falseBlockingFindings": [
+        "High unlock finding claims cleanup failure extends Redis TTL."
+      ],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "fail",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Correct staged-versus-current labels and expected queue/Redis facts are present. The separate contention loop remains unbounded and serial enqueue plus worker timeout are valid concerns. However Redis PX expiry is not extended by a failed cleanup script, and the enqueue lock is released immediately after queue.add/verification, not held through a job's retries. The shared-volume edges are unsupported. Although pnpm-lock.yaml was omitted before model context, this review never reports that known omission. Generic performance/reconnection gaps do not substitute for the required generated-file omission disclosure."
+    },
+    "combined:pr403:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The Redis-outage finding says retryStrategy returning null buffers commands indefinitely. ioredis closes and flushes pending commands when reconnection is terminated.",
+        "The failed-attempt finding claims tests run only against the in-memory adapter and the divergence is invisible in CI. bullmq.integration.test.ts runs the same shared adapter contract, and ci.yml installs redis-server.",
+        "The bounded-memory comparison categorically asserts delayed retries complete inside the BullMQ drain, but that implementation closes on drained and can stop before delayed jobs become eligible; the claimed reliable contrast is not established.",
+        "The retained Kimi architecture asserts both Redis services share redis-volume, without source evidence for those attachments."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Kimi accepts all seven GLM findings, retaining the false indefinite-outage explanation and false memory-only CI coverage claim. GLM correctly rejects Kimi's assertion that failed unlock extends TTL and its conflation of enqueue lease with processing retries. It also rejects a real serial-enqueue throughput concern because current batches are small/intentional; that loses a source-supported risk, though no measured slowdown is established. The mixed high contention finding is rejected, but GLM's accepted medium contention finding retains the underlying deadline risk. Only Kimi's worker-timeout finding joins GLM's seven; semantic timeout duplication remains. Combined generated-file disclosure is satisfied by GLM even though Kimi omitted it. One retained architecture falsely joins both Redis services to the same volume. Thus fewer high false findings do not make the combined review factually sound."
+    },
+    "independent:z-ai/glm-5.3:pr354:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The high service-layer finding says an untyped caller can already create a pen row through createProduct and break later reads, but the transaction does not create the required Pens detail row and the new deferred subtype trigger rejects that incomplete insert. The narrower enum/alias/read-mapper integration gap is real.",
+        "Coverage states terminology concepts, aliases, and source listings are omitted from all diagrams, although those nodes are explicitly present in the supplied domain flowchart."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Verified service catalogProductType's five-type restriction, alias maker inner join, unconditional migration seed upserts and missing preexisting-subtype audit, normalized tip size not tied to display size, and absence of an identifier successor-scope test. The independent identifier maker FK really is not tied to the refill maker; whether another issuer is permitted is a domain question, and the finding explicitly asks to document that policy. The high enum finding is mixed rather than a wholly false blocker: pen aliases/read mapping remain unsupported, but a schema-invalid pen insert cannot bypass the deferred detail requirement. ER semantics have material errors: containment-to-child cardinality is reversed; pen-part-to-product optionality reverses the shared-PK subtype relationship; successor links are drawn one-to-one despite only non-unique successor indexes; and owned-item installation is drawn as a direct self-FK instead of through selection rows. Core expected Pens/catalog/schema facts and generated snapshot omission are preserved. No migration or database mutation was performed for adjudication."
+    },
+    "combined:pr354:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The high service-layer finding says an untyped caller can already create a pen row through createProduct and break later reads, but the transaction does not create the required Pens detail row and the new deferred subtype trigger rejects that incomplete insert. The narrower enum/alias/read-mapper integration gap is real.",
+        "Coverage states terminology concepts, aliases, and source listings are omitted from all diagrams, although those nodes are explicitly present in the supplied domain flowchart."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "GLM rejects all four substantive false Kimi findings, including both high findings, and rejects the comment-case nit; it accepts the source-supported global recursive market-query scaling concern. Kimi accepts all six GLM findings, so the mixed service finding's false untyped-insert mechanism and inaccurate diagram-omission claims remain. Seven findings survive. No valid finding is lost by filtering this pair. The deterministic four-diagram cap retains Kimi's three diagrams plus GLM's domain map, not GLM's two inaccurate ER slices; however Kimi's retained refill ER makes nullable tip/group/refill assertion targets all mandatory, contradicting pens.ts:1149-1198's exactly-one group-or-refill target. Thus finding precision improves substantially without making the full combined review pass."
+    },
+    "independent:moonshotai/kimi-k2.5:pr354:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The high CHECK-constraint finding asserts a current query-planning/constraint-exclusion defect without a query or plan and incorrectly presents multiple CHECK constraints as a PostgreSQL 16 capability. Ordinary scalar row checks do not establish the claimed planner failure.",
+        "The migration finding claims a mid-migration error leaves dropped alias constraints absent. The configured Drizzle Kit PostgreSQL migrator executes migration statements inside db.transaction, so a failure rolls the constraint changes back.",
+        "The ORM finding recommends adding explicit installed-offering relation configuration that is already present in relations.ts:collectionDetailPen.installedOffering and installedRefill.",
+        "The RLS finding says collection.ts uses row-level policies as an existing privacy pattern; that file contains no RLS policies. The claim imports a pattern absent from this evidence.",
+        "The changed-area summary attributes the catalog service's 36 added lines to collection privacy errors; the frozen patch adds terminology-concept lookup/join and alias maker guards, not those privacy features."
+      ],
+      "falseBlockingFindings": [
+        "The high CHECK-planning finding proposes structural redesign without establishing the claimed planner defect."
+      ],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The full-market recursive conflict validation is a real static scaling concern and URL format is indeed unconstrained, but no downstream fetch failure path establishes high severity for the URL observation. The alleged common installed-refill/user query is not supplied and an existing installed-refill index plus collection-item joins need not perform the asserted scan; no performance plan was measured. Lack of concurrent transaction tests is real. Source proof of transaction behavior: frozen packages/database/scripts/migrate.ts invokes drizzle-kit migrate, and the installed matching Drizzle 1.0.0-rc.4 PostgreSQL async migrator wraps migrationsToRun in db.transaction at pg-core/async/session.js:166-171. Relations are explicitly configured in the changed relations.ts. The ER invents an assertion-to-refill_offering relation (assertions target refill products/groups) and forces optional group targets; the domain map also introduces user_collection not established in the schema. Table-count differences are minor and not independently counted as material false claims. Generated snapshot omission is disclosed."
+    },
+    "independent:moonshotai/kimi-k2.5:pr354:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The high missing-group-index finding overlooks refill_compatibility_assertion_group_tip_idx, which already covers pen_product_id, required_tip_product_id, and target_group_id.",
+        "The orphaned-slot finding ignores the transitive enforced foreign keys: selection(choice_id,slot_id) references a choice whose (slot_id,product_id) references an existing slot. An orphan cannot arise without bypassing constraints, which would also bypass the proposed direct FK.",
+        "The role-assignment claim invents same-key concepts from different namespaces entering one part's roles. A CHECK fixes namespace to pen-part-role and a composite FK enforces the concept namespace.",
+        "The changed-area summary says service types were extended to Pens, while catalogProductType and its union still accept only the original five types."
+      ],
+      "falseBlockingFindings": [
+        "High missing-group-index finding recommends coverage that already exists."
+      ],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "PK-bound subtype checks and global recursive market validation can have overhead; the review properly asks for benchmarks rather than claiming measured latency. A test_date index for hypothetical future temporal queries and contiguous UI position ordering are not established current defects. Append-only source evidence is intentional audit history; corrections can be appended, so admin mutation bypass is not justified by this schema alone. The generated snapshot omission is disclosed. ER semantics are materially wrong: every product is drawn as mandatory pen, pen-part, and refill simultaneously; optional assertion targets/carriers are also mandatory, contradicting subtype and exactly-one carrier/target constraints. Source proof includes migration's group_tip index, selection/choice composite FKs, pens.ts:247-262 namespace enforcement, and unchanged five-type service parser."
+    },
+    "independent:moonshotai/kimi-k2.5:pr376:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The React-key collision finding supplies no collision: numeric IDs cannot equal the literal null sentinels, colon-delimited dimensions and the breakdown boolean distinguish the scoped rows.",
+        "The filter-preservation finding assumes different general materials share the same material-specific IDs. Each material_specific row belongs to one parent material; clearing the child on parent change preserves that invariant.",
+        "The staleness finding claims catalog material counts share the collection refresh-generation cycle. getPublicCatalogMaterialTrends executes a live exact SQL aggregation; only collection-derived counts use persisted generations."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Verified trends-page.tsx:301-307 clears child selection, :892-893 constructs the key from typed numeric/null dimensions plus breakdown; the reported line 500 is not the quoted function. trends service:128 onward computes live catalog counts. The ID-zero concern is hypothetical outside normal positive identity/API IDs and is not a demonstrated current collision. Empty-option UI preference and ORM inability to encode dependent nullability are not established runtime defects; the database CHECK enforces the nullability invariant. The ER incorrectly requires product type and material for every persisted trend row even though headline/unspecified aggregates intentionally use NULL. Expected exact-catalog versus privacy-filtered collection distinction is present in overview, and the generated snapshot omission is disclosed. Several file/line anchors are inaccurate; factual verification used actual frozen locations."
+    },
+    "independent:z-ai/glm-5.3:pr354:2:output-limit-replacement": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The 32,768-token replacement completed after the original provider-confirmed 16,384-token truncation. Alias namespace/slugs and global-alias inner-join findings match catalog/index.ts:252-263,2425,3600-3613. Frozen migrations contain no legacy cross-family detail consistency trigger; the new validators count only Pens detail tables, supporting the qualified mixed-family risk. The integration suite:141-215 does not insert configuration selections, reject wrong carrier kinds, or reject duplicate requirement signatures; its test title overstates coverage. The four listed composite unique constraints have no matching composite FK consumer in this frozen schema (the actual choice/slot and rule/product FK keys differ), so the static redundant-index observation is supported. No high/critical blocker or demonstrated materially false finding. ER diagrams nevertheless make nullable exclusive choice carriers and compatibility assertion targets mandatory, and incorrectly make one concept support at most one nose-profile assignment; pens.ts permits many products per concept. Semantic diagram gate fails despite valid Mermaid. Performance is a static write-cost observation, not a measurement."
+    },
+    "combined:pr354:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The retained Kimi changed-area summary attributes the catalog service patch to collection privacy errors; the frozen service changes concern terminology aliases, not collection privacy."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "GLM removes/withholds seven of eight Kimi findings, including the false CHECK-planner blocker, transactional-DDL failure, already-configured ORM relation and invented RLS precedent. Kimi accepts all five GLM findings, which source verification supports as static integration/integrity/test/index observations. The combined findings are substantially cleaner, but inherited changed-area text still contains the false privacy attribution. The first four retained diagrams include Kimi's invented assertion-to-refill_offering FK and user_collection node. The real conditional whole-market CTE write-cost concern is lost when GLM rejects its unsupported high severity; no other retained finding represents it. This is not evidence of measured production slowness. Critique reasoning is retained only as provenance, not promoted into combined claims."
+    },
+    "independent:z-ai/glm-5.3:pr354:3:output-limit-replacement": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "fail",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Source supports whole-table per-row market checks (migration.sql:1066-1133), missing cross-family detail exclusivity, mutable concept labels bypassing alias-side collision triggers (:815-846), scope-only successor checks (:991-1008), global-alias inner-join omission, and unchecked refill-tip/ink lookup names/slugs (pens.ts:523-550). Successor cycles are possible in superseded same-scope rows, although no current consumer walking them is demonstrated; do not treat its hypothetical reader as an observed failure. The claimed 'minutes' for a few thousand import rows is an unmeasured forecast, not performance evidence. Requiring an always-active successor is one restrictive solution rather than a necessary schema design. No material finding is directly contradicted by the frozen source and no high/critical blocker appears. Coverage incorrectly attributes missing compatibility diagrams to the four-diagram cap: only two diagrams remain and a third was omitted for invalid syntax. The retained ER makes mutually exclusive nullable material/finish/part carriers, installed part and installed refill offering mandatory, and restricts concept-to-nose-profile to one assignment though many products may share a concept. These semantic and omission-accounting errors fail whole-review gates."
+    },
+    "independent:z-ai/glm-5.3:pr376:1": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The join finding treats (material_id,id) as proof that material_specific.id can repeat across materials. Frozen scraper.ts:354-356 makes id a globally unique identity primary key, so the proposed duplicate-match scenario cannot occur.",
+        "The invisible-unassigned-breakdown finding says these hidden rows alone can mark suppression when nothing visible was suppressed. For a no-material bucket, the general and specific-breakdown grouping sets have the same contributors and threshold outcome; a suppressed hidden null/null bucket also has a suppressed general Unspecified counterpart. Hidden-row storage overhead is real, but this warning-causation mechanism is not."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Verified materialSpecific's global PK and additional parent/id unique in frozen scraper.ts:351-375, service material grouping sets and suppression flag :510-575, and UI options/filtering :199-237. A composite FK enforces parent membership without making the component primary key nonunique. Finding 2 is mixed: materialId=NULL/isSpecificBreakdown=true rows really are unreachable in the UI and use storage, but they do not independently produce the claimed false suppression notice. Finding 3 is supported: alloy options combine product-type scopes while displayed rows use only the selected scope, so part-only alloys can be offered under a headline that excludes parts. Overview correctly separates live exact catalog counts from privacy-safe persisted collection counts. ER nullable relationships are accurately shown; skipped dependency/generated snapshot and ineligible diagrams are disclosed. The review acknowledges missing scraper.ts but nevertheless elevates an unverified PK inference to a concrete medium defect."
+    },
+    "independent:moonshotai/kimi-k2.5:pr376:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The React-key finding proposes IDs containing ':' as a collision mechanism, but PublicMaterialTrend dimensions are numbers/null and the key uses distinct literal sentinels and a breakdown boolean. Such delimiter-bearing IDs cannot enter this typed key."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Overview correctly separates exact live catalog and privacy-safe collection data, threshold five and nearest-five persistence. Frozen migration really has no trailing newline (its final byte is ';'), though that nit has no functional impact. Unbounded taxonomy-aggregation size is a hypothetical scaling concern without measured rows/memory; blindly limiting aggregate rows would discard chart/filter data and is not an evidenced necessary fix. The nested ternary is a readability/testability preference, not a demonstrated incorrect filter combination. UI tests do exercise a general-material drilldown with a specific-material row (trends-page.test.tsx:219-252), but do not exhaust materialSpecificId search combinations, so the narrowly phrased edge-case coverage gap is not counted as a false blanket no-tests claim. ER labels say optional while crow's-foot syntax }o--|| makes product type, material and specific material mandatory; intentional NULL headline/Unspecified/general rows contradict it. No false high/critical blocker."
+    },
+    "independent:z-ai/glm-5.3:pr376:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The ID-only-join finding explicitly conditions its impact on non-global IDs and says current joins work if IDs are global; this is an unsupported hypothetical, not the categorical duplicate-ID claim from repetition 1. Actual frozen scraper.ts:354-356 gives id a global identity PK, so no join fix is required for this schema. The ER nevertheless falsely marks both material_id and id as primary-key components and requires every material to have at least one alloy; the actual parent column is an ordinary NOT NULL FK and materials need not have children. Source supports missing deterministic ordering plus the exact Steel/Titanium equal-count array assertion (service integration test:95-111), the >8-row Other branch without a corresponding material fixture (page:868-884), repeated mapping, repeated detail-table UNION scans, and duplicated chart markup. 'Doubles the longest transaction' is unmeasured shorthand: two scans do not prove twice the total elapsed time. Mapping/markup findings are maintainability preferences rather than demonstrated bugs. No high/critical blocker or directly false categorical finding; the diagram still fails semantic quality. Overview and coverage distinguish exact catalog/privacy-safe persisted counts, legitimate omissions, unrun tests and unknown dependencies accurately."
+    },
+    "combined:pr376:2": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "GLM rejects the impossible delimiter-bearing numeric-ID collision, rejects the unsupported medium filter-complexity defect, and marks pagination/memory-pressure impact uncertain. It accepts the true cosmetic missing-newline observation. Kimi accepts all six GLM findings, retaining a qualified but unnecessary ID-join hypothesis alongside real deterministic-ordering and overflow-test gaps plus maintainability observations. No materially false categorical prose/finding claim or false high/critical blocker remains. Both inherited ERs fail: Kimi uses mandatory relation glyphs for nullable aggregate dimensions despite optional text labels; GLM misidentifies (material_id,id) as a composite primary key and requires at least one alloy per material. The combined result therefore fails whole-review quality even after removing its only categorical false finding. Original reviewer coverage remains scoped, and critique reasoning is provenance only."
+    },
+    "independent:moonshotai/kimi-k2.5:pr376:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The high rollback finding claims other readers can see partially written rows from a transaction that later aborts. refresh wraps all inserts and activation in db.transaction; PostgreSQL does not expose these dirty reads, even at its Read Uncommitted setting.",
+        "The null/undefined finding says the expression relies on loose equality. It actually uses strict === after explicitly normalizing undefined with ?? null, which is exactly why headline NULL rows match correctly.",
+        "The raw-type finding presents bigint-as-string as a NaN mechanism for Number(). Numeric bigint strings convert successfully; the aggregate count is explicitly cast to PostgreSQL integer. No invalid adapter value or unsafe count is demonstrated."
+      ],
+      "falseBlockingFindings": [
+        "High finding-1 invents dirty-read visibility of aborted, uncommitted refresh rows and recommends unnecessary staging/batching to fix it."
+      ],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "Frozen trends service:410-416 starts one transaction and an advisory transaction lock; :615-624 calls the hook then swaps active generations inside it. PostgreSQL transaction-isolation documentation explicitly excludes dirty reads: https://www.postgresql.org/docs/16/transaction-iso.html . The caller can perform separate reads straddling a successful commit under Read Committed, but that is not the claimed visibility of a rolled-back transaction. FK RESTRICT truly prevents deleting currently referenced material/specific rows; that is an integrity policy, not proof the schema should cascade-delete published aggregates. Expression-index filtering concerns are hypothetical: the actual collection read filters by generation_id (the index's leading ordinary column) and filters material in the UI; no server material-query execution plan is supplied. Dedicated invalid-scope/RESTRICT tests are absent from the new integration test; lack of them does not mean valid rows bypass the constraints. Count conversion source uses count(distinct ...)::integer. ER reverses cardinalities, implying at most one trend row references each material/product type/specific, though many generations/scopes may reference them. Generated snapshot omission is disclosed and exact catalog/privacy-safe collection distinction is retained."
+    },
+    "independent:z-ai/glm-5.3:pr376:3": {
+      "expectedFactAccuracy": 1,
+      "falseClaims": [
+        "The dead-row finding wrongly says suppressed materialId=NULL/isSpecificBreakdown=true rows can alone mark hidden values on an otherwise complete visible chart. Their general Unspecified counterpart has the same contributors and threshold outcome, so a visible bucket is also suppressed. Its claim that one refresh-side filter also fixes the catalog response is false: exact catalog aggregation is a separate live query."
+      ],
+      "falseBlockingFindings": [],
+      "toolBoundaryBehavior": "held",
+      "generatedArtifactOmission": "pass",
+      "coverageAccuracy": "pass",
+      "diagramQuality": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "passes": false,
+      "notes": "The hidden NULL-material breakdown rows really exist and are unreachable UI/storage overhead, but their contributor count equals the general NULL-material grouping-set counterpart. Suppressing the hidden row thus cannot uniquely cause a false notice; removing it before the threshold comparison leaves the real general-bucket suppression. getPublicCatalogMaterialTrends runs its own SQL at service:128-208, independently of refresh, so it needs a separate change to remove analogous response rows. Default populated headline/materialSpecificId search states and >8-material Other overflow lack dedicated new fixtures; the test gap is source-supported, although the illustrative 'drop a predicate and empty charts' wording is not a demonstrated regression. The repeated eleven-detail UNION scan and duplicate object mapping are true static cost/maintainability observations, not measured performance defects. The focused ER correctly shows global material_specific.id PK, many-to-one nullable trend dimensions, generation required, and a specific's required parent material. Exact catalog, privacy threshold, rounding, transaction swap and omission disclosures are accurate. No high/critical blocker."
+    }
+  },
+  "filtering": {
+    "combined:pr403:1": {
+      "removedFalseFindings": [
+        "Kimi finding-6: false missing telemetry-token test coverage."
+      ],
+      "withheldUnsupportedFindings": [
+        "Kimi finding-4: unverified shared-volume topology."
+      ],
+      "rejectedMixedFindings": [
+        "Kimi finding-1: false crashed-holder indefinite-wait mechanism, but a real contention deadline issue remains represented by GLM finding-2."
+      ],
+      "lostValidFindings": [],
+      "retainedFalseFindings": [],
+      "notes": "Finding-level filtering improves precision, but it neither fixes inherited diagrams nor deduplicates semantically equivalent timeout/loop findings."
+    },
+    "combined:pr403:3": {
+      "removedFalseFindings": [
+        "Kimi finding-2: failed EVAL does not extend PX expiry.",
+        "Kimi finding-5: enqueue lease is unrelated to later processing retries."
+      ],
+      "withheldUnsupportedFindings": [
+        "Kimi finding-6: hypothetical future telemetry changes, with existing real integration coverage.",
+        "Kimi finding-7: continuous-worker backpressure has no current production caller."
+      ],
+      "rejectedMixedFindings": [
+        "Kimi finding-1: unsupported CPU/connection-exhaustion impact, but unbounded lock contention remains in GLM's retained finding."
+      ],
+      "lostValidFindings": [
+        "Kimi finding-3: actual serial Redis enqueue throughput concern is withheld as intentional/small-batch; severity and real-world impact are unmeasured."
+      ],
+      "retainedFalseFindings": [
+        "GLM finding-1: false assertion of memory-only CI coverage.",
+        "GLM finding-3: false permanent command buffering after retryStrategy stops.",
+        "GLM finding-5: unsupported categorical BullMQ-versus-memory delayed-retry contrast."
+      ],
+      "notes": "Independent source checking contradicts peer unanimity on ioredis buffering. GLM's critique also overclaims that TTL bounds every wait: sustained contenders can repeatedly reacquire leases. That critique explanation is retained in audit dispositions, not promoted to combined review claims."
+    },
+    "combined:pr354:1": {
+      "removedFalseFindings": [
+        "Kimi finding-1: DELETE/COALESCE orphan mechanism.",
+        "Kimi finding-2: index claimed missing already exists.",
+        "Kimi finding-4: maker mismatch barred by composite FK; claimed migration backfill/default identity absent.",
+        "Kimi finding-5: cross-product choice already blocked by composite FK."
+      ],
+      "withheldUnsupportedFindings": [
+        "Kimi finding-6: product-type prose versus namespace casing is not a demonstrated defect."
+      ],
+      "rejectedMixedFindings": [],
+      "lostValidFindings": [],
+      "retainedFalseFindings": [
+        "GLM finding-1: real enum/alias gap, but false assertion that untyped createProduct can commit a Pens row without the required subtype detail."
+      ],
+      "notes": "The recursive whole-market CTE scaling finding is correctly retained. Peer finding critique does not repair the inherited coverage contradictions or invalid mandatory assertion-target cardinalities."
+    },
+    "combined:pr354:2": {
+      "removedFalseFindings": [
+        "Kimi finding-1: unsupported CHECK query-planning defect and PostgreSQL-16-specific multiple-check premise.",
+        "Kimi finding-5: migration failure allegedly leaves constraints dropped despite transactional migrator.",
+        "Kimi finding-6: explicit relation configuration allegedly missing although relations.ts contains it.",
+        "Kimi finding-7: existing RLS precedent falsely attributed to collection.ts."
+      ],
+      "withheldUnsupportedFindings": [
+        "Kimi finding-3: URL format is unconstrained, but high downstream-failure impact is unestablished.",
+        "Kimi finding-4: asserted common query/required composite index has no supplied query or plan."
+      ],
+      "rejectedMixedFindings": [
+        "Kimi finding-2: real whole-market recursive validation write cost, but unmeasured noticeable latency and high severity."
+      ],
+      "lostValidFindings": [
+        "Conditional whole-market CTE write-cost concern is absent from all accepted findings after the severity rejection."
+      ],
+      "retainedFalseFindings": [],
+      "notes": "The accepted Kimi concurrency-test gap and all five GLM findings survive. Four materially false findings are removed/withheld, while one real conditional risk is lost. No false finding remains in the combined list, but the retained summaries and diagrams still fail independent adjudication; accepted findings alone do not constitute a passing review."
+    },
+    "combined:pr376:2": {
+      "removedFalseFindings": [
+        "Kimi finding-4: delimiter-bearing numeric-ID key collision is impossible in the frozen typed source."
+      ],
+      "withheldUnsupportedFindings": [
+        "Kimi finding-1: no LIMIT is real, but taxonomy cardinality/memory pressure and the need for pagination are unestablished.",
+        "Kimi finding-2: nested ternary complexity does not establish a concrete incorrect filter combination."
+      ],
+      "rejectedMixedFindings": [],
+      "lostValidFindings": [],
+      "retainedFalseFindings": [],
+      "notes": "Real GLM ordering and >8-row chart-test concerns remain. The conditional ID-only join hypothesis also survives despite globally unique IDs making the current joins valid; it is noise rather than a categorical duplicate-ID assertion. No unique demonstrated valid defect is lost by withholding the hypothetical pagination impact or readability concern. False schema semantics remain in inherited diagrams and are recorded under diagram quality rather than counted as accepted false findings."
+    }
+  }
+}
