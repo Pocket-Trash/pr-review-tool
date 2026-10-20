@@ -1,0 +1,14 @@
+{
+  "task": "visuals",
+  "provider": "cheaperinference",
+  "model": "fixture-model",
+  "skills": ["i-have-adhd", "stop-slop"],
+  "prompt": "Describe the changed architecture, domains, and entity relationships using only supplied source evidence.",
+  "generatedFiles": ["**/generated/**"],
+  "limits": {
+    "maxFiles": 100,
+    "maxBytes": 1048576,
+    "maxChangedLines": 20000,
+    "maxFileBytes": 524288
+  }
+}

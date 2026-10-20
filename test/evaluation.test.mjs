@@ -8,6 +8,7 @@ import {
   adjudicationPasses,
   priceUsage,
   validateAdjudication,
+  usesCorrectedRunner,
   writeJsonAtomic,
 } from "../src/evaluation.mjs";
 
@@ -87,6 +88,25 @@ test("failed inference accounts for the larger of derived usage and reservation"
     accountedRunCost({ usage, reservedCostUsd: 0.005, status: "error" }),
     0.012,
   );
+});
+
+test("production eligibility requires every corrected runner marker", () => {
+  const corrected = {
+    contextFormat: "plain-text-v1",
+    validatorFormat: "node-dom-v1",
+    outputFormat: "final-message-v1",
+  };
+  assert.equal(usesCorrectedRunner(corrected), true);
+  for (const key of Object.keys(corrected)) {
+    const incomplete = { ...corrected };
+    delete incomplete[key];
+    assert.equal(usesCorrectedRunner(incomplete), false, key);
+    assert.equal(
+      usesCorrectedRunner({ ...corrected, [key]: "old" }),
+      false,
+      key,
+    );
+  }
 });
 
 test("adjudication requires every exact field and all quality gates", () => {

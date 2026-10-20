@@ -1,4 +1,5 @@
 node_modules/
+evaluation/*.lock
 review.md
 .agents/
 .opencode/

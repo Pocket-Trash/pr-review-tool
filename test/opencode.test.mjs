@@ -207,6 +207,133 @@ test("restricted runner validates successful inference", async () => {
   ]);
 });
 
+test("evaluation can use a loopback budget proxy and strict peer result contract", async () => {
+  const result = { assessments: [] };
+  assert.deepEqual(
+    await runRestrictedReview({
+      apiKey: "proxy-token",
+      provider: "openrouter",
+      model: "z-ai/glm-5.3",
+      workspace: fixtureWorkspace,
+      openRouterBaseURL: "http://127.0.0.1:12345/api/v1",
+      openRouterModelLimits: { context: 1048576, output: 32768 },
+      resultFormat: {
+        instructions: "Return peer assessments only.",
+        validate: (value) => {
+          assert.deepEqual(value, result);
+          return value;
+        },
+      },
+      execute: async (_command, args, options) => {
+        const config = JSON.parse(options.env.OPENCODE_CONFIG_CONTENT);
+        assert.equal(
+          config.provider.openrouter.options.baseURL,
+          "http://127.0.0.1:12345/api/v1",
+        );
+        assert.deepEqual(
+          config.provider.openrouter.models["z-ai/glm-5.3"].limit,
+          { context: 1048576, output: 32768 },
+        );
+        assert.equal(options.env.OPENROUTER_API_KEY, "proxy-token");
+        assert.match(args.at(-1), /Return peer assessments only/);
+        assert.doesNotMatch(args.at(-1), /exactly these five top-level keys/);
+        return {
+          stdout: JSON.stringify({
+            type: "text",
+            part: { text: JSON.stringify(result) },
+          }),
+        };
+      },
+    }),
+    result,
+  );
+});
+
+test("one explicit JSON fence can have prose but ambiguous envelopes stay rejected", async () => {
+  for (const [text, valid] of [
+    [
+      `Review follows.\n\n\`\`\`json\n${JSON.stringify(review)}\n\`\`\`\nDone.`,
+      true,
+    ],
+    [
+      `\`\`\`json\n${JSON.stringify(review)}\n\`\`\`\n\`\`\`json\n{}\n\`\`\``,
+      false,
+    ],
+    [`{}\n\`\`\`json\n${JSON.stringify(review)}\n\`\`\``, false],
+  ]) {
+    const run = runRestrictedReview({
+      apiKey: "test",
+      model: "test",
+      workspace: fixtureWorkspace,
+      execute: async () => ({
+        stdout: JSON.stringify({ type: "text", part: { text } }),
+      }),
+    });
+    if (valid) assert.deepEqual(await run, review);
+    else await assert.rejects(run, /valid structured review/);
+  }
+});
+
+test("restricted runner validates only the final assistant message", async () => {
+  const json = JSON.stringify(review);
+  const middle = Math.floor(json.length / 2);
+  const events = [
+    {
+      type: "text",
+      part: {
+        id: "narration",
+        messageID: "earlier",
+        text: "I will inspect the evidence.",
+      },
+    },
+    {
+      type: "reasoning",
+      part: { text: "Private reasoning is not the review." },
+    },
+    {
+      type: "text",
+      part: { id: "first", messageID: "final", text: json.slice(0, middle) },
+    },
+    {
+      type: "text",
+      part: { id: "second", messageID: "final", text: json.slice(middle) },
+    },
+    {
+      type: "text",
+      part: { id: "second", messageID: "final", text: json.slice(middle) },
+    },
+  ];
+  const result = await runRestrictedReview({
+    apiKey: "secret",
+    model: "fixture-model",
+    workspace: fixtureWorkspace,
+    execute: async () => ({
+      stdout: events.map((event) => JSON.stringify(event)).join("\n"),
+    }),
+  });
+  assert.deepEqual(result, review);
+
+  await assert.rejects(
+    runRestrictedReview({
+      apiKey: "secret",
+      model: "fixture-model",
+      workspace: fixtureWorkspace,
+      execute: async () => ({
+        stdout: [
+          ...events,
+          {
+            type: "text",
+            part: { id: "invalid", messageID: "last", text: "not a review" },
+          },
+        ]
+          .map((event) => JSON.stringify(event))
+          .join("\n"),
+      }),
+    }),
+    /valid structured review/,
+  );
+});
+
 test("restricted runner rejects malformed model output", async () => {
   let usage;
   await assert.rejects(

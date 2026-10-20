@@ -13,6 +13,8 @@
     "fixture": "node src/fixture.mjs test/fixtures/config.valid.json test/fixtures/review.valid.json test/fixtures/run.valid.json",
     "evaluate": "node scripts/evaluate-models.mjs",
     "evaluate:report": "node scripts/render-evaluation-report.mjs",
+    "evaluate:peers": "node scripts/evaluate-peers.mjs",
+    "evaluate:peers:report": "node scripts/render-peer-report.mjs",
     "format:check": "npx --yes prettier@3.6.2 --check .",
     "review:local": "node src/local-review.mjs",
     "skills:install": "node scripts/install-skills.mjs",
@@ -23,6 +25,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "jsdom": "26.1.0",
     "mermaid": "12.2.0"
   }
 }

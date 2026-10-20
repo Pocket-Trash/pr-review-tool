@@ -34,6 +34,17 @@ After event authorization and trusted configuration validation, analysis request
 
 Existing callers that explicitly pass `CHEAPER_INFERENCE_API_KEY` and `APP_PRIVATE_KEY` remain supported when no Infisical identity is supplied. In OIDC mode, credential-fetch failure never falls back to those direct secrets. The Pocket Trash consumer workflow and live OIDC verification remain adoption work gated on the owner's route decision.
 
+## Visual-only analysis (Phase 1)
+
+Set `"task": "visuals"` in trusted configuration to generate architecture diagrams, domain maps, and ERDs without code-review findings. Omitted `task` retains the legacy review path. Visual analysis uses a dedicated coordinator prompt, excludes the general reviewer skills, and renders a **PR Visuals** summary with overview, diagrams, changed areas, coverage gaps, and run details. Its strict JSON contract has only `overview`, `diagrams`, `changedAreas`, and `coverageGaps`.
+
+```sh
+node src/fixture.mjs test/fixtures/config.visuals.json \
+  test/fixtures/visuals.valid.json test/fixtures/run.valid.json
+```
+
+Local visual execution requires a prepared `pull-request.json` containing the eligible `files` evidence. Automatic execution applies the existing generated-file exclusions and size limits first. Changes without eligible architecture or schema evidence skip inference and record zero usage. Invalid or unsafe Mermaid is omitted with a visible coverage gap. The production provider gate remains unchanged: this adds no model approval, paid evaluation, or live activation. Independent GitHub comment publication and reruns are tracked separately in ENG-542.
+
 ## Dependency policy
 
 Third-party GitHub Actions must be pinned to full commit SHAs, and downloaded command-line tools must use exact versions. Pull-request content is untrusted data: the reusable reviewer must never execute it, load configuration from it, or expose credentials to it.
