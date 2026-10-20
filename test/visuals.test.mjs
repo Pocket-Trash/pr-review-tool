@@ -16,6 +16,50 @@ const fixture = async (number) =>
   );
 const baseReview = { findings: [], changedAreas: [], coverageGaps: [] };
 
+test("architecture prompts require evidenced bindings instead of inferred live attachments", () => {
+  const prompt = visualPrompt({ architecture: true, schema: "none" });
+  assert.match(prompt, /explicit source bindings/);
+  assert.match(
+    prompt,
+    /declared resources, documented intent and verified runtime connections/,
+  );
+  assert.match(
+    prompt,
+    /resource-list membership, names or shared credentials do not establish/,
+  );
+  assert.match(prompt, /omit unverified edges with coverageGaps/);
+  assert.doesNotMatch(prompt, /actual FK nullability/);
+});
+
+test("small and large schema prompts derive keys and optionality without fixture-specific answers", () => {
+  for (const schema of ["small", "large"]) {
+    const prompt = visualPrompt({ architecture: false, schema });
+    assert.match(
+      prompt,
+      /FK nullability and PK\/UNIQUE constraints, including constraint triggers/,
+    );
+    assert.match(prompt, /non-unique FK permits many children/);
+    assert.match(
+      prompt,
+      /parent has zero children unless a constraint proves a minimum/,
+    );
+    assert.match(prompt, /not a composite referenced UNIQUE key/);
+    assert.match(prompt, /exclusive nullable carriers\/targets/);
+    assert.match(
+      prompt,
+      /junction-mediated relationships through their junction/,
+    );
+    assert.doesNotMatch(
+      prompt,
+      /Railway|Redis|material_specific|refill_offering|PR #/,
+    );
+  }
+  assert.equal(
+    visualPrompt({ architecture: false, schema: "none" }),
+    "No architecture, infrastructure, or schema visual is requested; return no diagrams.",
+  );
+});
+
 test("PR 403 requests change-focused architecture output", async () => {
   const requirements = visualRequirements(await fixture(403));
   assert.deepEqual(requirements, { architecture: true, schema: "none" });

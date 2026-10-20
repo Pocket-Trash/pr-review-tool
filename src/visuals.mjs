@@ -157,7 +157,7 @@ export function visualPrompt(requirements) {
   const requests = [];
   if (requirements.architecture)
     requests.push(
-      "one change-focused architecture flowchart covering affected components, connections, and retained or staged paths",
+      "one change-focused architecture flowchart covering affected components, connections, and retained or staged paths; anchor each connection to explicit source bindings and distinguish declared resources, documented intent and verified runtime connections; resource-list membership, names or shared credentials do not establish a storage/network attachment or cutover; omit unverified edges with coverageGaps rather than drawing them as facts",
     );
   if (requirements.schema === "small")
     requests.push(
@@ -166,6 +166,10 @@ export function visualPrompt(requirements) {
   if (requirements.schema === "large")
     requests.push(
       "one schema-domain flowchart plus at least one focused schema-er erDiagram; a second ER slice is allowed only for a separate high-risk domain; list omitted tables or relationships under coverageGaps",
+    );
+  if (["small", "large"].includes(requirements.schema))
+    requests.push(
+      "derive ER cardinality from actual FK nullability and PK/UNIQUE constraints, including constraint triggers: a nullable FK permits zero or one parent, a non-unique FK permits many children, and a parent has zero children unless a constraint proves a minimum; mark only the actual primary-key columns as PK, not a composite referenced UNIQUE key; preserve optional shared-PK subtypes and exclusive nullable carriers/targets; draw junction-mediated relationships through their junction rather than inventing a direct FK; label conceptual domain links as conceptual, not enforced relationships; when definitions are missing, omit unsupported key/cardinality details and disclose the gap",
     );
   if (requirements.sequence)
     requests.push(

@@ -128,6 +128,18 @@ test("visual execution uses the dedicated contract and only the chosen provider 
       execute: async (_command, args, options) => {
         assert.match(args.at(-1), /visual coordinator, not a code reviewer/);
         assert.match(args.at(-1), /exactly these four top-level keys/);
+        assert.match(
+          args.at(-1),
+          /Frozen repository evidence and installed-version constraints override/,
+        );
+        assert.match(
+          args.at(-1),
+          /Distinguish unread, omitted and unavailable evidence/,
+        );
+        assert.match(
+          args.at(-1),
+          /Anchor each asserted relationship to source file\/line evidence/,
+        );
         assert.doesNotMatch(
           args.at(-1),
           /Load .*review-coordinator|Load .*ponytail-review/,

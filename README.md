@@ -53,6 +53,8 @@ The existing 1 MiB source-free artifact cap and 90-day retention are unchanged. 
 
 The separately approved [visual-only campaign](evaluation/visual-report.md) is closed: $2.808252368 billed under its $7.89 cap, with no paid replacements. Its ledger is separate from historical campaigns. `npm run evaluate:visuals` refuses an existing ledger; explicit `--resume` can continue unstarted sessions after an interruption only after receipt-based billing reconciliation, never reopen a completed campaign or replay a session. The remaining credit balance is not automatic authorization for a new campaign.
 
+The coordinator now requests source anchors, explicit infrastructure bindings and constraint-derived ER cardinalities, and distinguishes unread from unavailable evidence. This corrects generic instructions after that campaign; its results remain evidence for the earlier prompt. Offline tests verify the instructions and contracts, not improved model accuracy. Fresh paid validation and owner route approval remain required before adoption.
+
 ### Phase 2 development (not activated)
 
 Trusted local visual configuration can opt into `"visualPhase": 2` for conditional sequence diagrams. Source interaction changes may request one `sequenceDiagram`, with source-symbol participants and file/line message anchors. The coordinator must distinguish awaited order from concurrent work and omit unverified runtime steps. Syntax safety is not semantic proof: invented participants or ordering fail the source-assessment gate even when Mermaid parses.
