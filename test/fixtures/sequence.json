@@ -1,0 +1,39 @@
+{
+  "files": [
+    {
+      "filename": "apps/api/src/handler.ts",
+      "additions": 4,
+      "deletions": 0,
+      "patch": "+export async function handle(input) {\n+  validate(input);\n+  const receipt = await queue.enqueue(input);\n+  return receipt;\n+}",
+      "content": "export async function handle(input) {\n  validate(input);\n  const receipt = await queue.enqueue(input);\n  return receipt;\n}"
+    }
+  ],
+  "visuals": {
+    "overview": "The handler validates input before awaiting the queue receipt.",
+    "diagrams": [
+      {
+        "kind": "sequence",
+        "title": "Handler enqueue order",
+        "mermaid": "sequenceDiagram\n  participant Handler as handle (handler.ts)\n  participant Queue as queue.enqueue\n  Handler->>Handler: validate (handler.ts:2)\n  Handler->>Queue: await enqueue (handler.ts:3)\n  Queue-->>Handler: receipt (handler.ts:4)"
+      }
+    ],
+    "changedAreas": [
+      { "area": "Handler", "summary": "Validates before enqueueing." }
+    ],
+    "coverageGaps": [
+      "Only source ordering is shown; runtime delivery and downstream consumers were not inspected."
+    ]
+  },
+  "unsupported": {
+    "overview": "The handler bills before validation.",
+    "diagrams": [
+      {
+        "kind": "sequence",
+        "title": "Invented participant and reversed order",
+        "mermaid": "sequenceDiagram\n  participant Handler\n  participant Billing\n  participant Queue\n  Handler->>Billing: charge\n  Handler->>Queue: enqueue\n  Handler->>Handler: validate"
+      }
+    ],
+    "changedAreas": [{ "area": "Handler", "summary": "Bills the input." }],
+    "coverageGaps": []
+  }
+}

@@ -5,6 +5,7 @@ import {
   validateRun,
   validateTask,
   validateVisualAnalysis,
+  validateVisualPhase,
 } from "./review.mjs";
 import { sanitizeVisuals } from "./visuals.mjs";
 
@@ -78,6 +79,11 @@ function operationalBody(conclusion, detail, runUrl, task, reviewedSha) {
 
 export async function preparePublication(artifact, fallback = {}) {
   const task = validateTask(fallback.task);
+  const visualPhase = validateVisualPhase(fallback.visualPhase);
+  if (validateVisualPhase(artifact?.config?.visualPhase) > visualPhase)
+    throw new TypeError(
+      "artifact visual phase is not activated in this workflow",
+    );
   if (task === "visuals" && artifact?.task !== "visuals")
     throw new TypeError("visual publication requires a visual artifact");
   if (artifact?.task && artifact.task !== task)
@@ -87,7 +93,7 @@ export async function preparePublication(artifact, fallback = {}) {
       "artifact configuration does not match the publication lane",
     );
   if (task === "visuals" && artifact?.review != null)
-    validateVisualAnalysis(artifact.review);
+    validateVisualAnalysis(artifact.review, artifact.config?.visualPhase);
   if (
     fallback.reviewedSha &&
     artifact?.run &&
@@ -110,7 +116,7 @@ export async function preparePublication(artifact, fallback = {}) {
     const review = await sanitizeVisuals(
       sanitizeReview(
         task === "visuals"
-          ? validateVisualAnalysis(artifact.review)
+          ? validateVisualAnalysis(artifact.review, config.visualPhase)
           : validateReview(artifact.review),
         task,
       ),
@@ -182,6 +188,7 @@ function assertVisualRunOrder(comment, runId, runAttempt = "1") {
 
 export async function publishReview({
   task = "review",
+  visualPhase = 1,
   runId,
   runAttempt = "1",
   artifact,
@@ -225,6 +232,7 @@ export async function publishReview({
   try {
     publication = await preparePublication(artifact, {
       task,
+      visualPhase,
       runId,
       runAttempt,
       reviewedSha: expectedHeadSha,
@@ -240,7 +248,14 @@ export async function publishReview({
           "Review artifact validation failed. Inspect the protected workflow logs for details.",
         ],
       },
-      { task, runId, runAttempt, runUrl, reviewedSha: expectedHeadSha },
+      {
+        task,
+        visualPhase,
+        runId,
+        runAttempt,
+        runUrl,
+        reviewedSha: expectedHeadSha,
+      },
     );
   }
   const externalId = `pockettrash-pr-${task === "visuals" ? "visuals" : "review"}:${repository}#${pullNumber}`;

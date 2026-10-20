@@ -2,6 +2,11 @@ const providers = new Set(["cheaperinference", "openrouter"]);
 const severities = new Set(["critical", "high", "medium", "low"]);
 const diagramKinds = new Set(["architecture", "schema-domain", "schema-er"]);
 
+export function validateVisualPhase(phase = 1) {
+  if (phase !== 1 && phase !== 2) fail("visualPhase", "1 or 2");
+  return phase;
+}
+
 export function validateTask(task = "review") {
   if (!["review", "visuals"].includes(task)) fail("task", "review or visuals");
   return task;
@@ -53,8 +58,12 @@ export function validateConfig(input) {
     "generatedFiles",
     "limits",
     "task",
+    "visualPhase",
   ]);
   validateTask(config.task);
+  validateVisualPhase(config.visualPhase);
+  if (config.visualPhase !== undefined && config.task !== "visuals")
+    fail("config.visualPhase", "used only with task visuals");
   if (!providers.has(config.provider))
     fail("config.provider", "cheaperinference or openrouter");
   string(config.model, "config.model");
@@ -86,7 +95,8 @@ export function validateProductionRoute(configInput) {
   return config;
 }
 
-export function validateReview(input) {
+export function validateReview(input, visualPhase = 1) {
+  validateVisualPhase(visualPhase);
   const review = object(input, "review");
   exactKeys(review, "review", [
     "overview",
@@ -132,7 +142,10 @@ export function validateReview(input) {
       "title",
       "mermaid",
     ]);
-    if (!diagramKinds.has(diagram.kind))
+    if (
+      !diagramKinds.has(diagram.kind) &&
+      !(visualPhase === 2 && diagram.kind === "sequence")
+    )
       fail(`review.diagrams[${index}].kind`, "a supported diagram kind");
     string(diagram.title, `review.diagrams[${index}].title`);
     string(diagram.mermaid, `review.diagrams[${index}].mermaid`);
@@ -149,7 +162,7 @@ export function validateReview(input) {
   return review;
 }
 
-export function validateVisualAnalysis(input) {
+export function validateVisualAnalysis(input, visualPhase = 1) {
   const visuals = object(input, "visuals");
   exactKeys(visuals, "visuals", [
     "overview",
@@ -157,7 +170,7 @@ export function validateVisualAnalysis(input) {
     "changedAreas",
     "coverageGaps",
   ]);
-  validateReview({ ...visuals, findings: [] });
+  validateReview({ ...visuals, findings: [] }, visualPhase);
   return visuals;
 }
 
@@ -204,7 +217,7 @@ export function renderReview(configInput, reviewInput, runInput) {
   const config = validateConfig(configInput);
   const visualOnly = config.task === "visuals";
   const review = visualOnly
-    ? validateVisualAnalysis(reviewInput)
+    ? validateVisualAnalysis(reviewInput, config.visualPhase)
     : validateReview(reviewInput);
   const run = validateRun(runInput);
   const findings = visualOnly
@@ -231,9 +244,13 @@ export function renderReview(configInput, reviewInput, runInput) {
   const gaps = review.coverageGaps.length
     ? review.coverageGaps.map((gap) => `- ${gap}`).join("\n")
     : "- None.";
+  const diagramHeading =
+    visualOnly && config.visualPhase === 2
+      ? "Diagrams"
+      : "Architecture and schema";
 
   const overrides = run.skillOverrides.length
     ? `\nSkill overrides: ${run.skillOverrides.join(", ")}`
     : "";
-  return `${visualOnly ? "## PR Visuals\n\n" : ""}## Overview\n\n${review.overview}\n\n${visualOnly ? "" : `## Findings\n\n${findings}\n\n`}## Architecture and schema\n\n${diagrams}\n\n## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}${overrides}\nTokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\nModel calls: ${run.usage.modelCalls}\nTool iterations: ${run.usage.toolIterations}\nEstimated cost: $${run.usage.estimatedCostUsd.toFixed(5)}\n\n</details>\n`;
+  return `${visualOnly ? "## PR Visuals\n\n" : ""}## Overview\n\n${review.overview}\n\n${visualOnly ? "" : `## Findings\n\n${findings}\n\n`}## ${diagramHeading}\n\n${diagrams}\n\n## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}${overrides}\nTokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\nModel calls: ${run.usage.modelCalls}\nTool iterations: ${run.usage.toolIterations}\nEstimated cost: $${run.usage.estimatedCostUsd.toFixed(5)}\n\n</details>\n`;
 }

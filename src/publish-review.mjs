@@ -1,6 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import { publishReview } from "./publication.mjs";
-import { validateTask } from "./review.mjs";
+import { validateTask, validateVisualPhase } from "./review.mjs";
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
 const task = validateTask(process.env.REVIEW_TASK);
@@ -52,6 +52,9 @@ if (!expectedHeadSha)
   throw new TypeError("publisher requires a pull request head SHA");
 await publishReview({
   task,
+  visualPhase: validateVisualPhase(
+    Number(process.env.REVIEW_VISUAL_PHASE || 1),
+  ),
   runId: process.env.GITHUB_RUN_ID,
   runAttempt: process.env.GITHUB_RUN_ATTEMPT || "1",
   artifact: artifact || {

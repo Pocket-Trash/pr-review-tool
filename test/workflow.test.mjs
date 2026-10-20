@@ -46,6 +46,8 @@ test("only an authorized event enters per-pull-request concurrency", () => {
 test("Phase 1 workflows select only the visual lane and its artifact namespace", () => {
   for (const yaml of [dispatcher, workflow])
     assert.match(yaml, /REVIEW_TASK: visuals/);
+  for (const yaml of [dispatcher, workflow])
+    assert.match(yaml, /REVIEW_VISUAL_PHASE: "1"/);
   assert.match(dispatcher, /default: \.github\/pr-visuals\.json/);
   assert.equal((workflow.match(/name: pr-visuals-/g) || []).length, 2);
   assert.doesNotMatch(workflow, /name: pr-review-|group: pr-review-/);

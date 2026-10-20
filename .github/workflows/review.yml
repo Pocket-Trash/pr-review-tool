@@ -48,6 +48,7 @@ permissions:
 
 env:
   REVIEW_TASK: visuals
+  REVIEW_VISUAL_PHASE: "1"
 
 jobs:
   authorize:

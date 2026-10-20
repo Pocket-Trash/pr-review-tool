@@ -46,6 +46,7 @@ permissions:
 
 env:
   REVIEW_TASK: visuals
+  REVIEW_VISUAL_PHASE: "1"
 
 concurrency:
   group: pr-visuals-${{ github.repository }}-${{ inputs.pull-number }}

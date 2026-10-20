@@ -1,4 +1,5 @@
 import { JSDOM } from "jsdom";
+import { validateVisualPhase } from "./review.mjs";
 
 // Mermaid's label parser initializes DOMPurify from window at module load.
 const previousWindow = globalThis.window;
@@ -20,7 +21,8 @@ const schemaPattern =
 const nonSourcePattern =
   /(?:^|\/)(?:test|tests|fixtures?|docs?)(?:\/|\.)|\.(?:test|spec)\.[^/]+$/i;
 
-export function visualRequirements(files) {
+export function visualRequirements(files, visualPhase = 1) {
+  validateVisualPhase(visualPhase);
   const architecture =
     files.some(({ filename }) => infrastructurePattern.test(filename)) ||
     files
@@ -42,6 +44,24 @@ export function visualRequirements(files) {
     0,
   );
   return {
+    ...(visualPhase === 2
+      ? {
+          sequence: files.some(
+            ({ filename, patch }) =>
+              !nonSourcePattern.test(filename) &&
+              /\.(?:[cm]?[jt]sx?|py|go|rs|java|rb)$/.test(filename) &&
+              String(patch || "")
+                .split("\n")
+                .some(
+                  (line) =>
+                    /^[+-](?![+-])/.test(line) &&
+                    /\b(?:await|enqueue|publish|dispatch|emit|fetch|send)\b/.test(
+                      line,
+                    ),
+                ),
+          ),
+        }
+      : {}),
     architecture,
     schema:
       schemaFiles.length === 0
@@ -66,13 +86,19 @@ export function visualPrompt(requirements) {
     requests.push(
       "one schema-domain flowchart plus at least one focused schema-er erDiagram; a second ER slice is allowed only for a separate high-risk domain; list omitted tables or relationships under coverageGaps",
     );
+  if (requirements.sequence)
+    requests.push(
+      "one focused sequence sequenceDiagram only when source establishes participants and call/message ordering; label participants with source symbols and messages with file/line anchors, distinguish awaited ordering from concurrent work, and omit invented or unverified runtime steps with coverageGaps instead",
+    );
   return requests.length
-    ? `Conditional visuals requested: ${requests.join("; ")}. Return at most four diagrams. Use only flowchart and erDiagram with plain-text labels. Do not include raw HTML, click directives, initialization directives, or external links.`
+    ? `Conditional visuals requested: ${requests.join("; ")}. Return at most four diagrams. Use only ${requirements.sequence ? "flowchart, erDiagram, and sequenceDiagram" : "flowchart and erDiagram"} with plain-text labels. Do not include raw HTML, click directives, initialization directives, or external links.`
     : "No architecture, infrastructure, or schema visual is requested; return no diagrams.";
 }
 
 export function visualSkipReason(requirements) {
-  return !requirements.architecture && requirements.schema === "none"
+  return !requirements.architecture &&
+    requirements.schema === "none" &&
+    !requirements.sequence
     ? "No eligible architecture, domain, or ERD changes; inference was skipped."
     : null;
 }
@@ -82,10 +108,13 @@ function permitted(kind, requirements) {
   if (kind === "architecture") return requirements.architecture;
   if (kind === "schema-domain") return requirements.schema === "large";
   if (kind === "schema-er") return requirements.schema !== "none";
+  if (kind === "sequence") return requirements.sequence === true;
   return false;
 }
 
 function unsafeReason(source) {
+  if (/(?:^|[;\n])\s*(?:links?|properties)\b/im.test(source))
+    return "interactive directive";
   if (/(?:^|[;\n])\s*click\b/im.test(source)) return "click directive";
   if (/%%\s*\{/i.test(source)) return "initialization directive";
   if (/<\/?[a-z][^>]*>/i.test(source)) return "raw HTML";
@@ -117,7 +146,12 @@ export async function sanitizeVisuals(
       coverageGaps.push(`Omitted ${diagram.title}: unsafe Mermaid ${reason}.`);
       continue;
     }
-    const expected = diagram.kind === "schema-er" ? "er" : "flowchart-v2";
+    const expected =
+      diagram.kind === "sequence"
+        ? "sequence"
+        : diagram.kind === "schema-er"
+          ? "er"
+          : "flowchart-v2";
     try {
       const parsed = await parse(diagram.mermaid);
       if (!parsed || parsed.diagramType !== expected)
@@ -132,12 +166,13 @@ export async function sanitizeVisuals(
     architecture: 1,
     "schema-domain": 1,
     "schema-er": requirements?.schema === "small" ? 1 : 2,
+    sequence: 1,
   };
   const priority = [];
   if (requirements?.architecture) priority.push("architecture");
   if (requirements?.schema === "large") priority.push("schema-domain");
   if (requirements?.schema !== "none") priority.push("schema-er");
-  for (const kind of ["architecture", "schema-domain", "schema-er"])
+  for (const kind of ["architecture", "schema-domain", "schema-er", "sequence"])
     if (!priority.includes(kind)) priority.push(kind);
   for (const kind of priority) {
     for (const diagram of valid.filter(
@@ -175,5 +210,12 @@ export async function sanitizeVisuals(
     if (!diagrams.some(({ kind }) => kind === "schema-er"))
       coverageGaps.push("Large schema change had no valid focused ER slice.");
   }
+  if (
+    requirements?.sequence &&
+    !diagrams.some(({ kind }) => kind === "sequence")
+  )
+    coverageGaps.push(
+      "Interaction change had no valid source-grounded sequence diagram.",
+    );
   return { ...review, diagrams, coverageGaps: [...new Set(coverageGaps)] };
 }

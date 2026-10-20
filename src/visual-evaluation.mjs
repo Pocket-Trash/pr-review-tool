@@ -3,6 +3,7 @@ import {
   validateReview,
   validateVisualAnalysis,
   validateRun,
+  validateVisualPhase,
 } from "./review.mjs";
 import { sanitizeVisuals } from "./visuals.mjs";
 
@@ -50,9 +51,12 @@ async function syntaxPasses(visuals, requirements) {
 }
 
 export async function evaluateVisualTrial(row, requirements, assessment) {
+  const visualPhase = validateVisualPhase(requirements.visualPhase);
   if (row.status !== "success" || !row.review)
     return { status: "failed", passes: false, assessed: false };
   if (row.task !== "visuals" || !usesCorrectedRunner(row))
+    return { status: "ineligible", passes: false, assessed: false };
+  if (visualPhase === 2 && row.visualPhase !== 2)
     return { status: "ineligible", passes: false, assessed: false };
   if (
     !/^[0-9a-f]{40}$/.test(requirements.baseSha || "") ||
@@ -62,7 +66,7 @@ export async function evaluateVisualTrial(row, requirements, assessment) {
   )
     return { status: "wrong-source", passes: false, assessed: false };
   try {
-    validateVisualAnalysis(row.review);
+    validateVisualAnalysis(row.review, visualPhase);
   } catch {
     return { status: "invalid-contract", passes: false, assessed: false };
   }

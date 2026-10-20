@@ -28,7 +28,9 @@ const prepared =
   config.task === "visuals"
     ? JSON.parse(await readFile(join(workspace, "pull-request.json"), "utf8"))
     : undefined;
-const requirements = prepared ? visualRequirements(prepared.files) : undefined;
+const requirements = prepared
+  ? visualRequirements(prepared.files, config.visualPhase)
+  : undefined;
 const skipReason = requirements && visualSkipReason(requirements);
 run.usage = {
   inputTokens: 0,
@@ -62,6 +64,7 @@ let invocations = 0;
 let usageReports = 0;
 const review = await runRestrictedReview({
   task: config.task,
+  visualPhase: config.visualPhase,
   apiKey:
     config.provider === "openrouter"
       ? process.env.OPENROUTER_API_KEY

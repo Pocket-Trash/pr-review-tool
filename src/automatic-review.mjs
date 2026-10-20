@@ -16,6 +16,7 @@ import {
   renderReview,
   validateProductionRoute,
   validateTask,
+  validateVisualPhase,
 } from "./review.mjs";
 import {
   visualPrompt,
@@ -61,6 +62,11 @@ const context = await collectInternalReviewContext(
   process.env.GITHUB_TOKEN,
 );
 validateProductionRoute(context.config);
+if (
+  validateVisualPhase(context.config.visualPhase) >
+  validateVisualPhase(Number(process.env.REVIEW_VISUAL_PHASE || 1))
+)
+  throw new TypeError("visual phase is not activated in this workflow");
 if (task && validateTask(context.config.task) !== validateTask(task))
   throw new TypeError(
     "trusted configuration task does not match the workflow lane",
@@ -70,7 +76,10 @@ const prepared = await prepareReviewContext(
   context.config,
   (file) => loadChangedFile(identity, file, process.env.GITHUB_TOKEN),
 );
-const requestedVisuals = visualRequirements(prepared.files);
+const requestedVisuals = visualRequirements(
+  prepared.files,
+  context.config.visualPhase,
+);
 const skipReason =
   prepared.conclusion === "neutral"
     ? prepared.reason
@@ -161,6 +170,7 @@ try {
   let usageReports = 0;
   const review = await runRestrictedReview({
     task: context.config.task,
+    visualPhase: context.config.visualPhase,
     apiKey:
       context.config.provider === "openrouter"
         ? process.env.OPENROUTER_API_KEY

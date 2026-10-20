@@ -1,7 +1,11 @@
 import { appendFile, readFile } from "node:fs/promises";
 import { resolveReviewEvent } from "./events.mjs";
 import { collectInternalReviewContext } from "./intake.mjs";
-import { validateProductionRoute, validateTask } from "./review.mjs";
+import {
+  validateProductionRoute,
+  validateTask,
+  validateVisualPhase,
+} from "./review.mjs";
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
 const task = validateTask(process.env.REVIEW_TASK);
@@ -19,6 +23,11 @@ if (identity.shouldRun && process.env.REVIEW_AUTHORIZE_ONLY !== "true") {
     process.env.GITHUB_TOKEN,
   );
   validateProductionRoute(context.config);
+  if (
+    validateVisualPhase(context.config.visualPhase) >
+    validateVisualPhase(Number(process.env.REVIEW_VISUAL_PHASE || 1))
+  )
+    throw new TypeError("visual phase is not activated in this workflow");
   if (validateTask(context.config.task) !== task)
     throw new TypeError(
       "trusted configuration task does not match the workflow lane",
