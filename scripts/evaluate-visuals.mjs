@@ -273,8 +273,7 @@ try {
           baseSha: fixture.baseSha,
           headSha: fixture.headSha,
           repetition,
-          status: "in-progress",
-          startedAt: new Date().toISOString(),
+          status: "planned",
           contextFormat: "plain-text-v1",
           validatorFormat: "node-dom-v1",
           outputFormat: "final-message-v1",
@@ -283,7 +282,7 @@ try {
         };
         ledger.sessions.push(entry);
         await checkpoint();
-        proxy.session = id;
+        const sessionToken = proxy.authorizeSession(id);
         const workspace = await mkdtemp(
           join(tmpdir(), "pr-visual-evaluation-"),
         );
@@ -298,7 +297,7 @@ try {
             visualPhase: 1,
             provider: "openrouter",
             model: model.id,
-            apiKey: proxy.token,
+            apiKey: sessionToken,
             openRouterBaseURL: proxy.baseURL,
             openRouterModelLimits: {
               context: model.contextLength,
@@ -323,10 +322,18 @@ try {
           entry.review.coverageGaps.push(...context.omissions);
           entry.status = "success";
         } catch (error) {
-          entry.status = "error";
+          if (
+            ![
+              "deferred-unstarted",
+              "budget-limited",
+              "request-limited",
+            ].includes(entry.status)
+          )
+            entry.status = "error";
           entry.error = error.message.slice(0, 1000);
         } finally {
           entry.latencyMs = Date.now() - started;
+          await proxy.finishSession(id);
           await rm(workspace, { recursive: true, force: true });
           await checkpoint();
         }
@@ -346,7 +353,13 @@ try {
     }
   }
   ledger.status =
-    ledger.sessions.length === approvedSessions && !proxy.blocked
+    ledger.sessions.length === approvedSessions &&
+    !proxy.blocked &&
+    !ledger.sessions.some((session) =>
+      ["deferred-unstarted", "budget-limited", "request-limited"].includes(
+        session.status,
+      ),
+    )
       ? "completed"
       : "stopped-at-guard";
 } catch (error) {

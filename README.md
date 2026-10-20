@@ -61,6 +61,8 @@ The coordinator now requests source anchors, explicit infrastructure bindings an
 
 Evaluation requests enforce the smaller request/campaign output ceiling and a UTF-8 byte limit on the complete forwarded request, including tools and proxy routing fields. Unsupported modalities and malformed limits fail before upstream calls. Input reservations still use the full model context at the highest configured input/cache-write rate: neither the SDK context setting nor a byte limit proves a tighter provider token bound. Request records identify that conservative fallback; no smaller input reservation is claimed or enabled.
 
+Each evaluation credential is bound to one approved session/model and is revoked at session end. A slot becomes started only when its first request reservation is recorded before forwarding. An unaffordable first request is deferred without starting; an active slot that cannot continue ends budget-limited. Other approved, unstarted affordable slots may continue, but deferred/started slots are not automatically replayed. Unknown billing, overbounds and global request limits stop the whole campaign. These scheduler changes do not reopen a closed campaign or authorize new spending.
+
 ### Phase 2 development (not activated)
 
 Trusted local visual configuration can opt into `"visualPhase": 2` for conditional sequence diagrams. Source interaction changes may request one `sequenceDiagram`, with source-symbol participants and file/line message anchors. The coordinator must distinguish awaited order from concurrent work and omit unverified runtime steps. Syntax safety is not semantic proof: invented participants or ordering fail the source-assessment gate even when Mermaid parses.

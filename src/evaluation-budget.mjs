@@ -125,13 +125,11 @@ export async function startEvaluationProxy({
   )
     throw new TypeError("Invalid evaluation models");
   for (const model of models) evaluationReservation(model);
-  const token = randomUUID();
+  const capabilities = new Map();
+  let currentToken;
   const control = {
-    session: null,
     blocked: ledger.requests.some(
-      (request) =>
-        ["in-progress", "interrupted", "unmetered"].includes(request.status) ||
-        request.boundExceeded,
+      (request) => !Number.isFinite(request.costUsd) || request.boundExceeded,
     ),
   };
   const shutdown = new AbortController();
@@ -154,10 +152,19 @@ export async function startEvaluationProxy({
       }
     };
     try {
+      const capability = capabilities.get(
+        String(request.headers.authorization ?? "").replace(/^Bearer /, ""),
+      );
+      const session =
+        capability &&
+        ledger.sessions.find((row) => row.id === capability.session);
       if (
         request.method !== "POST" ||
         request.url !== "/api/v1/chat/completions" ||
-        request.headers.authorization !== `Bearer ${token}`
+        !String(request.headers.authorization ?? "").startsWith("Bearer ") ||
+        !capability?.active ||
+        !session ||
+        !["planned", "in-progress"].includes(session.status)
       )
         return fail(403, "Unsupported evaluation request");
       let raw = "";
@@ -183,7 +190,7 @@ export async function startEvaluationProxy({
       const model = models.find((model) => model.id === body.model);
       if (
         !model ||
-        !control.session ||
+        model.id !== capability.model ||
         (body.n !== undefined && body.n !== 1) ||
         (body.modalities !== undefined &&
           (!Array.isArray(body.modalities) ||
@@ -236,28 +243,67 @@ export async function startEvaluationProxy({
       if (requestBytes > (model.maxInputBytes ?? 8 * 1024 * 1024))
         return fail(413, "Evaluation request exceeds approved byte limit");
       if (
+        !capability.active ||
+        !["planned", "in-progress"].includes(session.status)
+      )
+        return fail(403, "Evaluation session has ended");
+      if (
         control.blocked ||
-        ledger.requests.length >= (ledger.maxRequests ?? Infinity) ||
-        budgetTotal(ledger.requests) + reservedUsd > ledger.budgetUsd
+        ledger.requests.length >= (ledger.maxRequests ?? Infinity)
       ) {
         control.blocked = true;
-        return fail(402, "Evaluation stopped at the approved budget");
+        return fail(
+          402,
+          "Evaluation stopped at the global accounting/request guard",
+        );
+      }
+      if (budgetTotal(ledger.requests) + reservedUsd > ledger.budgetUsd) {
+        session.status =
+          session.status === "planned"
+            ? "deferred-unstarted"
+            : "budget-limited";
+        session.stopReason =
+          "Next conservative request reservation cannot fit the approved campaign cap; no automatic revisit or replacement.";
+        capability.active = false;
+        await save();
+        return fail(
+          402,
+          "Evaluation session stopped at its affordable reservation",
+        );
       }
       if (
-        ledger.requests.filter((entry) => entry.session === control.session)
+        ledger.requests.filter((entry) => entry.session === session.id)
           .length >= (ledger.maxRequestsPerSession ?? Infinity)
-      )
+      ) {
+        session.status = "request-limited";
+        capability.active = false;
+        await save();
         return fail(402, "Evaluation session request ceiling reached");
+      }
       entry = {
         id: randomUUID(),
-        session: control.session,
+        session: session.id,
         model: model.id,
         status: "in-progress",
         ...reservation,
         requestBytes,
       };
+      if (session.status === "planned") {
+        session.status = "in-progress";
+        session.startedAt = new Date().toISOString();
+      }
       ledger.requests.push(entry);
       await save();
+      if (
+        !capability.active ||
+        session.status !== "in-progress" ||
+        control.blocked
+      ) {
+        entry.status = "not-forwarded";
+        entry.costUsd = 0;
+        await save();
+        return fail(403, "Evaluation admission was revoked before forwarding");
+      }
       const upstream = await fetchImpl(
         "https://openrouter.ai/api/v1/chat/completions",
         {
@@ -267,6 +313,7 @@ export async function startEvaluationProxy({
             AbortSignal.timeout(15 * 60 * 1000),
             shutdown.signal,
             cancelled.signal,
+            capability.cancel.signal,
           ]),
           headers: {
             authorization: `Bearer ${apiKey}`,
@@ -278,6 +325,7 @@ export async function startEvaluationProxy({
       if (!upstream.ok) {
         entry.status = "error";
         entry.httpStatus = upstream.status;
+        control.blocked = true;
         await save();
         return fail(upstream.status, `OpenRouter HTTP ${upstream.status}`);
       }
@@ -361,15 +409,53 @@ export async function startEvaluationProxy({
     task.finally(() => pending.delete(task)).catch(() => {});
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const authorizeSession = (id) => {
+    const session = ledger.sessions?.find((row) => row.id === id);
+    if (
+      !session ||
+      !models.some((model) => model.id === session.model) ||
+      !["planned", "in-progress"].includes(session.status) ||
+      ledger.requests.some((request) => request.session === id) ||
+      [...capabilities.values()].some((capability) => capability.session === id)
+    )
+      throw new Error(
+        "Only an untouched approved session can receive a capability",
+      );
+    session.status = "planned";
+    delete session.startedAt;
+    const token = randomUUID();
+    capabilities.set(token, {
+      session: id,
+      model: session.model,
+      active: true,
+      cancel: new AbortController(),
+    });
+    return token;
+  };
   return {
     ...control,
     get blocked() {
       return control.blocked;
     },
     set session(value) {
-      control.session = value;
+      currentToken = authorizeSession(value);
     },
-    token,
+    get token() {
+      return currentToken;
+    },
+    authorizeSession,
+    async finishSession(id) {
+      for (const capability of capabilities.values())
+        if (capability.session === id) {
+          capability.active = false;
+          capability.cancel.abort();
+        }
+      const session = ledger.sessions.find((row) => row.id === id);
+      if (session && ["planned", "in-progress"].includes(session.status))
+        session.status =
+          session.status === "planned" ? "cancelled-unstarted" : "cancelled";
+      await save();
+    },
     baseURL: `http://127.0.0.1:${server.address().port}/api/v1`,
     close: async () => {
       control.blocked = true;

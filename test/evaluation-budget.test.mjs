@@ -54,7 +54,15 @@ test("interrupted billing reconciles by generation receipt without replaying its
   }
 });
 async function harness(fetchImpl, budgetUsd = 1, limits = {}) {
-  const ledger = { budgetUsd, requests: [] };
+  const ledger = {
+    budgetUsd,
+    requests: [],
+    sessions: [1, 2, 3].map((index) => ({
+      id: `session-${index}`,
+      model: "model",
+      status: "planned",
+    })),
+  };
   let checkpoints = 0;
   const proxy = await startEvaluationProxy({
     apiKey: "real-secret",
@@ -82,6 +90,8 @@ async function harness(fetchImpl, budgetUsd = 1, limits = {}) {
 test("request proxy reserves durably, caps price/output, and accounts actual cost", async () => {
   const h = await harness(async (url, options) => {
     assert.ok(h.checkpoints() >= 1);
+    assert.equal(h.ledger.sessions[0].status, "in-progress");
+    assert.ok(h.ledger.sessions[0].startedAt);
     assert.equal(options.headers.authorization, "Bearer real-secret");
     const body = JSON.parse(options.body);
     assert.equal(body.max_tokens, 1000);
@@ -333,6 +343,87 @@ test("SSE DONE ends the request even if the upstream leaves its connection open"
   }
 });
 
+test("unaffordable unstarted slot does not block a cheaper authorized slot or permit replay", async () => {
+  const expensive = { ...model, id: "expensive", inputPerMillionUsd: 100 };
+  const ledger = {
+    budgetUsd: 0.2,
+    requests: [],
+    sessions: [
+      { id: "large", model: "expensive", status: "planned" },
+      { id: "small", model: "model", status: "planned" },
+    ],
+  };
+  let calls = 0;
+  const proxy = await startEvaluationProxy({
+    apiKey: "fixture",
+    models: [expensive, model],
+    ledger,
+    checkpoint: async () => {},
+    fetchImpl: async () => {
+      calls++;
+      return new Response('{"usage":{"cost":0.01}}');
+    },
+  });
+  const send = (token, modelId) =>
+    fetch(`${proxy.baseURL}/chat/completions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: JSON.stringify({ model: modelId, messages: [], max_tokens: 1000 }),
+    });
+  try {
+    const large = proxy.authorizeSession("large");
+    const small = proxy.authorizeSession("small");
+    assert.equal((await send(large, "expensive")).status, 402);
+    assert.equal(ledger.sessions[0].status, "deferred-unstarted");
+    assert.equal(ledger.sessions[0].startedAt, undefined);
+    assert.equal(proxy.blocked, false);
+    assert.throws(() => proxy.authorizeSession("large"), /untouched/);
+    assert.equal((await send(small, "expensive")).status, 403);
+    assert.equal((await send(small, "model")).status, 200);
+    assert.equal(calls, 1);
+    assert.equal(ledger.requests[0].session, "small");
+    assert.equal(ledger.requests[0].model, "model");
+    ledger.sessions[1].status = "success";
+    await proxy.finishSession("small");
+    assert.equal((await send(small, "model")).status, 403);
+    assert.equal((await send(large, "expensive")).status, 403);
+    assert.equal(calls, 1);
+  } finally {
+    await proxy.close();
+  }
+});
+
+test("active budget limit is terminal locally; unknown HTTP billing stops the campaign globally", async () => {
+  const h = await harness(
+    async () => new Response('{"usage":{"cost":0.05}}'),
+    0.15,
+  );
+  try {
+    await (await h.request()).text();
+    assert.equal((await h.request()).status, 402);
+    assert.equal(h.ledger.sessions[0].status, "budget-limited");
+    assert.equal(h.proxy.blocked, false);
+    assert.throws(() => {
+      h.proxy.session = "session-1";
+    }, /untouched/);
+  } finally {
+    await h.proxy.close();
+  }
+  const failed = await harness(
+    async () => new Response("rate limited", { status: 429 }),
+  );
+  try {
+    assert.equal((await failed.request()).status, 429);
+    assert.equal(failed.proxy.blocked, true);
+    assert.equal(failed.ledger.requests[0].costUsd, undefined);
+    failed.proxy.session = "session-2";
+    assert.equal((await failed.request()).status, 402);
+    assert.equal(failed.ledger.requests.length, 1);
+  } finally {
+    await failed.proxy.close();
+  }
+});
+
 test("concurrent requests cannot share a reservation and shutdown preserves uncertain billing", async () => {
   let started;
   const ready = new Promise((resolve) => {
@@ -361,4 +452,57 @@ test("concurrent requests cannot share a reservation and shutdown preserves unce
     () => budgetTotal([{ costUsd: -1 }]),
     /Invalid request accounting/,
   );
+});
+
+test("revocation during durable admission prevents forwarding and cannot replay the slot", async () => {
+  let release;
+  let ready;
+  const admitted = new Promise((resolve) => {
+    ready = resolve;
+  });
+  const hold = new Promise((resolve) => {
+    release = resolve;
+  });
+  const ledger = {
+    budgetUsd: 1,
+    requests: [],
+    sessions: [{ id: "only", model: "model", status: "planned" }],
+  };
+  let writes = 0;
+  let calls = 0;
+  const proxy = await startEvaluationProxy({
+    apiKey: "fixture",
+    models: [model],
+    ledger,
+    checkpoint: async () => {
+      if (++writes === 1) {
+        ready();
+        await hold;
+      }
+    },
+    fetchImpl: async () => {
+      calls++;
+      return new Response('{"usage":{"cost":0}}');
+    },
+  });
+  try {
+    const token = proxy.authorizeSession("only");
+    const request = fetch(`${proxy.baseURL}/chat/completions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      body: JSON.stringify({ model: "model", messages: [], max_tokens: 1000 }),
+    });
+    await admitted;
+    const finishing = proxy.finishSession("only");
+    release();
+    assert.equal((await request).status, 403);
+    await finishing;
+    assert.equal(calls, 0);
+    assert.equal(ledger.requests[0].status, "not-forwarded");
+    assert.equal(budgetTotal(ledger.requests), 0);
+    assert.throws(() => proxy.authorizeSession("only"), /untouched/);
+  } finally {
+    release();
+    await proxy.close();
+  }
 });
