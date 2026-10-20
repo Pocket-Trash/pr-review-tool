@@ -1,8 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { buildRelationshipCatalog } from "./relationships.mjs";
 
 // JSON-escaped multiline strings become one long line, which OpenCode truncates.
-export async function materializeReviewEvidence(workspace) {
+export async function materializeReviewEvidence(
+  workspace,
+  { relationships = false } = {},
+) {
   const indexPath = join(workspace, "pull-request.json");
   let context;
   try {
@@ -12,6 +16,17 @@ export async function materializeReviewEvidence(workspace) {
     throw error;
   }
   await mkdir(join(workspace, "review-evidence"), { recursive: true });
+  const relationshipCatalog = relationships
+    ? buildRelationshipCatalog(context)
+    : undefined;
+  if (relationshipCatalog) {
+    context.relationshipCatalogFile = "review-relationships.json";
+    context.relationshipFormat = relationshipCatalog.version;
+    await writeFile(
+      join(workspace, context.relationshipCatalogFile),
+      `${JSON.stringify(relationshipCatalog, null, 2)}\n`,
+    );
+  }
   const inventory = {
     version: "frozen-evidence-v1",
     files: [],
@@ -55,5 +70,8 @@ export async function materializeReviewEvidence(workspace) {
       ({ patch, content, baseContent, ...metadata }) => metadata,
     );
   await writeFile(indexPath, `${JSON.stringify(context, null, 2)}\n`);
-  return inventory;
+  return {
+    ...inventory,
+    ...(relationshipCatalog ? { relationships: relationshipCatalog } : {}),
+  };
 }

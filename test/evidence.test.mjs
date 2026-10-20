@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runRestrictedReview } from "../src/opencode.mjs";
@@ -150,9 +150,9 @@ test("visual invocation publishes runner coverage and attributes model omissions
         omissions: [],
         files: [
           {
-            filename: "railway.json",
+            filename: "railway.ts",
             status: "modified",
-            content: "one\ntwo\n",
+            content: 'const queue = service("queue");\nconst active = queue;\n',
             patch: "@@ patch",
           },
         ],
@@ -168,35 +168,45 @@ test("visual invocation publishes runner coverage and attributes model omissions
       onEvidence: (value) => {
         report = value;
       },
-      execute: async (_command, _args, options) => ({
-        stdout: [
-          read("partial", "1: one", {
-            input: {
-              filePath: join(options.cwd, "review-evidence/0-content.txt"),
+      execute: async (_command, _args, options) => {
+        const catalog = JSON.parse(
+          await readFile(
+            join(options.cwd, "review-relationships.json"),
+            "utf8",
+          ),
+        );
+        const edge = catalog.relationships[0];
+        return {
+          stdout: [
+            read("partial", "1: one", {
+              input: {
+                filePath: join(options.cwd, "review-evidence/0-content.txt"),
+              },
+              metadata: { truncated: true },
+            }),
+            {
+              type: "text",
+              part: {
+                text: JSON.stringify({
+                  overview: "Declared infrastructure.",
+                  diagrams: [
+                    {
+                      kind: "architecture",
+                      title: "Declared source calls",
+                      nodeIds: [edge.from, edge.to],
+                      relationshipIds: [edge.id],
+                    },
+                  ],
+                  changedAreas: [],
+                  coverageGaps: ["Workflow source was truncated."],
+                }),
+              },
             },
-            metadata: { truncated: true },
-          }),
-          {
-            type: "text",
-            part: {
-              text: JSON.stringify({
-                overview: "Declared infrastructure.",
-                diagrams: [
-                  {
-                    kind: "architecture",
-                    title: "Resources",
-                    mermaid: "flowchart LR\n A --> B",
-                  },
-                ],
-                changedAreas: [],
-                coverageGaps: ["Workflow source was truncated."],
-              }),
-            },
-          },
-        ]
-          .map((event) => JSON.stringify(event))
-          .join("\n"),
-      }),
+          ]
+            .map((event) => JSON.stringify(event))
+            .join("\n"),
+        };
+      },
     });
     assert.equal(report.version, "frozen-evidence-v1");
     assert.equal(
