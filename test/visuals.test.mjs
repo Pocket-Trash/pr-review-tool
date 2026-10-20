@@ -92,7 +92,8 @@ test("valid eligible architecture and schema diagrams are retained", async () =>
         {
           kind: "architecture",
           title: "Staged queue",
-          mermaid: "flowchart LR\n  Producer --> Queue",
+          mermaid:
+            'flowchart LR\n  subgraph Current["Current production"]\n    Producer["Scraper producers"] --> Queue["Existing queue"]\n  end',
         },
         {
           kind: "schema-er",

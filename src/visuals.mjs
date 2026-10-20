@@ -1,4 +1,15 @@
-import mermaid from "mermaid";
+import { JSDOM } from "jsdom";
+
+// Mermaid's label parser initializes DOMPurify from window at module load.
+const previousWindow = globalThis.window;
+globalThis.window = new JSDOM("").window;
+let mermaid;
+try {
+  ({ default: mermaid } = await import("mermaid"));
+} finally {
+  if (previousWindow === undefined) delete globalThis.window;
+  else globalThis.window = previousWindow;
+}
 
 const infrastructurePattern =
   /(?:^|\/)(?:railway\.(?:json|toml|ya?ml)|dockerfile(?:\.[^/]*)?|docker-compose[^/]*|wrangler\.toml|pulumi\.[^/]+|(?:terraform|infra|infrastructure|k8s|kubernetes|helm)\/)|^\.github\/workflows\/(?:deploy|release|infrastructure)[^/]*\.ya?ml$/i;
@@ -56,8 +67,14 @@ export function visualPrompt(requirements) {
       "one schema-domain flowchart plus at least one focused schema-er erDiagram; a second ER slice is allowed only for a separate high-risk domain; list omitted tables or relationships under coverageGaps",
     );
   return requests.length
-    ? `Conditional visuals requested: ${requests.join("; ")}. Return at most four diagrams.`
+    ? `Conditional visuals requested: ${requests.join("; ")}. Return at most four diagrams. Use only flowchart and erDiagram with plain-text labels. Do not include raw HTML, click directives, initialization directives, or external links.`
     : "No architecture, infrastructure, or schema visual is requested; return no diagrams.";
+}
+
+export function visualSkipReason(requirements) {
+  return !requirements.architecture && requirements.schema === "none"
+    ? "No eligible architecture, domain, or ERD changes; inference was skipped."
+    : null;
 }
 
 function permitted(kind, requirements) {

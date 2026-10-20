@@ -2,6 +2,11 @@ const providers = new Set(["cheaperinference", "openrouter"]);
 const severities = new Set(["critical", "high", "medium", "low"]);
 const diagramKinds = new Set(["architecture", "schema-domain", "schema-er"]);
 
+export function validateTask(task = "review") {
+  if (!["review", "visuals"].includes(task)) fail("task", "review or visuals");
+  return task;
+}
+
 function fail(path, expected) {
   throw new TypeError(`${path} must be ${expected}`);
 }
@@ -47,7 +52,9 @@ export function validateConfig(input) {
     "prompt",
     "generatedFiles",
     "limits",
+    "task",
   ]);
+  validateTask(config.task);
   if (!providers.has(config.provider))
     fail("config.provider", "cheaperinference or openrouter");
   string(config.model, "config.model");
@@ -142,6 +149,18 @@ export function validateReview(input) {
   return review;
 }
 
+export function validateVisualAnalysis(input) {
+  const visuals = object(input, "visuals");
+  exactKeys(visuals, "visuals", [
+    "overview",
+    "diagrams",
+    "changedAreas",
+    "coverageGaps",
+  ]);
+  validateReview({ ...visuals, findings: [] });
+  return visuals;
+}
+
 export function validateRun(input) {
   const run = object(input, "run");
   exactKeys(run, "run", [
@@ -183,16 +202,21 @@ export function validateRun(input) {
 
 export function renderReview(configInput, reviewInput, runInput) {
   const config = validateConfig(configInput);
-  const review = validateReview(reviewInput);
+  const visualOnly = config.task === "visuals";
+  const review = visualOnly
+    ? validateVisualAnalysis(reviewInput)
+    : validateReview(reviewInput);
   const run = validateRun(runInput);
-  const findings = review.findings.length
-    ? review.findings
-        .map(
-          (finding) =>
-            `### ${finding.severity.toUpperCase()}: ${finding.title}\n\n**${finding.file}:${finding.line}** — ${finding.evidence}\n\nImpact: ${finding.impact}\n\nSmallest fix: ${finding.recommendation}`,
-        )
-        .join("\n\n")
-    : "No findings found in the supplied diff.";
+  const findings = visualOnly
+    ? ""
+    : review.findings.length
+      ? review.findings
+          .map(
+            (finding) =>
+              `### ${finding.severity.toUpperCase()}: ${finding.title}\n\n**${finding.file}:${finding.line}** — ${finding.evidence}\n\nImpact: ${finding.impact}\n\nSmallest fix: ${finding.recommendation}`,
+          )
+          .join("\n\n")
+      : "No findings found in the supplied diff.";
   const diagrams = review.diagrams.length
     ? review.diagrams
         .map(
@@ -211,5 +235,5 @@ export function renderReview(configInput, reviewInput, runInput) {
   const overrides = run.skillOverrides.length
     ? `\nSkill overrides: ${run.skillOverrides.join(", ")}`
     : "";
-  return `## Overview\n\n${review.overview}\n\n## Findings\n\n${findings}\n\n## Architecture and schema\n\n${diagrams}\n\n## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}${overrides}\nTokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\nModel calls: ${run.usage.modelCalls}\nTool iterations: ${run.usage.toolIterations}\nEstimated cost: $${run.usage.estimatedCostUsd.toFixed(5)}\n\n</details>\n`;
+  return `${visualOnly ? "## PR Visuals\n\n" : ""}## Overview\n\n${review.overview}\n\n${visualOnly ? "" : `## Findings\n\n${findings}\n\n`}## Architecture and schema\n\n${diagrams}\n\n## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}${overrides}\nTokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\nModel calls: ${run.usage.modelCalls}\nTool iterations: ${run.usage.toolIterations}\nEstimated cost: $${run.usage.estimatedCostUsd.toFixed(5)}\n\n</details>\n`;
 }

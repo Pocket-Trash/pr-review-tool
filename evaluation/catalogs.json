@@ -1,0 +1,131 @@
+{
+  "generatedAt": "2026-10-18T04:21:53.311Z",
+  "matrix": {
+    "repetitions": 3,
+    "maxRuns": 54,
+    "budgetUsd": 10,
+    "context": {
+      "generatedFiles": [
+        "pnpm-lock.yaml",
+        "**/drizzle/meta/**",
+        "**/drizzle/**/snapshot.json"
+      ],
+      "limits": {
+        "maxFiles": 100,
+        "maxBytes": 1048576,
+        "maxChangedLines": 20000,
+        "maxFileBytes": 524288
+      }
+    },
+    "candidates": [
+      {
+        "provider": "cheaperinference",
+        "model": "deepseek-v4.1-flash",
+        "inputPerMillionUsd": 0.11,
+        "outputPerMillionUsd": 0.45
+      },
+      {
+        "provider": "cheaperinference",
+        "model": "gemini-3.8-flash",
+        "inputPerMillionUsd": 0.49,
+        "outputPerMillionUsd": 2.44
+      },
+      {
+        "provider": "cheaperinference",
+        "model": "claude-sonnet-5.5",
+        "inputPerMillionUsd": 1.3,
+        "outputPerMillionUsd": 6.5
+      },
+      {
+        "provider": "openrouter",
+        "model": "deepseek/deepseek-v4.1-flash",
+        "inputPerMillionUsd": 0.11,
+        "outputPerMillionUsd": 0.45
+      },
+      {
+        "provider": "openrouter",
+        "model": "google/gemini-3.8-flash",
+        "inputPerMillionUsd": 0.49,
+        "outputPerMillionUsd": 2.44
+      },
+      {
+        "provider": "openrouter",
+        "model": "anthropic/claude-sonnet-5.5",
+        "inputPerMillionUsd": 1.3,
+        "outputPerMillionUsd": 6.5
+      }
+    ],
+    "fixtures": [
+      {
+        "pull": 403,
+        "title": "feat: stage shared Railway queue",
+        "baseSha": "bf39b9ac64ebfc70a63cd878b9d09c12af087a46",
+        "headSha": "143990e030030f5d6bd2c2b51306c0750f8c9bbf",
+        "expectedFacts": [
+          ["shared queue", "queue package"],
+          ["redis"],
+          ["staged", "no cutover", "not cut over", "existing queue"]
+        ]
+      },
+      {
+        "pull": 354,
+        "title": "feat(database): add Pens catalog schema",
+        "baseSha": "bb113ecd82a2aab50e18941fc090a3dc21a52cfc",
+        "headSha": "0c3e8fe0d5cd58f2841f479cdeffd901b416f4fb",
+        "expectedFacts": [["pen"], ["catalog"], ["schema", "table"]]
+      },
+      {
+        "pull": 376,
+        "title": "feat: add material Trends drill-downs",
+        "baseSha": "572891683ca3a377fdeaf91ed86cd368bb2712e6",
+        "headSha": "7fd6eeb5ecec326cd2e77b940c7e2a5cb340a9f5",
+        "expectedFacts": [["trend"], ["material"], ["drill", "breakdown"]]
+      }
+    ]
+  },
+  "catalogs": {
+    "cheaperinference": {
+      "verifiedAt": "2026-10-18T09:31:38.826Z",
+      "authenticated": true,
+      "models": {
+        "deepseek-v4.1-flash": {
+          "available": true
+        },
+        "gemini-3.8-flash": {
+          "available": true
+        },
+        "claude-sonnet-5.5": {
+          "available": true
+        }
+      }
+    },
+    "openrouter": {
+      "verifiedAt": "2026-10-18T09:31:39.171Z",
+      "authenticated": true,
+      "models": {
+        "deepseek/deepseek-v4.1-flash": {
+          "available": true,
+          "pricing": {
+            "inputPerMillionUsd": 0.0648,
+            "outputPerMillionUsd": 0.144
+          }
+        },
+        "google/gemini-3.8-flash": {
+          "available": true,
+          "pricing": {
+            "inputPerMillionUsd": 0.825,
+            "outputPerMillionUsd": 4.125
+          }
+        },
+        "anthropic/claude-sonnet-5.5": {
+          "available": true,
+          "pricing": {
+            "inputPerMillionUsd": 2,
+            "outputPerMillionUsd": 10
+          }
+        }
+      }
+    }
+  },
+  "runs": []
+}
