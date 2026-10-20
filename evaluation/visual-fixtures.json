@@ -1,10 +1,10 @@
 {
   "repository": "Pocket-Trash/pocket-trash",
   "repetitions": 3,
-  "approval": null,
-  "budgetUsd": null,
-  "maxSessions": null,
-  "maxRequests": null,
+  "approval": "owner-approved-7.89-visuals-2026-10-20",
+  "budgetUsd": 7.89,
+  "maxSessions": 27,
+  "maxRequests": 432,
   "fixtures": [
     {
       "pull": 403,

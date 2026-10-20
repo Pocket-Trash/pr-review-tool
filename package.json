@@ -16,6 +16,7 @@
     "evaluate:peers": "node scripts/evaluate-peers.mjs",
     "evaluate:peers:report": "node scripts/render-peer-report.mjs",
     "evaluate:visuals:report": "node scripts/render-visual-report.mjs",
+    "evaluate:visuals": "node scripts/evaluate-visuals.mjs",
     "evaluate:review:report": "node scripts/render-review-report.mjs",
     "format:check": "npx --yes prettier@3.6.2 --check .",
     "review:local": "node src/local-review.mjs",

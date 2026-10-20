@@ -57,6 +57,61 @@ test("request proxy reserves durably, caps price/output, and accounts actual cos
     await h.proxy.close();
   }
 });
+
+test("campaign and per-session request ceilings deny before upstream spend", async () => {
+  let calls = 0;
+  const h = await harness(async () => {
+    calls++;
+    return new Response('{"usage":{"cost":0.01}}');
+  });
+  h.ledger.maxRequests = 2;
+  h.ledger.maxRequestsPerSession = 1;
+  try {
+    await (await h.request()).text();
+    assert.equal((await h.request()).status, 402);
+    assert.equal(calls, 1);
+    h.proxy.session = "session-2";
+    await (await h.request()).text();
+    h.proxy.session = "session-3";
+    assert.equal((await h.request()).status, 402);
+    assert.equal(calls, 2);
+    assert.equal(h.ledger.requests.length, 2);
+    assert.equal(h.proxy.blocked, true);
+  } finally {
+    await h.proxy.close();
+  }
+});
+
+test("invalid request ceilings fail before proxy setup", async () => {
+  for (const maxRequests of [0, -1, 1.5, NaN])
+    await assert.rejects(
+      startEvaluationProxy({
+        apiKey: "unused",
+        models: [model],
+        ledger: { requests: [], maxRequests },
+        checkpoint: async () => {},
+      }),
+      /Invalid maxRequests/,
+    );
+});
+
+test("reservation includes the highest cache-write input rate", async () => {
+  let calls = 0;
+  const h = await harness(
+    async () => {
+      calls++;
+      return new Response('{"usage":{"cost":0.01}}');
+    },
+    0.3,
+    { reservedInputPerMillionUsd: 4 },
+  );
+  try {
+    assert.equal((await h.request()).status, 402);
+    assert.equal(calls, 0);
+  } finally {
+    await h.proxy.close();
+  }
+});
 test("budget denies upstream requests and never releases unknown/interrupted spend", async () => {
   let calls = 0;
   const h = await harness(async () => {

@@ -1,6 +1,6 @@
 # Phase 1 visual-only evaluation
 
-No fresh visual-only inference has run. The separate spend/session/request approval and the owner's exact provider/model/failover decision are pending. The earlier $10 peer campaign is closed; its unspent arithmetic balance is not new authorization.
+No fresh visual-only inference has run. A new $7.89 cap is approved for at most 27 sessions / 432 API requests; failed charges and retained reservations count. The owner's exact provider/model/failover decision remains pending. The earlier $10 peer campaign is closed.
 
 ## Historical visual evidence
 
@@ -27,7 +27,7 @@ All three repetitions of every frozen fixture must complete the strict four-key 
 <!-- prettier-ignore -->
 | Session | Result | Assessed | Visual pass |
 | --- | --- | --- | --- |
-| No fresh sessions | awaiting approval | N/A | N/A |
+| No fresh sessions | approved, not run | N/A | N/A |
 
 ## Frozen fixtures and source checks
 
@@ -151,4 +151,4 @@ Verified from https://openrouter.ai/api/v1/models at 2026-10-20T03:27:12.331Z; n
 
 ## Next approval
 
-Before fresh inference, record exact available model IDs and current catalog prices, a new cumulative dollar cap plus session/request ceilings, and the owner approval. Reuse the request-reserving proxy and keep a separate ledger; never reset/replay the original campaigns. The report command itself is offline and cannot execute inference.
+This campaign has a separately approved $7.89 cumulative cap and 27-session / 432-request ceilings, with no paid replacements. Returned per-request billing supplies gate cost when complete; unknown/retained request billing cannot pass. Stop before a conservative reservation cannot fit, even if the nominal balance is positive. Any further campaign or replacement needs new authorization. No production model is selected; the owner's exact provider/model/failover approval and live adoption checks remain required. The report command itself is offline and cannot execute inference.

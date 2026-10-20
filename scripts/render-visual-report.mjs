@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { budgetTotal } from "../src/evaluation-budget.mjs";
 import {
   inspectHistoricalVisuals,
   evaluateVisualTrial,
@@ -19,13 +20,19 @@ const [matrix, original, peers, prior, peerPrior, spec, assessments] =
     json("evaluation/visual-fixtures.json"),
     json("evaluation/visual-assessments.json"),
   ]);
-const catalog = await json("evaluation/visual-catalog.json");
+let catalog = await json("evaluation/visual-catalog.json");
 let fresh = { sessions: [] };
 try {
   fresh = await json("evaluation/visual-results.json");
 } catch (error) {
   if (error.code !== "ENOENT") throw error;
 }
+if (fresh.models)
+  catalog = {
+    source: "https://openrouter.ai/api/v1/models",
+    verifiedAt: fresh.catalogVerifiedAt,
+    models: fresh.models,
+  };
 const requirementsFor = (pull) => {
   const fixture = spec.fixtures.find((fixture) => fixture.pull === pull);
   if (!fixture) throw new TypeError(`unknown visual fixture: ${pull}`);
@@ -66,7 +73,9 @@ const inspected = await Promise.all(
 const lines = [
   "# Phase 1 visual-only evaluation",
   "",
-  "No fresh visual-only inference has run. The separate spend/session/request approval and the owner's exact provider/model/failover decision are pending. The earlier $10 peer campaign is closed; its unspent arithmetic balance is not new authorization.",
+  fresh.sessions.length
+    ? `New visual-only campaign: ${fresh.status}. Approved cap $${fresh.budgetUsd}; ${fresh.sessions.length}/${fresh.maxSessions} sessions and ${fresh.requests.length}/${fresh.maxRequests} API requests. Accounted spend including retained reservations: $${budgetTotal(fresh.requests).toFixed(6)}. No paid replacements. The owner's exact provider/model/failover decision remains pending.`
+    : `No fresh visual-only inference has run. A new $${spec.budgetUsd} cap is approved for at most ${spec.maxSessions} sessions / ${spec.maxRequests} API requests; failed charges and retained reservations count. The owner's exact provider/model/failover decision remains pending. The earlier $10 peer campaign is closed.`,
   "",
   "## Historical visual evidence",
   "",
@@ -98,7 +107,7 @@ lines.push(
   "| --- | --- | --- | --- |",
 );
 if (!fresh.sessions.length)
-  lines.push("| No fresh sessions | awaiting approval | N/A | N/A |");
+  lines.push("| No fresh sessions | approved, not run | N/A | N/A |");
 for (const row of fresh.sessions) {
   const requests = (fresh.requests ?? []).filter(
     (request) => request.session === row.id,
@@ -115,7 +124,17 @@ for (const row of fresh.sessions) {
       ? "complete"
       : "unconfirmed";
   const result = await evaluateVisualTrial(
-    { ...row, billingStatus },
+    {
+      ...row,
+      billingStatus,
+      usage: row.usage && {
+        ...row.usage,
+        estimatedCostUsd:
+          billingStatus === "complete"
+            ? requests.reduce((sum, request) => sum + request.costUsd, 0)
+            : row.usage.estimatedCostUsd,
+      },
+    },
     requirementsFor(row.pull),
     assessments.runs[row.id],
   );
@@ -164,7 +183,7 @@ lines.push(
   "",
   "## Next approval",
   "",
-  "Before fresh inference, record exact available model IDs and current catalog prices, a new cumulative dollar cap plus session/request ceilings, and the owner approval. Reuse the request-reserving proxy and keep a separate ledger; never reset/replay the original campaigns. The report command itself is offline and cannot execute inference.",
+  "This campaign has a separately approved $7.89 cumulative cap and 27-session / 432-request ceilings, with no paid replacements. Returned per-request billing supplies gate cost when complete; unknown/retained request billing cannot pass. Stop before a conservative reservation cannot fit, even if the nominal balance is positive. Any further campaign or replacement needs new authorization. No production model is selected; the owner's exact provider/model/failover approval and live adoption checks remain required. The report command itself is offline and cannot execute inference.",
   "",
 );
 await writeFile(

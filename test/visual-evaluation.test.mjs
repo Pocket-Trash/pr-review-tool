@@ -52,11 +52,26 @@ const assessment = {
   notes: "Descriptive output matches the supplied source.",
 };
 
+test("paid visual runner refuses missing campaign approval before touching the ledger", async () => {
+  const child = spawnSync(process.execPath, ["scripts/evaluate-visuals.mjs"], {
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH,
+      OPENROUTER_API_KEY: "not-a-real-key",
+      EVALUATION_BUDGET_USD: "10",
+    },
+  });
+  assert.notEqual(child.status, 0);
+  assert.match(child.stderr, /Explicit new \$7\.89 visual-only approval/);
+});
+
 test("visual fixtures apply generated exclusions before eligibility", async () => {
   const spec = await json("../evaluation/visual-fixtures.json");
   const matrix = await json("../evaluation/matrix.json");
-  assert.equal(spec.approval, null);
-  assert.equal(spec.budgetUsd, null);
+  assert.equal(spec.approval, "owner-approved-7.89-visuals-2026-10-20");
+  assert.equal(spec.budgetUsd, 7.89);
+  assert.equal(spec.maxSessions, 27);
+  assert.equal(spec.maxRequests, 432);
   for (const fixture of spec.fixtures) {
     assert.ok(
       matrix.fixtures.some(
@@ -249,8 +264,14 @@ test("offline report is deterministic and leaves closed ledgers unchanged", asyn
           "utf8",
         ),
       );
-      assert.match(text, /No fresh visual-only inference has run/);
-      assert.match(text, /awaiting approval \| N\/A \| N\/A/);
+      assert.match(
+        text,
+        /No fresh visual-only inference has run|New visual-only campaign:/,
+      );
+      assert.match(
+        text,
+        /approved, not run \| N\/A \| N\/A|Approved cap \$7\.89/,
+      );
       assert.match(text, /runner-ineligible/);
       assert.doesNotMatch(
         text,

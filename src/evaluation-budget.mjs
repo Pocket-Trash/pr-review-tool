@@ -18,6 +18,12 @@ export async function startEvaluationProxy({
   checkpoint,
   fetchImpl = fetch,
 }) {
+  for (const field of ["maxRequests", "maxRequestsPerSession"])
+    if (
+      ledger[field] !== undefined &&
+      (!Number.isInteger(ledger[field]) || ledger[field] < 1)
+    )
+      throw new TypeError(`Invalid ${field}`);
   const token = randomUUID();
   const control = {
     session: null,
@@ -85,17 +91,24 @@ export async function startEvaluationProxy({
         return fail(400, "Invalid output limit");
       // Reserve full model context at uncached price plus capped output, not a guessed prompt size.
       const reservedUsd =
-        ((model.contextLength * model.inputPerMillionUsd +
+        ((model.contextLength *
+          (model.reservedInputPerMillionUsd ?? model.inputPerMillionUsd) +
           outputTokens * model.outputPerMillionUsd) /
           1e6) *
         1.01;
       if (
         control.blocked ||
+        ledger.requests.length >= (ledger.maxRequests ?? Infinity) ||
         budgetTotal(ledger.requests) + reservedUsd > ledger.budgetUsd
       ) {
         control.blocked = true;
         return fail(402, "Evaluation stopped at the approved budget");
       }
+      if (
+        ledger.requests.filter((entry) => entry.session === control.session)
+          .length >= (ledger.maxRequestsPerSession ?? Infinity)
+      )
+        return fail(402, "Evaluation session request ceiling reached");
       entry = {
         id: randomUUID(),
         session: control.session,
