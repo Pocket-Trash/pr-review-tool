@@ -362,6 +362,7 @@ test("automatic visuals skip excluded and unavailable evidence without loading p
           GITHUB_EVENT_PATH: eventPath,
           GITHUB_TOKEN: "fixture-token",
           GITHUB_RUN_ID: "fixture-visuals",
+          REVIEW_TASK: "visuals",
           REVIEW_CONFIG_PATH: ".github/pr-review.json",
           REVIEW_ARTIFACT_PATH: artifactPath,
         },

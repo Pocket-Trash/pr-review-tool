@@ -38,9 +38,18 @@ test("only an authorized event enters per-pull-request concurrency", () => {
   const jobs = workflow.indexOf("\njobs:\n");
   assert.match(
     workflow.slice(0, jobs),
-    /concurrency:[\s\S]*group: pr-review-.*inputs\.pull-number[\s\S]*cancel-in-progress: true/,
+    /concurrency:[\s\S]*group: pr-visuals-.*inputs\.pull-number[\s\S]*cancel-in-progress: true/,
   );
   assert.doesNotMatch(workflow.slice(jobs), /\n\s+concurrency:/);
+});
+
+test("Phase 1 workflows select only the visual lane and its artifact namespace", () => {
+  for (const yaml of [dispatcher, workflow])
+    assert.match(yaml, /REVIEW_TASK: visuals/);
+  assert.match(dispatcher, /default: \.github\/pr-visuals\.json/);
+  assert.equal((workflow.match(/name: pr-visuals-/g) || []).length, 2);
+  assert.doesNotMatch(workflow, /name: pr-review-|group: pr-review-/);
+  assert.match(workflow, /retention-days: 90/);
 });
 
 test("manual and automatic events share resolved artifact and publication identity", () => {

@@ -3,11 +3,15 @@ import {
   validateConfig,
   validateReview,
   validateRun,
+  validateTask,
+  validateVisualAnalysis,
 } from "./review.mjs";
 import { sanitizeVisuals } from "./visuals.mjs";
 
 export const COMMENT_MARKER = "<!-- pockettrash:pr-review -->";
 export const CHECK_NAME = "Pocket Trash PR Review";
+export const VISUAL_COMMENT_MARKER = "<!-- pockettrash:pr-visuals -->";
+export const VISUAL_CHECK_NAME = "Pocket Trash PR Visuals";
 export const COMMENT_LIMIT = 60_000;
 const conclusions = new Set([
   "success",
@@ -28,17 +32,23 @@ export function sanitizePublishedText(value) {
     .replace(/@(?!\u200b)(?=[\w-])/g, "@\u200b");
 }
 
-function sanitizeReview(review) {
+function sanitizeReview(review, task) {
   return {
     overview: sanitizePublishedText(review.overview),
-    findings: review.findings.map((finding) =>
-      Object.fromEntries(
-        Object.entries(finding).map(([key, value]) => [
-          key,
-          typeof value === "string" ? sanitizePublishedText(value) : value,
-        ]),
-      ),
-    ),
+    ...(task === "visuals"
+      ? {}
+      : {
+          findings: review.findings.map((finding) =>
+            Object.fromEntries(
+              Object.entries(finding).map(([key, value]) => [
+                key,
+                typeof value === "string"
+                  ? sanitizePublishedText(value)
+                  : value,
+              ]),
+            ),
+          ),
+        }),
     diagrams: review.diagrams.map((diagram) => ({
       ...diagram,
       title: sanitizePublishedText(diagram.title),
@@ -51,7 +61,7 @@ function sanitizeReview(review) {
   };
 }
 
-function operationalBody(conclusion, detail, runUrl) {
+function operationalBody(conclusion, detail, runUrl, task, reviewedSha) {
   const status = conclusion.replaceAll("_", " ");
   const safeDetail = sanitizePublishedText(
     detail || "No diagnostic was available.",
@@ -62,10 +72,33 @@ function operationalBody(conclusion, detail, runUrl) {
     )
       ? runUrl
       : null;
-  return `## Overview\n\nThe automated review ended with an operational **${status}** result.\n\n## Findings\n\nNo advisory findings were published because analysis did not complete successfully.\n\n## Architecture and schema\n\nNo diagram was published.\n\n## Changed areas\n\n- Review system only; pull-request changes were not assessed.\n\n## Coverage gaps\n\n- ${safeDetail}\n\n<details>\n<summary>Run and cost details</summary>\n\nConclusion: ${status}${safeRunUrl ? `\nRun: ${safeRunUrl}` : ""}\n\n</details>\n`;
+  const visualOnly = task === "visuals";
+  return `${visualOnly ? "## PR Visuals\n\n" : ""}## Overview\n\nThe automated ${visualOnly ? "visual analysis" : "review"} ended with an operational **${status}** result.\n\n${visualOnly ? "" : "## Findings\n\nNo advisory findings were published because analysis did not complete successfully.\n\n"}## Architecture and schema\n\nNo diagram was published.\n\n## Changed areas\n\n- ${visualOnly ? "Visual analysis" : "Review"} system only; pull-request changes were not assessed.\n\n## Coverage gaps\n\n- ${safeDetail}\n\n<details>\n<summary>Run and cost details</summary>\n\nConclusion: ${status}${visualOnly && reviewedSha ? `\nReviewed SHA: ${sanitizePublishedText(reviewedSha)}` : ""}${safeRunUrl ? `\nRun: ${safeRunUrl}` : ""}\n\n</details>\n`;
 }
 
 export async function preparePublication(artifact, fallback = {}) {
+  const task = validateTask(fallback.task);
+  if (task === "visuals" && artifact?.task !== "visuals")
+    throw new TypeError("visual publication requires a visual artifact");
+  if (artifact?.task && artifact.task !== task)
+    throw new TypeError("artifact task does not match the publication lane");
+  if (artifact?.config && validateTask(artifact.config.task) !== task)
+    throw new TypeError(
+      "artifact configuration does not match the publication lane",
+    );
+  if (task === "visuals" && artifact?.review != null)
+    validateVisualAnalysis(artifact.review);
+  if (
+    fallback.reviewedSha &&
+    artifact?.run &&
+    artifact.run.reviewedSha !== fallback.reviewedSha
+  )
+    throw new TypeError("artifact SHA does not match the publication SHA");
+  const marker = task === "visuals" ? VISUAL_COMMENT_MARKER : COMMENT_MARKER;
+  const stamp =
+    task === "visuals"
+      ? visualRunStamp(fallback.runId, fallback.runAttempt)
+      : "";
   const conclusion = conclusions.has(artifact?.conclusion)
     ? artifact.conclusion
     : conclusions.has(fallback.conclusion)
@@ -75,7 +108,12 @@ export async function preparePublication(artifact, fallback = {}) {
   if (conclusion === "success") {
     const config = validateConfig(artifact.config);
     const review = await sanitizeVisuals(
-      sanitizeReview(validateReview(artifact.review)),
+      sanitizeReview(
+        task === "visuals"
+          ? validateVisualAnalysis(artifact.review)
+          : validateReview(artifact.review),
+        task,
+      ),
     );
     const run = validateRun(artifact.run);
     content = renderReview(config, review, {
@@ -88,33 +126,64 @@ export async function preparePublication(artifact, fallback = {}) {
       conclusion,
       artifact?.diagnostics?.join("; ") || fallback.detail,
       fallback.runUrl,
+      task,
+      fallback.reviewedSha,
     );
   }
-  let body = `${COMMENT_MARKER}\n${content}`;
+  const prefix = `${marker}\n${stamp}`;
+  let body = `${prefix}${content}`;
   if (body.length > COMMENT_LIMIT) {
-    body = `${COMMENT_MARKER}\n${operationalBody(
+    body = `${prefix}${operationalBody(
       "failure",
       `Rendered review exceeded the ${COMMENT_LIMIT.toLocaleString("en-US")} character limit.`,
       fallback.runUrl,
+      task,
+      fallback.reviewedSha,
     )}`;
     return { body, conclusion: "failure" };
   }
   return { body, conclusion };
 }
 
-export function findOwnedMarkerComment(comments, appSlug) {
+export function findOwnedMarkerComment(comments, appSlug, task = "review") {
+  validateTask(task);
+  const marker = task === "visuals" ? VISUAL_COMMENT_MARKER : COMMENT_MARKER;
   const expectedLogin = `${appSlug}[bot]`.toLowerCase();
   return comments.find(
     (comment) =>
       comment.user?.type === "Bot" &&
       comment.user?.login?.toLowerCase() === expectedLogin &&
-      comment.body?.includes(COMMENT_MARKER),
+      comment.body?.includes(marker),
   );
 }
 
 export class StaleReviewError extends Error {}
 
+function visualRunStamp(runId, runAttempt = "1") {
+  if (!/^\d+$/.test(String(runId)) || !/^\d+$/.test(String(runAttempt)))
+    throw new TypeError(
+      "visual publication requires a numeric workflow run and attempt",
+    );
+  return `<!-- pockettrash:pr-visuals-run ${runId}:${runAttempt} -->\n`;
+}
+
+function assertVisualRunOrder(comment, runId, runAttempt = "1") {
+  const previous = comment?.body?.match(
+    /(?:^|\n)<!-- pockettrash:pr-visuals-run (\d+):(\d+) -->/,
+  );
+  if (
+    previous &&
+    (BigInt(previous[1]) > BigInt(runId) ||
+      (BigInt(previous[1]) === BigInt(runId) &&
+        BigInt(previous[2]) > BigInt(runAttempt)))
+  )
+    throw new StaleReviewError("refusing to overwrite a newer visual run");
+}
+
 export async function publishReview({
+  task = "review",
+  runId,
+  runAttempt = "1",
   artifact,
   token,
   repository,
@@ -125,6 +194,9 @@ export async function publishReview({
   runUrl,
   fetch = globalThis.fetch,
 }) {
+  validateTask(task);
+  if (task === "visuals") visualRunStamp(runId, runAttempt);
+  const checkName = task === "visuals" ? VISUAL_CHECK_NAME : CHECK_NAME;
   if (!token) throw new TypeError("GitHub App token is required");
   if (authenticatedAppSlug !== expectedAppSlug)
     throw new Error(`unexpected GitHub App slug: ${authenticatedAppSlug}`);
@@ -152,29 +224,59 @@ export async function publishReview({
   let publication;
   try {
     publication = await preparePublication(artifact, {
+      task,
+      runId,
+      runAttempt,
+      reviewedSha: expectedHeadSha,
       conclusion: artifact?.conclusion,
       runUrl,
     });
   } catch (error) {
     publication = await preparePublication(
       {
+        task,
         conclusion: "failure",
         diagnostics: [
           "Review artifact validation failed. Inspect the protected workflow logs for details.",
         ],
       },
-      { runUrl },
+      { task, runId, runAttempt, runUrl, reviewedSha: expectedHeadSha },
     );
   }
-  const externalId = `pockettrash-pr-review:${repository}#${pullNumber}`;
+  const externalId = `pockettrash-pr-${task === "visuals" ? "visuals" : "review"}:${repository}#${pullNumber}`;
   const checkRuns = await request(
-    `/repos/${owner}/${repo}/commits/${expectedHeadSha}/check-runs?check_name=${encodeURIComponent(CHECK_NAME)}`,
+    `/repos/${owner}/${repo}/commits/${expectedHeadSha}/check-runs?check_name=${encodeURIComponent(checkName)}`,
   );
   const existingCheck = checkRuns.check_runs?.find(
     (check) =>
       check.external_id === externalId &&
       check.app?.slug === authenticatedAppSlug,
   );
+  const currentPull = await request(
+    `/repos/${owner}/${repo}/pulls/${pullNumber}`,
+  );
+  if (currentPull.head?.sha !== expectedHeadSha)
+    throw new StaleReviewError("refusing to overwrite a newer review");
+  const comments = [];
+  for (let page = 1; ; page += 1) {
+    const batch = await request(
+      `/repos/${owner}/${repo}/issues/${pullNumber}/comments?per_page=100&page=${page}`,
+    );
+    comments.push(...batch);
+    if (batch.length < 100) break;
+  }
+  const existingComment = findOwnedMarkerComment(
+    comments,
+    authenticatedAppSlug,
+    task,
+  );
+  if (task === "visuals")
+    assertVisualRunOrder(existingComment, runId, runAttempt);
+  const latestPull = await request(
+    `/repos/${owner}/${repo}/pulls/${pullNumber}`,
+  );
+  if (latestPull.head?.sha !== expectedHeadSha)
+    throw new StaleReviewError("refusing to overwrite a newer review");
   const check = existingCheck
     ? await request(`/repos/${owner}/${repo}/check-runs/${existingCheck.id}`, {
         method: "PATCH",
@@ -186,7 +288,7 @@ export async function publishReview({
     : await request(`/repos/${owner}/${repo}/check-runs`, {
         method: "POST",
         body: JSON.stringify({
-          name: CHECK_NAME,
+          name: checkName,
           head_sha: expectedHeadSha,
           external_id: externalId,
           status: "in_progress",
@@ -194,28 +296,6 @@ export async function publishReview({
       });
 
   try {
-    const currentPull = await request(
-      `/repos/${owner}/${repo}/pulls/${pullNumber}`,
-    );
-    if (currentPull.head?.sha !== expectedHeadSha)
-      throw new StaleReviewError("refusing to overwrite a newer review");
-    const comments = [];
-    for (let page = 1; ; page += 1) {
-      const batch = await request(
-        `/repos/${owner}/${repo}/issues/${pullNumber}/comments?per_page=100&page=${page}`,
-      );
-      comments.push(...batch);
-      if (batch.length < 100) break;
-    }
-    const existingComment = findOwnedMarkerComment(
-      comments,
-      authenticatedAppSlug,
-    );
-    const latestPull = await request(
-      `/repos/${owner}/${repo}/pulls/${pullNumber}`,
-    );
-    if (latestPull.head?.sha !== expectedHeadSha)
-      throw new StaleReviewError("refusing to overwrite a newer review");
     if (existingComment)
       await request(
         `/repos/${owner}/${repo}/issues/comments/${existingComment.id}`,
@@ -233,7 +313,7 @@ export async function publishReview({
         conclusion: publication.conclusion,
         completed_at: new Date().toISOString(),
         output: {
-          title: `${CHECK_NAME}: ${publication.conclusion}`,
+          title: `${checkName}: ${publication.conclusion}`,
           summary: `The persistent review comment was updated for ${expectedHeadSha}.`,
         },
       }),
@@ -248,7 +328,7 @@ export async function publishReview({
           conclusion: "failure",
           completed_at: new Date().toISOString(),
           output: {
-            title: `${CHECK_NAME}: publication failed`,
+            title: `${checkName}: publication failed`,
             summary: sanitizePublishedText(error.message),
           },
         }),

@@ -1,4 +1,4 @@
-name: Pocket Trash authorized PR review
+name: Pocket Trash authorized PR Visuals
 
 on:
   workflow_call:
@@ -44,8 +44,11 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  REVIEW_TASK: visuals
+
 concurrency:
-  group: pr-review-${{ github.repository }}-${{ inputs.pull-number }}
+  group: pr-visuals-${{ github.repository }}-${{ inputs.pull-number }}
   cancel-in-progress: true
 
 jobs:
@@ -126,7 +129,7 @@ jobs:
       - if: always() && (steps.preflight.outcome == 'failure' || steps.preflight.outputs.runnable == 'true')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: pr-review-${{ steps.preflight.outputs.pull-number || inputs.pull-number }}-${{ steps.preflight.outputs.head-sha || github.event.pull_request.head.sha || github.run_id }}
+          name: pr-visuals-${{ steps.preflight.outputs.pull-number || inputs.pull-number }}-${{ steps.preflight.outputs.head-sha || github.event.pull_request.head.sha || github.run_id }}
           path: ${{ runner.temp }}/review-result.json
           retention-days: 90
       - name: Preserve analysis failure state
@@ -154,7 +157,7 @@ jobs:
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         continue-on-error: true
         with:
-          name: pr-review-${{ needs.review.outputs.pull-number }}-${{ needs.review.outputs.artifact-key }}
+          name: pr-visuals-${{ needs.review.outputs.pull-number }}-${{ needs.review.outputs.artifact-key }}
           path: ${{ runner.temp }}/review-artifact
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -181,7 +184,7 @@ jobs:
           permission-pull-requests: read
           permission-checks: write
           permission-issues: write
-      - name: Publish persistent review and check
+      - name: Publish persistent visual comment and check
         run: node reviewer/src/publish-review.mjs
         env:
           ANALYSIS_CONCLUSION: ${{ needs.review.result == 'cancelled' && 'cancelled' || 'failure' }}

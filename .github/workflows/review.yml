@@ -1,4 +1,4 @@
-name: Pocket Trash PR review dispatcher
+name: Pocket Trash PR Visuals dispatcher
 
 on:
   workflow_call:
@@ -19,7 +19,7 @@ on:
       config-path:
         description: Trusted configuration path on the base SHA
         required: false
-        default: .github/pr-review.json
+        default: .github/pr-visuals.json
         type: string
       app-id:
         description: Pocket Trash PR Review GitHub App ID
@@ -28,7 +28,7 @@ on:
       app-slug:
         description: Expected GitHub App slug
         required: false
-        default: pockettrash
+        default: pocket-trash-pr-review
         type: string
     secrets:
       INFISICAL_GITHUB_IDENTITY_ID:
@@ -46,6 +46,9 @@ permissions:
   contents: read
   pull-requests: read
 
+env:
+  REVIEW_TASK: visuals
+
 jobs:
   authorize:
     runs-on: ubuntu-latest
@@ -61,7 +64,7 @@ jobs:
           path: reviewer
           persist-credentials: false
       - id: authorize
-        name: Authorize review event
+        name: Authorize visual analysis event
         run: node reviewer/src/preflight.mjs
         env:
           GITHUB_TOKEN: ${{ github.token }}

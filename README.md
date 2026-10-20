@@ -43,7 +43,13 @@ node src/fixture.mjs test/fixtures/config.visuals.json \
   test/fixtures/visuals.valid.json test/fixtures/run.valid.json
 ```
 
-Local visual execution requires a prepared `pull-request.json` containing the eligible `files` evidence. Automatic execution applies the existing generated-file exclusions and size limits first. Changes without eligible architecture or schema evidence skip inference and record zero usage. Invalid or unsafe Mermaid is omitted with a visible coverage gap. The production provider gate remains unchanged: this adds no model approval, paid evaluation, or live activation. Independent GitHub comment publication and reruns are tracked separately in ENG-542.
+Local visual execution requires a prepared `pull-request.json` containing the eligible `files` evidence. Automatic execution applies the existing generated-file exclusions and size limits first. Changes without eligible architecture or schema evidence skip inference and record zero usage. Invalid or unsafe Mermaid is omitted with a visible coverage gap.
+
+The Phase 1 reusable workflow accepts only visual analysis, from trusted `.github/pr-visuals.json` with `"task": "visuals"`. It handles non-draft opened/synchronize/ready-for-review events and the exact whitespace-normalized `!pockettrash visuals` command from write/maintain/admin collaborators. `!pockettrash review` cannot enter visual concurrency. The general review modules remain for historical evidence and later Phase 3; the workflow does not activate them.
+
+Publication updates one App-owned `<!-- pockettrash:pr-visuals -->` comment and **Pocket Trash PR Visuals** check. Visual artifacts, concurrency, and run-order stamps are separate from the historical review lane. Same-SHA reruns update the visual comment; stale heads or older run/attempt stamps are refused. Neutral, failed, timed-out, and cancelled analyses replace prior diagrams with an explicit current-SHA operational result. Cross-lane, malformed, or oversized artifacts produce a fixed visual failure instead of publishing their content.
+
+The existing 1 MiB source-free artifact cap and 90-day retention are unchanged. No second per-lane budget is introduced; any future review lane must share the repository's approved monthly limit. The production provider gate also remains unchanged: this adds no model approval, paid evaluation, or live activation. Visual model approval and budget enforcement must be verified during adoption before enabling a consumer workflow.
 
 ## Dependency policy
 

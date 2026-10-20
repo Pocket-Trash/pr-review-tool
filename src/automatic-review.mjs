@@ -12,7 +12,11 @@ import {
   loadRepositoryFile,
 } from "./intake.mjs";
 import { runRestrictedReview } from "./opencode.mjs";
-import { renderReview, validateProductionRoute } from "./review.mjs";
+import {
+  renderReview,
+  validateProductionRoute,
+  validateTask,
+} from "./review.mjs";
 import {
   visualPrompt,
   visualRequirements,
@@ -33,7 +37,13 @@ const skillManifest = JSON.parse(
 );
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
-const identity = await resolveReviewEvent(event, process.env.GITHUB_TOKEN);
+const task = process.env.REVIEW_TASK;
+const identity = await resolveReviewEvent(
+  event,
+  process.env.GITHUB_TOKEN,
+  globalThis.fetch,
+  task,
+);
 if (!identity.shouldRun) {
   if (process.env.GITHUB_STEP_SUMMARY)
     await appendFile(
@@ -51,6 +61,10 @@ const context = await collectInternalReviewContext(
   process.env.GITHUB_TOKEN,
 );
 validateProductionRoute(context.config);
+if (task && validateTask(context.config.task) !== validateTask(task))
+  throw new TypeError(
+    "trusted configuration task does not match the workflow lane",
+  );
 const prepared = await prepareReviewContext(
   context.files,
   context.config,

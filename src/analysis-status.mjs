@@ -1,4 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { validateTask } from "./review.mjs";
 
 const [outcome, errorPath, artifactPath] = process.argv.slice(2);
 if (!outcome || !errorPath || !artifactPath)
@@ -21,6 +22,6 @@ const detail =
     : "Review analysis failed. Inspect the protected workflow logs for details.";
 await writeFile(
   artifactPath,
-  `${JSON.stringify({ conclusion, diagnostics: [detail] }, null, 2)}\n`,
+  `${JSON.stringify({ task: validateTask(process.env.REVIEW_TASK), conclusion, diagnostics: [detail] }, null, 2)}\n`,
   { mode: 0o600 },
 );

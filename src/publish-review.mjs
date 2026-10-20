@@ -1,14 +1,25 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { publishReview } from "./publication.mjs";
+import { validateTask } from "./review.mjs";
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
+const task = validateTask(process.env.REVIEW_TASK);
 let artifact = null;
 try {
+  if ((await stat(process.env.REVIEW_ARTIFACT_PATH)).size > 1024 * 1024)
+    throw new RangeError("analysis artifact exceeds the shared 1 MiB limit");
   artifact = JSON.parse(
     await readFile(process.env.REVIEW_ARTIFACT_PATH, "utf8"),
   );
 } catch (error) {
-  if (error.code !== "ENOENT") throw error;
+  if (error.code !== "ENOENT")
+    artifact = {
+      task,
+      conclusion: "failure",
+      diagnostics: [
+        "Analysis artifact was invalid or exceeded the shared 1 MiB limit.",
+      ],
+    };
 }
 const pullNumber = Number(
   process.env.REVIEW_PULL_NUMBER ||
@@ -19,9 +30,9 @@ if (!pullNumber || !event.repository?.full_name)
   throw new TypeError("publisher requires a pull request number");
 const token = process.env.GITHUB_APP_TOKEN;
 let expectedHeadSha =
-  artifact?.run?.reviewedSha ||
   process.env.REVIEW_HEAD_SHA ||
-  event.pull_request?.head?.sha;
+  event.pull_request?.head?.sha ||
+  artifact?.run?.reviewedSha;
 if (!expectedHeadSha) {
   const response = await fetch(
     `https://api.github.com/repos/${event.repository.full_name}/pulls/${pullNumber}`,
@@ -40,7 +51,11 @@ if (!expectedHeadSha) {
 if (!expectedHeadSha)
   throw new TypeError("publisher requires a pull request head SHA");
 await publishReview({
+  task,
+  runId: process.env.GITHUB_RUN_ID,
+  runAttempt: process.env.GITHUB_RUN_ATTEMPT || "1",
   artifact: artifact || {
+    task,
     conclusion: process.env.ANALYSIS_CONCLUSION || "failure",
     diagnostics: [
       process.env.ANALYSIS_DETAIL || "Analysis produced no artifact.",

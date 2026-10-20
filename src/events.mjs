@@ -51,7 +51,9 @@ export async function resolveReviewEvent(
   event,
   token,
   fetch = globalThis.fetch,
+  task = "review",
 ) {
+  validateTask(task);
   if (event?.pull_request) return resolveAutomaticEvent(event);
   if (event?.action !== "created")
     return {
@@ -60,8 +62,14 @@ export async function resolveReviewEvent(
     };
   if (!event.issue?.pull_request)
     return { shouldRun: false, reason: "comment is not on a pull request" };
-  if (normalizedCommand(event.comment?.body) !== "!pockettrash review")
-    return { shouldRun: false, reason: "comment is not the review command" };
+  if (
+    normalizedCommand(event.comment?.body) !==
+    `!pockettrash ${task === "visuals" ? "visuals" : "review"}`
+  )
+    return {
+      shouldRun: false,
+      reason: `comment is not the ${task === "visuals" ? "visuals" : "review"} command`,
+    };
   if (!token) throw new TypeError("GITHUB_TOKEN is required");
 
   const repository = required(
@@ -96,3 +104,4 @@ export async function resolveReviewEvent(
     fork: required(pull.head?.repo?.fork, "pull_request.head.repo.fork"),
   };
 }
+import { validateTask } from "./review.mjs";

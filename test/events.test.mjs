@@ -160,3 +160,53 @@ test("skips unauthorized, draft, and closed manual requests", async () => {
     false,
   );
 });
+
+test("visual commands are authorized independently and review comments cannot enter visual concurrency", async () => {
+  for (const body of [
+    "!pockettrash review",
+    "!pockettrash visuals now",
+    "!pockettrash visual",
+    "quoted !pockettrash visuals",
+  ]) {
+    const result = await resolveReviewEvent(
+      manualEvent(body),
+      "token",
+      async () => assert.fail("unrelated command called API"),
+      "visuals",
+    );
+    assert.equal(result.shouldRun, false);
+  }
+  for (const permission of ["write", "maintain", "admin"]) {
+    const result = await resolveReviewEvent(
+      manualEvent(" \n!pockettrash\tvisuals "),
+      "token",
+      manualFetch({ permission }),
+      "visuals",
+    );
+    assert.equal(result.shouldRun, true);
+    assert.equal(result.headSha, "current-head");
+  }
+  for (const options of [
+    { permission: "read" },
+    { draft: true },
+    { state: "closed" },
+  ]) {
+    assert.equal(
+      (
+        await resolveReviewEvent(
+          manualEvent("!pockettrash visuals"),
+          "token",
+          manualFetch(options),
+          "visuals",
+        )
+      ).shouldRun,
+      false,
+    );
+  }
+  for (const action of ["opened", "synchronize", "ready_for_review"])
+    assert.equal(
+      (await resolveReviewEvent(event(action), "token", undefined, "visuals"))
+        .shouldRun,
+      true,
+    );
+});
