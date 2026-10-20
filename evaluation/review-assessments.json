@@ -1,0 +1,4 @@
+{
+  "methodology": "Assess dedicated review-only output against frozen source, material false claims and false blockers, omission/coverage, denied tools, telemetry and full tool-loop completion. Expected-fact recall is not overall accuracy. Diagrams and peer agreement do not decide this gate.",
+  "runs": {}
+}

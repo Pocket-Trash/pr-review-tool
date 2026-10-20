@@ -1,0 +1,34 @@
+{
+  "repository": "Pocket-Trash/pocket-trash",
+  "repetitions": 3,
+  "approval": null,
+  "budgetUsd": null,
+  "maxSessions": null,
+  "maxRequests": null,
+  "fixtures": [
+    {
+      "pull": 403,
+      "sourceChecks": [
+        "Distinguish retained active scraper-queue from staged shared Redis; do not invent missing volumes, shared attachments or production cutover.",
+        "Check queue TTL, job lifecycle and release behavior against frozen source rather than assumed runtime defaults.",
+        "Qualify performance estimates and disclose uninspected deployment state and omitted source."
+      ]
+    },
+    {
+      "pull": 354,
+      "sourceChecks": [
+        "Account for Drizzle migrator transaction wrapping and deferred detail triggers before claiming incomplete createProduct records commit successfully.",
+        "Verify qualified inner-join global-alias behavior, optional subtypes and exclusive target constraints rather than hypothesizing missing protections.",
+        "Support severity, impact and fixes with source; distinguish observed integrity risks from unmeasured query-cost estimates."
+      ]
+    },
+    {
+      "pull": 376,
+      "sourceChecks": [
+        "Respect the globally unique material-specific primary key, exact live catalog counts and privacy-filtered persisted collection counts.",
+        "Distinguish response projections and distinct aggregation scopes from duplicate physical storage; do not invent dirty reads from rolled-back transactions.",
+        "Inspect existing Trends tests and dedicated suppression flags before claiming missing material coverage; qualify narrower coverage improvements."
+      ]
+    }
+  ]
+}
