@@ -53,6 +53,8 @@ async function syntaxPasses(visuals, requirements) {
 }
 
 export async function evaluateVisualTrial(row, requirements, assessment) {
+  const expectedFormats =
+    requirements.pipelineFormats ?? VISUAL_RELIABILITY_FORMATS;
   const visualPhase = validateVisualPhase(requirements.visualPhase);
   if (row.status !== "success" || !row.review)
     return { status: "failed", passes: false, assessed: false };
@@ -60,8 +62,11 @@ export async function evaluateVisualTrial(row, requirements, assessment) {
     return { status: "ineligible", passes: false, assessed: false };
   if (
     requirements.reliability &&
-    (Object.entries(VISUAL_RELIABILITY_FORMATS).some(
-      ([key, value]) => row.pipelineFormats?.[key] !== value,
+    (Object.keys(VISUAL_RELIABILITY_FORMATS).some(
+      (key) =>
+        typeof expectedFormats[key] !== "string" ||
+        !expectedFormats[key] ||
+        row.pipelineFormats?.[key] !== expectedFormats[key],
     ) ||
       row.evidence?.version !== VISUAL_RELIABILITY_FORMATS.evidence ||
       row.visualValidation?.version !== "visual-validation-v1" ||
@@ -199,7 +204,12 @@ export async function renderVisualReliabilityReport(
             : null,
         },
       },
-      { ...scope, ...fixture, reliability: true },
+      {
+        ...scope,
+        ...fixture,
+        reliability: true,
+        pipelineFormats: spec.pipelineFormats,
+      },
       assessment,
     );
     evaluated.push({ row, result });

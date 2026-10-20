@@ -163,6 +163,50 @@ test("reliability gates require current host evidence and complete invocation te
     );
 });
 
+test("frozen v1 assessments stay tied to their campaign after a v2 runner change", async () => {
+  const formats = {
+    ...VISUAL_RELIABILITY_FORMATS,
+    runner: "phase1-reliability-v1",
+    prompt: "host-graph-selection-v1",
+    repair: "single-pass-v1",
+  };
+  const valid = {
+    ...row,
+    pipelineFormats: formats,
+    evidence: { version: "frozen-evidence-v1" },
+    visualValidation: {
+      version: "visual-validation-v1",
+      relationshipCatalog: {
+        version: "visual-relationships-v1",
+        sha256: "c".repeat(64),
+      },
+      attempts: [{ attempt: 0, missing: [] }],
+    },
+    invocations: 1,
+    usageReports: 1,
+  };
+  assert.equal(
+    (
+      await evaluateVisualTrial(
+        valid,
+        { ...requirements, reliability: true },
+        assessment,
+      )
+    ).status,
+    "ineligible",
+  );
+  assert.equal(
+    (
+      await evaluateVisualTrial(
+        valid,
+        { ...requirements, reliability: true, pipelineFormats: formats },
+        assessment,
+      )
+    ).passes,
+    true,
+  );
+});
+
 test("reliability report separates unassessed structured output, repairs, budget limits and unstarted slots", async () => {
   const base = await json("../evaluation/visual-fixtures.json");
   const spec = {

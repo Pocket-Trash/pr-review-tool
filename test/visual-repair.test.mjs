@@ -202,6 +202,46 @@ test("live repair stays opt-in and missing required visuals never succeed via a 
   assert.equal(calls, 1);
 });
 
+test("whole-output repair refreshes failed prose but retains historical source claims", async () => {
+  let calls = 0;
+  const result = await runRestrictedReview({
+    ...options,
+    execute: async (_command, args) => {
+      calls++;
+      if (calls === 1)
+        return output({
+          ...value([]),
+          overview: "No diagram could be produced.",
+        });
+      assert.match(args.at(-1), /Refresh its failed overview/);
+      return output({
+        overview: "Declared queue source calls.",
+        diagrams: [architecture],
+        changedAreas: [{ area: "Queue", summary: "Declares a queue." }],
+        coverageGaps: ["Runtime deployment was not inspected."],
+      });
+    },
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.overview, "Declared queue source calls.");
+  assert.equal(result.changedAreas.length, 1);
+  assert.ok(
+    result.coverageGaps.some(
+      (gap) =>
+        gap.startsWith(
+          "Initial-attempt analytical claim (superseded after repair, unverified):",
+        ) && gap.includes("Source target definition"),
+    ),
+  );
+  assert.ok(
+    result.coverageGaps.some(
+      (gap) =>
+        gap.startsWith("Repair model-reported") &&
+        gap.includes("Runtime deployment"),
+    ),
+  );
+});
+
 test("repair cannot reset the deadline or retry an unaffordable/cancelled request", async () => {
   let calls = 0;
   await assert.rejects(

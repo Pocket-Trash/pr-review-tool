@@ -64,6 +64,15 @@ if (
   throw new Error(
     `Explicit new $${approvedBudget} visual-only approval and API key required`,
   );
+if (
+  reliability &&
+  Object.entries(VISUAL_RELIABILITY_FORMATS).some(
+    ([key, value]) => spec.pipelineFormats?.[key] !== value,
+  )
+)
+  throw new Error(
+    "The campaign's frozen pipeline differs from this runner; a separate versioned campaign is required",
+  );
 const path = join(root, "evaluation", resultsFile);
 const resume = process.argv.includes("--resume");
 if (
