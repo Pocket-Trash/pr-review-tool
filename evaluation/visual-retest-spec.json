@@ -1,0 +1,8 @@
+{
+  "approval": "owner-approved-5.08-visual-retest-2026-10-20",
+  "budgetUsd": 5.08,
+  "maxSessions": 9,
+  "maxRequests": 144,
+  "repetitions": 1,
+  "purpose": "Retest corrected generic source-grounding instructions on the two failed cases plus the small-schema regression control. One run per model/fixture; exploratory, not the three-repetition adoption gate. No paid replacements."
+}

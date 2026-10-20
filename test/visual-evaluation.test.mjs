@@ -102,6 +102,29 @@ test("recorded visual campaign stays inside its distinct approval and contains n
   }
 });
 
+test("visual retest requires its separate approval before touching either ledger", async () => {
+  const spec = await json("../evaluation/visual-retest-spec.json");
+  assert.equal(spec.approval, "owner-approved-5.08-visual-retest-2026-10-20");
+  assert.equal(spec.budgetUsd, 5.08);
+  assert.equal(spec.maxSessions, 9);
+  assert.equal(spec.maxRequests, 144);
+  assert.equal(spec.repetitions, 1);
+  const child = spawnSync(
+    process.execPath,
+    ["scripts/evaluate-visuals.mjs", "--retest"],
+    {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        OPENROUTER_API_KEY: "not-a-real-key",
+        EVALUATION_BUDGET_USD: "7.89",
+      },
+    },
+  );
+  assert.notEqual(child.status, 0);
+  assert.match(child.stderr, /Explicit new \$5\.08 visual-only approval/);
+});
+
 test("visual fixtures apply generated exclusions before eligibility", async () => {
   const spec = await json("../evaluation/visual-fixtures.json");
   const matrix = await json("../evaluation/matrix.json");

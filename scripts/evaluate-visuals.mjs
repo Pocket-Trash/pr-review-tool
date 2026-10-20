@@ -17,7 +17,21 @@ import { visualRequirements, visualPrompt } from "../src/visuals.mjs";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const json = async (name) =>
   JSON.parse(await readFile(join(root, "evaluation", name), "utf8"));
-const spec = await json("visual-fixtures.json");
+const retest = process.argv.includes("--retest");
+const spec = {
+  ...(await json("visual-fixtures.json")),
+  ...(retest ? await json("visual-retest-spec.json") : {}),
+};
+const approvedBudget = retest ? 5.08 : 7.89;
+const approvedSessions = retest ? 9 : 27;
+const approvedRequests = approvedSessions * 16;
+const approvedRepetitions = retest ? 1 : 3;
+const approval = retest
+  ? "owner-approved-5.08-visual-retest-2026-10-20"
+  : "owner-approved-7.89-visuals-2026-10-20";
+const resultsFile = retest
+  ? "visual-retest-results.json"
+  : "visual-results.json";
 const matrix = await json("matrix.json");
 const ids = [
   "anthropic/claude-sonnet-5.5",
@@ -25,18 +39,18 @@ const ids = [
   "z-ai/glm-5.3",
 ];
 if (
-  process.env.EVALUATION_BUDGET_USD !== "7.89" ||
+  process.env.EVALUATION_BUDGET_USD !== String(approvedBudget) ||
   !process.env.OPENROUTER_API_KEY ||
-  spec.budgetUsd !== 7.89 ||
-  spec.maxSessions !== 27 ||
-  spec.maxRequests !== 432 ||
-  spec.repetitions !== 3 ||
-  spec.approval !== "owner-approved-7.89-visuals-2026-10-20"
+  spec.budgetUsd !== approvedBudget ||
+  spec.maxSessions !== approvedSessions ||
+  spec.maxRequests !== approvedRequests ||
+  spec.repetitions !== approvedRepetitions ||
+  spec.approval !== approval
 )
   throw new Error(
-    "Explicit new $7.89 visual-only approval and API key required",
+    `Explicit new $${approvedBudget} visual-only approval and API key required`,
   );
-const path = join(root, "evaluation/visual-results.json");
+const path = join(root, "evaluation", resultsFile);
 const resume = process.argv.includes("--resume");
 const lock = await open(`${path}.lock`, "wx");
 let proxy;
@@ -90,11 +104,11 @@ try {
     campaign: spec.approval,
     task: "visuals",
     visualPhase: 1,
-    budgetUsd: 7.89,
-    maxSessions: 27,
-    maxRequests: 432,
+    budgetUsd: approvedBudget,
+    maxSessions: approvedSessions,
+    maxRequests: approvedRequests,
     maxRequestsPerSession: 16,
-    repetitions: 3,
+    repetitions: approvedRepetitions,
     models,
     catalogVerifiedAt: new Date().toISOString(),
     fixtures: matrix.fixtures,
@@ -103,17 +117,18 @@ try {
     status: "in-progress",
   };
   if (resume) {
-    const existing = await json("visual-results.json");
+    const existing = await json(resultsFile);
     if (
       existing.campaign !== spec.approval ||
-      existing.budgetUsd !== 7.89 ||
-      existing.maxSessions !== 27 ||
-      existing.maxRequests !== 432 ||
+      existing.budgetUsd !== approvedBudget ||
+      existing.maxSessions !== approvedSessions ||
+      existing.maxRequests !== approvedRequests ||
+      existing.repetitions !== approvedRepetitions ||
       existing.maxRequestsPerSession !== 16 ||
       existing.status !== "in-progress" ||
       JSON.stringify(existing.fixtures) !== JSON.stringify(matrix.fixtures) ||
       existing.models.map((model) => model.id).join() !== ids.join() ||
-      budgetTotal(existing.requests) > 7.89
+      budgetTotal(existing.requests) > approvedBudget
     )
       throw new Error(
         "Resume requires the unchanged interrupted visual campaign",
@@ -233,7 +248,7 @@ try {
     ledger,
     checkpoint,
   });
-  for (let repetition = 1; repetition <= 3; repetition++) {
+  for (let repetition = 1; repetition <= approvedRepetitions; repetition++) {
     for (const { fixture, requirements, context } of contexts) {
       for (const model of models) {
         if (
@@ -325,7 +340,7 @@ try {
     }
   }
   ledger.status =
-    ledger.sessions.length === 27 && !proxy.blocked
+    ledger.sessions.length === approvedSessions && !proxy.blocked
       ? "completed"
       : "stopped-at-guard";
 } catch (error) {
