@@ -87,6 +87,13 @@ const lines = [
   "| Candidate | Attempts | Usable historical output | Current syntax/scope pass | Prior diagram pass / fail / unassessed |",
   "| --- | ---: | ---: | ---: | ---: |",
 ];
+if (fresh.creditReconciliation)
+  lines.splice(
+    3,
+    0,
+    "",
+    `Read-only credit reconciliation at ${fresh.creditReconciliation.checkedAt}: $${fresh.creditReconciliation.beforeUsd.toFixed(6)} before, $${fresh.creditReconciliation.afterUsd.toFixed(6)} after. The decrease matches $${fresh.creditReconciliation.returnedBilledUsd.toFixed(6)} in request charges; ${fresh.creditReconciliation.outstandingReservations} outstanding reservations.`,
+  );
 for (const candidate of [...new Set(inspected.map((row) => row.candidate))]) {
   const rows = inspected.filter((row) => row.candidate === candidate);
   const usable = rows.filter((row) => row.status === "historical-only");
@@ -108,6 +115,7 @@ lines.push(
 );
 if (!fresh.sessions.length)
   lines.push("| No fresh sessions | approved, not run | N/A | N/A |");
+const evaluated = [];
 for (const row of fresh.sessions) {
   const requests = (fresh.requests ?? []).filter(
     (request) => request.session === row.id,
@@ -141,6 +149,86 @@ for (const row of fresh.sessions) {
   lines.push(
     `| ${row.id} | ${result.status} | ${result.assessed ? "yes" : "no"} | ${result.passes ? "yes" : "no"} |`,
   );
+  evaluated.push({ row, result, requests, billingStatus });
+}
+if (fresh.sessions.length) {
+  lines.push(
+    "",
+    "## Candidate completion, quality and cost",
+    "",
+    "Each candidate has nine planned sessions. Passes require a source assessment, not just JSON/Mermaid validity. Accounted cost includes failed-call reservations; returned billed cost excludes unknown charges. Mean latency uses known attempt durations, including validation failures; interrupted sessions with no final duration are excluded, not assigned zero. The gate uses returned request billing rather than treating missing SDK cost as zero. One Kimi PR 403 repetition-three session was interrupted and not replaced; its last request charge was reconciled from the provider's generation receipt.",
+    "",
+    "<!-- prettier-ignore -->",
+    "| Model | Attempted / planned | Completed | Failed / unfinished | Source assessed | Visual passes | False visual claims | Requests | Accounted USD | Returned billed USD | Mean latency seconds |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+  );
+  for (const model of fresh.models) {
+    const entries = evaluated.filter(({ row }) => row.model === model.id);
+    const requests = fresh.requests.filter(
+      (request) => request.model === model.id,
+    );
+    const assessed = entries.filter(({ result }) => result.assessed);
+    const claims = assessed.reduce(
+      (total, { row }) =>
+        total + assessments.runs[row.id].falseVisualClaims.length,
+      0,
+    );
+    const latencies = entries
+      .map(({ row }) => row.latencyMs)
+      .filter(Number.isFinite);
+    lines.push(
+      `| ${model.id} | ${entries.length} / 9 | ${entries.filter(({ row }) => row.status === "success").length} | ${entries.filter(({ row }) => row.status !== "success").length} | ${assessed.length} | ${assessed.length ? entries.filter(({ result }) => result.passes).length : "N/A"} | ${assessed.length ? claims : "N/A"} | ${requests.length} | ${budgetTotal(requests).toFixed(6)} | ${requests
+        .filter((request) => Number.isFinite(request.costUsd))
+        .reduce((sum, request) => sum + request.costUsd, 0)
+        .toFixed(
+          6,
+        )} | ${latencies.length ? (latencies.reduce((sum, value) => sum + value, 0) / latencies.length / 1000).toFixed(1) : "N/A"} |`,
+    );
+  }
+  const clearsGate = fresh.models.filter((model) => {
+    const entries = evaluated.filter(({ row }) => row.model === model.id);
+    return entries.length === 9 && entries.every(({ result }) => result.passes);
+  });
+  lines.push(
+    "",
+    clearsGate.length
+      ? `Candidates meeting all nine dedicated visual trials: ${clearsGate.map((model) => model.id).join(", ")}. Owner route approval is still required.`
+      : "No candidate clears all nine dedicated visual trials. Structured completion alone is not a visual quality pass; keep model adoption disabled.",
+    "",
+  );
+  lines.push("", "## Dedicated source assessment notes", "");
+  lines.push(
+    "These are implementation-agent adjudications against frozen source, not independent human approvals. False-claim counts group related errors; they are not an accuracy percentage or a count of all possible assertions. Incidental count/wording mistakes are distinguished from material topology/cardinality errors in the notes.",
+    "",
+  );
+  for (const { row, result } of evaluated) {
+    const assessment = assessments.runs[row.id];
+    lines.push(
+      `### ${row.id}`,
+      "",
+      `Result: ${result.status}; execution status: ${row.status}.`,
+      "",
+    );
+    if (assessment)
+      lines.push(
+        assessment.notes,
+        "",
+        ...assessment.falseVisualClaims.map(
+          (claim) => `- False visual claim: ${claim}`,
+        ),
+        ...assessment.evidence.map(
+          (evidence) => `- Source evidence: ${evidence}`,
+        ),
+        "",
+      );
+    else
+      lines.push(
+        row.status === "success"
+          ? "Source assessment pending; this completion is not a visual pass."
+          : "No usable dedicated visual output; no zero-defect or accuracy score assigned.",
+        "",
+      );
+  }
 }
 lines.push("", "## Frozen fixtures and source checks", "");
 for (const fixture of spec.fixtures) {
@@ -188,5 +276,5 @@ lines.push(
 );
 await writeFile(
   process.argv[2] || join(root, "evaluation/visual-report.md"),
-  lines.join("\n"),
+  lines.join("\n").replace(/\n{3,}/g, "\n\n"),
 );

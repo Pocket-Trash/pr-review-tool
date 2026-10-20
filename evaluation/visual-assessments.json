@@ -1,4 +1,462 @@
 {
   "methodology": "Visual-only assessments must verify the frozen source, including diagram topology, optionality/cardinality, descriptive prose, omissions, boundary, telemetry and tool-loop behavior. Historical full-review findings and peer agreement are not visual-task verdicts.",
-  "runs": {}
+  "runs": {
+    "visuals:z-ai/glm-5.3:pr376:3": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [],
+      "evidence": [
+        "PR 376 frozen trends.ts/migration and service source support the material table, scoped uniqueness, suppression flag, exact catalog reads and privacy-transformed generation refresh described in the prose.",
+        "The required focused ERD was rejected for invalid Mermaid; the retained diagrams array is empty and coverage explicitly reports no valid focused ER diagram.",
+        "Generated snapshot, partial unchanged entity definitions and non-evidenced runtime scheduling are disclosed; six returned-billed requests completed under unchanged isolated visual-only execution."
+      ],
+      "notes": "No required ERD survives validation. Zero material false visual claims therefore does not mean a visual pass. The catalog-filters summary loosely calls existing type/parser helpers new; the actual delta extends them with material keys. This wording issue is not scored as a material topology error, but is recorded here rather than called perfect prose. Ineligible architecture/domain outputs were omitted and disclosed."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr376:3": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [],
+      "evidence": [
+        "PR 376 frozen trends.ts and migration.sql preserve required generation, nullable headline/type/material/specific dimensions, composite specific-parent FK and scoped uniqueness.",
+        "Frozen service uses live exact catalog groups versus privacy-transformed active-generation collection counts, a dedicated suppressed-material flag and insertion before activation in the existing transaction.",
+        "The retained ER slice correctly represents nullable parents and many scoped rows; inferred unchanged-parent detail is qualified and matches frozen scraper.ts. No composite material-specific PK is invented.",
+        "Partial UI/export reads, generated snapshot and scope-ineligible architecture output are disclosed. Returned billing and isolated visual-only completion remain recorded."
+      ],
+      "notes": "All three Sonnet Trends trials preserve the relevant persisted dimensions and exact-versus-private distinction. This trial avoids asserting unseen material-specific key attributes and qualifies its unchanged-parent inference. A leftover coverage reference to an omitted architecture node is non-material given the explicit sanitizer omission."
+    },
+    "visuals:z-ai/glm-5.3:pr354:3": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "mechanism-to-product_detail_pen_mechanism is one-to-one instead of non-unique many-to-one.",
+        "REFILL_COMPATIBILITY_GROUP ||--o| PRODUCT_DETAIL_REFILL invents a direct single-group/shared-row relationship; refills join groups through refill_compatibility_group_membership.",
+        "Catalog pen/refill/offering references from collection_detail_pen are drawn inverse-unique, and installed references mandatory; many owned rows may reference one catalog row and installed references are nullable.",
+        "Concept-to-pen_nose_profile_assignment is inverse-unique, although multiple product assignments may share one concept.",
+        "The three nullable exclusive configuration carriers are mandatory in the ERD.",
+        "Installed-part selection is shown mandatory and inverse-unique rather than nullable and non-unique.",
+        "Source-evidence listing and market parents are mandatory despite nullable source columns.",
+        "Product-to-product_source_listing is one-to-one, although listingId is the PK and a product can have multiple source listings.",
+        "The market-status successor self-edge is mandatory one-to-one despite its nullable non-unique successor FK."
+      ],
+      "evidence": [
+        "PR 354 frozen pens.ts FK and uniqueness declarations: non-unique mechanismId/conceptId/catalog references; nullable installed items and source-evidence parents; product_source_listing keyed by listingId rather than productId.",
+        "Refill group membership uses groupId plus refillProductId, not a direct shared refill/group key. Configuration carrier_valid selects exactly one nullable carrier.",
+        "Market-status successor_id is nullable and has only an ordinary index plus scope validation, as in pens.ts lines 970-989 and migration lines 994-1004/1145.",
+        "Three parse-valid focused diagrams and disclosed omissions completed under unchanged isolated visual execution; returned billing is recorded and generated snapshot omitted."
+      ],
+      "notes": "The third GLM large-schema trial again changes material optionality and inverse multiplicity, and invents a direct refill/group link. Broad diagram coverage and parse success do not establish constraint accuracy."
+    },
+    "visuals:moonshotai/kimi-k2.5:pr354:3": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The domain map and refill ERD link refill_offering to refill_compatibility_group_membership. Membership references refillProductId/product_detail_refill, not an offering.",
+        "The compatibility ERD makes required tip and both exclusive target types mandatory rather than optional/alternative.",
+        "The configuration ERD makes material, finish and part carriers mandatory even though exactly one nullable carrier is chosen.",
+        "Service prose says primary implementation details are not visible in this PR scope; frozen catalog/index.ts head content and its alias-change patch were supplied."
+      ],
+      "evidence": [
+        "PR 354 frozen pens.ts refillCompatibilityGroupMembership has groupId and refillProductId FKs, with no offeringId; its source rows therefore do not support offering-level membership.",
+        "pens.ts carrier_valid and assertion_target_valid checks enforce exactly one nullable carrier/target; requiredTipProductId remains nullable.",
+        "Frozen prepared context includes packages/services/src/db/catalog/index.ts; source shows concept-based alias creation/listing, not missing primary implementation evidence.",
+        "Four billed model calls completed a structured visual-only response under unchanged default-deny runner settings. The snapshot is excluded and broader omissions are disclosed."
+      ],
+      "notes": "The third Kimi schema trial changes the membership entity level and repeats mandatory alternative-edge errors. It also mislocates collection detail declarations and overstates table counts; the material scored issues are the membership FK, optionality and evidence-availability claims."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr354:3": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "refill_offering_market_status |o--o| refill_offering_market_status still imposes one-to-one successor cardinality, although successor_id is nullable and non-unique."
+      ],
+      "evidence": [
+        "PR 354 frozen pens.ts lines 970-989 and migration lines 994-1004/1145 define the nullable self-FK, successor scope check and non-unique successor index.",
+        "Other retained ER relationships preserve optional shared-PK subtypes, nullable carriers and targets, many owned items per product, selection-mediated installed items and optional source-evidence parents.",
+        "The domain map and two slices disclose omitted terminology/part/evidence tables, partial attributes, untraced constraints and unread source sections. Five billed requests completed under unchanged visual prompt/default-deny execution; generated snapshot excluded."
+      ],
+      "notes": "The third Sonnet schema trial reduces the error set and gets the 45-new-table count right, but the market-status successor relation remains materially too restrictive. Omitted identifier successor linkage is disclosed through partial slice scope rather than scored as a false claim."
+    },
+    "visuals:z-ai/glm-5.3:pr403:3": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Railway changed-area prose asserts the new shared Redis uses the same volume while the legacy resource remains. The frozen IaC declares a separate retained volume without proving this two-resource attachment.",
+        "Coverage says only changed hunks were available; the prepared workspace supplied frozen head contents as well as patches.",
+        "Coverage says the diagram shows staged and retained Railway resources, but the surviving diagram has only a generic Redis node; a second diagram was removed by the scope cap."
+      ],
+      "evidence": [
+        "PR 403 frozen .railway/railway.ts declares both Redis resources plus a separate redisVolume, preserves REDIS_URL, and does not establish dual volume binding; docs describe intended deployment and retained handoff.",
+        "The retained diagram accurately shows the portable package/scraper queue boundary without guessing a specific active Redis target, but does not show the Railway resource distinction described in coverage.",
+        "The runner materializes both changed-file head content and patch evidence. Six returned-billed requests completed after resumption with unchanged visual prompt/default-deny isolation and generated lockfile exclusion."
+      ],
+      "notes": "The surviving generic Redis edge avoids the prior active-target mistake. Unsupported storage prose and evidence/diagram coverage claims still fail the source gate. The interrupted Kimi session was skipped, not replaced, before this planned GLM trial."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr403:3": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Both new and legacy Redis resources are drawn with solid links to the retained redis-volume, although no two-resource attachment is established in the frozen IaC or verified runtime evidence."
+      ],
+      "evidence": [
+        "PR 403 frozen .railway/railway.ts declares the volume as a separate resource and preserves REDIS_URL; docs describe intended shared deployment and retained legacy migration stages, not verified dual attachments.",
+        "This trial correctly labels active target uncertainty, retained preview handoff, approved future cutover and docs-only Discord usage; source supports the queue package, producer, processor and build relationships.",
+        "Coverage discloses partial implementation/test reads, absent script source and live variables/state; the strict visual result and returned request billing remain under default-deny execution."
+      ],
+      "notes": "The third Sonnet architecture trial improves the active-target qualifier, but repeats the unsupported shared-volume assertion. Other descriptive topology and coverage limitations are supported."
+    },
+    "visuals:z-ai/glm-5.3:pr376:2": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The material, material-specific and product-type ER edges are all mandatory, contradicting nullable headline/Unspecified/general bucket dimensions.",
+        "MATERIAL ||--|{ MATERIAL_SPECIFIC requires at least one specific for every material; the schema imposes no such parent-side minimum."
+      ],
+      "evidence": [
+        "PR 376 frozen trends.ts and migration.sql lines 4-6 allow null product_type_id, material_id and material_specific_id; specific-parent scope only requires material when a specific is present.",
+        "Frozen scraper.ts materialSpecific has an id PK and required materialId FK, without a constraint requiring every material to own at least one specific.",
+        "The prose preserves exact catalog versus privacy-transformed collection counts; generated snapshot and partial web reads are disclosed. Five billed model requests completed under default-deny visual execution."
+      ],
+      "notes": "Global material-specific primary-key identity improves over repetition one, but nullable aggregate dimensions and zero-child materials are represented incorrectly. References to flow/pipeline visuals survive scope sanitation in prose; explicit omission messages identify their removal."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr376:2": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [],
+      "evidence": [
+        "PR 376 frozen trends.ts and migration.sql lines 1-19: mandatory generation and nullable product type/material/specific, composite parent FK, coalesced scope uniqueness and dedicated suppression flag.",
+        "Frozen service separates live exact catalog groups from privacy-transformed owned-item/collector material rows and swaps the active generation after insertion; materialSpecific.id is a global PK in scraper.ts.",
+        "The focused ERD preserves these keys/cardinalities and explicitly omits unchanged parent detail and sibling trend tables. Generated snapshot and partial UI/test reads are disclosed; returned billing and isolated visual-only completion are recorded."
+      ],
+      "notes": "The second Trends result preserves the source dimensions and exact-versus-private counting distinction with no established material false claim. One coverage sentence still describes an architecture diagram that the sanitizer omitted, but the explicit omission is also reported; this stale descriptive sentence does not change the retained ERD's meaning or claim complete UI coverage."
+    },
+    "visuals:z-ai/glm-5.3:pr354:2": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "mechanism ||--o| product_detail_pen_mechanism invents uniqueness of mechanism_id; many product details may reference one mechanism.",
+        "The three material/finish/part carrier relationships are mandatory, although their nullable FKs are mutually exclusive per choice.",
+        "product-to-nose-profile is drawn one-to-many despite a product-id primary key; concept-to-alias is drawn one-to-one despite multiple aliases, and maker-to-alias is mandatory despite nullable makerId.",
+        "Both successor self-edges assert mandatory one-to-one rather than optional non-unique links.",
+        "Source evidence is shown with mandatory listing and market parents, although both FKs are nullable.",
+        "Compatibility assertions are shown requiring tip, group and refill simultaneously; the tip is optional and exactly one target is selected.",
+        "The product-pen/refill/offering to collection_detail_pen edges impose inverse uniqueness on catalog references; many owned items may reference one catalog product/offering, and installed refill/offering references are optional."
+      ],
+      "evidence": [
+        "PR 354 frozen pens.ts defines required non-unique mechanismId, PK productId on pen_nose_profile_assignment, multiple aliases per concept and nullable maker-scoped aliases in collection.ts.",
+        "pens.ts carrier_valid, assertion_target_valid, optional evidence/listing/market and collection installed-refill FKs establish the missing optionality; catalog reference FKs have no inverse uniqueness.",
+        "pens.ts successor_id declarations and migration scope triggers/non-unique indexes contradict the one-to-one self-edges.",
+        "The output supplies a domain map and two focused slices with omitted scope disclosed; six returned-billed requests completed in the isolated visual-only runner and generated snapshot remained excluded."
+      ],
+      "notes": "This trial has broad table-family coverage but multiple material relationship cardinality errors. It is parse-valid, not schema-accurate. Incidental table-count wording is not the scored failure."
+    },
+    "visuals:moonshotai/kimi-k2.5:pr354:2": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The three product_configuration_choice ||--o| carrier edges invent inverse uniqueness for material, finish and part references; nullable carrier FKs allow many choices to reference one carrier.",
+        "product_configuration_choice_requirement ||--o{ product_configuration_choice reverses the required-choice relationship, implying many choices per requirement and a required requirement per choice.",
+        "The compatibility ERD makes tip, refill target and group target simultaneously mandatory, contradicting the nullable required tip and exactly-one target constraint."
+      ],
+      "evidence": [
+        "PR 354 frozen pens.ts configuration carrier check uses num_nonnulls(...)=1 without unique carrier IDs; each requirement has one requiredChoiceId FK, and a choice can appear in many requirements.",
+        "pens.ts lines 1149-1158 and 1197-1198: required tip nullable, targetGroupId and targetRefillProductId nullable and mutually exclusive.",
+        "The domain map and two focused slices cover affected groups and disclose broader omissions; snapshot excluded. Five billed requests completed under the isolated visual-only runner."
+      ],
+      "notes": "The second Kimi schema trial produces both ER slices, but repeats carrier cardinality errors and adds a reversed requirement relation and mandatory exclusive-target edges. The table count is incidental. Source constraints, rather than Mermaid parse success, decide the failure."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr354:2": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "refill_offering_market_status |o--o| refill_offering_market_status falsely makes nullable, non-unique successor links one-to-one.",
+        "refill_offering_identifier |o--o| refill_offering_identifier repeats the unsupported one-to-one successor restriction.",
+        "Changed-area prose says relations.ts content was not included in evidence. The runner supplied its frozen head content and patch; not reading it is different from its absence."
+      ],
+      "evidence": [
+        "PR 354 frozen pens.ts lines 970-989 and 1050-1068 plus migration lines 994-1004/1144-1145: nullable self-FKs, scope checks and non-unique successor indexes.",
+        "The frozen comparison includes packages/database/src/schema/relations.ts; prepared evidence materializes its patch and head source. Other coverage text correctly calls it unmapped.",
+        "The surviving domain map/two ER slices otherwise preserve optional subtype/carrier/installed-refill relationships and disclose omitted families/constraints. Returned request billing and default-deny visual completion are recorded."
+      ],
+      "notes": "The second trial repeats both successor uniqueness errors. Its diagrams preserve most other optionality, but one evidence-availability claim conflicts with the supplied context. Incidental 46-table counting is not scored as a material failure."
+    },
+    "visuals:z-ai/glm-5.3:pr403:2": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The production BullMQ/ioredis node has solid connections to both shared and retained legacy Redis. The frozen configuration preserves a single REDIS_URL and establishes neither simultaneous consumption nor an approved shared-Redis cutover."
+      ],
+      "evidence": [
+        "PR 403 frozen .railway/railway.ts preserves scraper REDIS_URL; docs/railway.md lines 274-276 keeps preview handoff on scraper-queue until approved cutover.",
+        "Queue adapter and scraper factories take one Redis URL; producers and processor call portable typed queues, supporting the package portion of the diagram.",
+        "Coverage discloses unread Railway docs, omitted lockfile, unavailable live state/full base and sanitizer-removed extra diagrams.",
+        "A dedicated structured visual completion and returned request billing are recorded under default-deny isolation and writing-only skills."
+      ],
+      "notes": "The output distinguishes staged migration in prose but still depicts two active backend connections. Most package/test/build relationships are supported. It also loosely describes retained builder/cron settings as gains, but the scored material topology error is the unqualified dual Redis connection."
+    },
+    "visuals:moonshotai/kimi-k2.5:pr403:2": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Changed-area prose says deploy.yml adds RAILWAY_SCRAPER_QUEUE_PREVIEW_SERVICE_NAME and switches preview to the shared queue reference. The frozen deploy diff only adds RAILPACK_INSTALL_CMD staging; the documented preview handoff remains on scraper-queue until approved cutover."
+      ],
+      "evidence": [
+        "PR 403 frozen .github/workflows/deploy.yml additions set RAILPACK_INSTALL_CMD for preview and production; docs/railway.md lines 274-276 preserves the legacy preview queue.",
+        "The required architecture diagram was removed for unsafe raw HTML; diagrams is empty and coverage explicitly reports no valid architecture flowchart.",
+        "The portable queue and adapter descriptions match changed package/scraper source. Generated lockfile and partial producer reads are disclosed.",
+        "Six returned-billed requests completed a structured response under default-deny execution with visual writing skills. This is a structured completion, not a successful visual artifact."
+      ],
+      "notes": "The sanitizer correctly removes unsafe output, leaving no required architecture visualization. A material deployment-change claim is also unsupported. Scope-ineligible domain/ER diagrams are disclosed as omitted; no paid replacement was attempted."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr403:2": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The diagram connects both retained LegacyRedis and staged SharedRedis to redis-volume. Dashing the new edge distinguishes staging but still asserts a two-resource volume attachment not established by the IaC; no binding verification is supplied."
+      ],
+      "evidence": [
+        "PR 403 frozen .railway/railway.ts declares redisVolume separately and preserves REDIS_URL; resources-array membership does not establish two Redis volume attachments.",
+        "docs/railway.md describes intended shared deployment and retained legacy preview handoff, not evidence that both Redis resources attach to the same volume.",
+        "The remaining graph labels retained legacy connections, future approved cutover and docs-only Discord intent; queue source supports package/producer/processor relationships and retained cron checkpoint Redis.",
+        "Dedicated visual completion and request billing are recorded; partial large-file reads, absent pnpm-install source, live state and lockfile omissions are disclosed under default-deny isolation."
+      ],
+      "notes": "Staged/retained annotations improve over the first trial, but the shared-volume link remains unsupported. The score treats that edge as an unsupported topology assertion, not as proof of live infrastructure state. Other package/build/queue descriptions and coverage limitations are supported."
+    },
+    "visuals:z-ai/glm-5.3:pr376:1": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "MATERIAL_SPECIFIC marks both material_id and id as PK, inventing a composite primary key. material_specific.id is the global primary key; the composite referenced pair is a separate unique key.",
+        "The extra MATERIALS ||--o{ PUBLIC_COLLECTION_ITEM_MATERIAL_TREND edge makes material mandatory for every row, contradicting nullable material_id/Unspecified rows and the optional edge already drawn."
+      ],
+      "evidence": [
+        "PR 376 frozen packages/database/src/schema/scraper.ts defines materialSpecific.id as primaryKey and materialId as a required FK with a separate composite unique key.",
+        "Frozen trends.ts and migration.sql lines 4-6 permit null product_type_id, material_id and material_specific_id; scope_valid only requires material_id when a specific is present.",
+        "The rest of the focused ERD and prose retain privacy-transformed persisted counts, independent material suppression and exact catalog aggregation, with source omissions disclosed.",
+        "Five returned-billed requests completed with structured output, visual writing skills and default-deny isolation. Ineligible architecture/domain output was omitted with coverage text; generated snapshot excluded."
+      ],
+      "notes": "The output supplies a useful focused slice but repeats two source-level schema errors: composite rather than global primary key and an unconditional mandatory material edge. A disclaimer that unchanged definitions were inferred does not make those precise false assertions safe."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr376:1": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [],
+      "evidence": [
+        "PR 376 frozen trends.ts and migration.sql lines 1-19: mandatory generation_id; nullable product_type_id, material_id and material_specific_id; composite specific-parent FK; coalesced scope index and separate suppressed-material flag.",
+        "Frozen services/db/trends/index.ts separates exact catalog grouping from active-generation collection rows; lines 555-566 independently suppress material rows, and lines 597-605 insert their own privacy-transformed dimensions.",
+        "The focused ERD uses optional material/type/specific endpoints and many rows per generation/scope, retains globally unique material_specific.id, and discloses omitted SQL source entities and partial web reads.",
+        "Five returned-billed requests completed under isolated default-deny execution with the two writing skills. Generated snapshot omitted; ineligible architecture output omitted with coverage text."
+      ],
+      "notes": "The relevant persisted material ER slice matches nullable headline/Unspecified/general dimensions and many-to-one references. Prose preserves live exact catalog versus persisted privacy counts and the dedicated material suppression flag. No material false descriptive/diagram claim established; uninspected source details are disclosed rather than replaced with hypotheses."
+    },
+    "visuals:z-ai/glm-5.3:pr354:1": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Overview says all tables use shared product/collection primary keys. Most new offering, market, concept, evidence and configuration entities have independent identity keys; only the detail subtypes share root keys.",
+        "The configuration ERD makes material, finish and part carrier relationships all mandatory. Each carrier FK is nullable and exactly one carrier is selected per choice.",
+        "The compatibility ERD makes target group, target refill and required tip all mandatory. Target group versus refill is exclusive and nullable; required tip is optional.",
+        "The installed-part relation makes every selection require an installed collection item; installed_part_collection_item_id is nullable.",
+        "CATALOG_TERMINOLOGY_CONCEPT ||--|| REFILL_COMPATIBILITY_GROUP requires a group for every terminology concept, although only a subset of concepts backs a group.",
+        "Both successor self-relations use a mandatory endpoint, omitting nullable successor_id for unsuperseded rows."
+      ],
+      "evidence": [
+        "PR 354 frozen pens.ts: productDetailId and collectionDetailId define shared-PK subtypes; independent entities use identity().",
+        "pens.ts lines 435-436 enforces exactly one nullable configuration carrier; lines 1149-1158 and 1197-1198 make tip optional and targets exclusive.",
+        "collection_item_configuration_selection has nullable installedPartCollectionItemId; refill_compatibility_group uniquely references a concept but not vice versa.",
+        "Nullable successor FKs and ordinary indexes appear at pens.ts lines 970-989 and 1050-1068. Five model requests completed with returned billing under isolated default-deny visual execution. Snapshot omitted."
+      ],
+      "notes": "The output covers the requested domain map and two parse-valid ER slices, with disclosed source omissions. Multiple mandatory endpoints and the broad shared-key description materially change the schema meaning. Column inventories do not compensate for incorrect relationship optionality. The 43-table count is incidental and not the scored failure."
+    },
+    "visuals:moonshotai/kimi-k2.5:pr354:1": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "product_configuration_choice ||--o| product_material asserts each material belongs to exactly one choice; the nullable carrier FK permits many choices to reference a material, with no inverse uniqueness.",
+        "product_configuration_choice ||--o| finish_option repeats the unsupported inverse one-to-one cardinality.",
+        "product_configuration_choice ||--o| product_detail_pen_part repeats the unsupported inverse one-to-one cardinality."
+      ],
+      "evidence": [
+        "PR 354 frozen pens.ts product_configuration_choice has nullable productMaterialId, finishOptionId and partProductId; carrier_valid uses num_nonnulls(...)=1 but does not uniquely constrain those referenced carrier IDs.",
+        "Shared-PK product subtypes are optional in the emitted ERD, and installed parts are mediated through collection_item_configuration_selection, matching the schema.",
+        "The emitted coverage notes disclose the omitted refill/evidence ER slice after Mermaid validation failed; the domain map still covers those groups.",
+        "Five returned-billed requests, twelve reported tool iterations and a strict visual-only completion under the isolated default-deny runner. Generated snapshot excluded."
+      ],
+      "notes": "The descriptive group map and most prose match the schema, including conditional remedies and exclusive carriers. The three carrier edges introduce inverse uniqueness that the schema does not enforce. A requested refill ER slice was discarded for syntax and disclosed; parse/scope sanitation does not make the surviving cardinalities correct."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr354:1": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "refill_offering_identifier |o--o| refill_offering_identifier makes successor one-to-one. successor_id is nullable and non-unique, so multiple predecessors may reference the same successor.",
+        "refill_offering_market_status |o--o| refill_offering_market_status repeats the unsupported one-to-one successor cardinality."
+      ],
+      "evidence": [
+        "PR 354 frozen head packages/database/src/schema/pens.ts lines 970-989 and 1050-1068: nullable successor self-FKs with ordinary non-unique successor indexes.",
+        "Frozen migration lines 994-1004 check successor scope; lines 1144-1145 create non-unique successor indexes, not incoming-link uniqueness.",
+        "Subtype ER edges preserve optional shared-PK children; configuration carrier edges are optional, and installed items are selection-mediated. Coverage lists omitted table families and constraints rather than claiming complete ER coverage.",
+        "Six returned-billed requests, fifteen reported tool iterations and a strict visual-only completion under default-deny isolation; generated snapshot omitted."
+      ],
+      "notes": "The domain map and two focused ER slices cover the affected groups and preserve most optionality. Both successor self-relations assert uniqueness absent from the schema, failing the source/semantic gate. The 46-table wording is an incidental count error; the material failures scored here are the two successor cardinalities. Limitations disclose untraced trigger bodies, partial relations/docs/test reads and omitted ER details."
+    },
+    "visuals:z-ai/glm-5.3:pr403:1": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The diagram connects the adapter Redis connection to both shared and legacy Redis as active solid edges without a staged qualifier; preserved REDIS_URL and docs/railway.md retain the legacy preview queue until separately approved cutover.",
+        "The diagram and changed-area prose place the in-memory adapter in test-contract.ts. createInMemoryQueueAdapter is defined in packages/queue/src/index.ts; test-contract.ts exports the shared adapter test suite.",
+        "The result says full current source contents were unavailable. The prepared evidence included frozen head contents as well as patches; unread contents are not unavailable contents."
+      ],
+      "evidence": [
+        "PR 403 head .railway/railway.ts preserves REDIS_URL; docs/railway.md lines 274-276 retains scraper-queue until approved provisioning/cutover, while its shared-volume text describes intended shared deployment.",
+        "PR 403 head packages/queue/src/index.ts line 276 defines createInMemoryQueueAdapter; test-contract.ts line 14 defines defineQueueAdapterContract.",
+        "The restricted runner materializes both patch and supplied head content into separate plaintext evidence files before invocation; omitted lockfile is disclosed.",
+        "Seven billed requests and sixteen reported tool iterations completed. SDK estimated cost is $0.025244444 versus $0.012103444 returned request billing; the report uses returned billing, not the SDK estimate. Default-deny isolation and visual writing skills remained configured."
+      ],
+      "notes": "The portable package migration is recognizable, but staged infrastructure, adapter implementation location and available evidence are misrepresented. Current syntax succeeds after scope sanitation; that does not repair these source claims. Runtime and generated-file limitations are otherwise disclosed."
+    },
+    "visuals:moonshotai/kimi-k2.5:pr403:1": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "BullMQ --> Shared is drawn as the active Redis connection without a staged qualifier. Frozen IaC preserves REDIS_URL and migration documentation retains the legacy scraper queue until separately approved cutover.",
+        "The coverage gap says package tsconfig details are unavailable, although packages/queue/tsconfig.json is a changed source file supplied in the frozen comparison."
+      ],
+      "evidence": [
+        "PR 403 frozen .railway/railway.ts preserves scraper REDIS_URL and declares both legacyScraperQueue and sharedQueue; no new live consumer binding is established.",
+        "apps/scraper/src/queue/queues.ts constructs the BullMQ adapter from redisUrl and permits an injected adapter; producer/processor migration supports the package-layer map.",
+        "Frozen comparison includes packages/queue/tsconfig.json; pnpm-lock.yaml was omitted before context limits.",
+        "Dedicated session completed a structured visual result under the isolated default-deny runner; writing skills and per-request billing are recorded in the campaign ledger."
+      ],
+      "notes": "The package and producer/processor relationships are useful, and prose calls the shared Redis staged. The unqualified active connection in the diagram contradicts that distinction. A false unavailable-source disclaimer also fails coverage accuracy. Ineligible extra diagram types were omitted by the existing sanitizer and disclosed."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr403:1": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The architecture diagram draws both LegacyRedis --- Volume and NewRedis --- Volume, asserting a shared attachment to redis-volume. The frozen IaC declares the volume separately and provides no attachment from the new Redis resource; live bindings were not inspected."
+      ],
+      "evidence": [
+        "PR 403 frozen head .railway/railway.ts: legacyScraperQueue and sharedQueue declare deployment/network settings; redisVolume is a separate volume resource. The project resources array alone does not prove a shared mount.",
+        "PR 403 frozen head apps/scraper/src/queue/queues.ts: createBullMqQueueAdapter builds bounded item/image queues with replaceCompleted, shared retention/retry and payload validators.",
+        "The result distinguishes documented staged cutover from retained legacy Redis and discloses omitted lockfile, partial large-file reads and unavailable live state.",
+        "Ten returned-billed model requests completed with 28 reported tool iterations under the pinned default-deny isolated runner; selected skills are the two visual writing skills."
+      ],
+      "notes": "The descriptive queue/package architecture and staging distinction are supported. A material storage-topology edge is invented despite the live-state disclaimer, so source/diagram gates fail. The disclosure of partial reads and unchanged-source limitations is accurate; no review findings are generated."
+    }
+  }
 }

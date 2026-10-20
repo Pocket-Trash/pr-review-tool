@@ -65,6 +65,43 @@ test("paid visual runner refuses missing campaign approval before touching the l
   assert.match(child.stderr, /Explicit new \$7\.89 visual-only approval/);
 });
 
+test("recorded visual campaign stays inside its distinct approval and contains no replacement sessions", async () => {
+  let ledger;
+  try {
+    ledger = await json("../evaluation/visual-results.json");
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  assert.equal(ledger.campaign, "owner-approved-7.89-visuals-2026-10-20");
+  assert.equal(ledger.budgetUsd, 7.89);
+  assert.ok(ledger.sessions.length <= 27);
+  assert.ok(ledger.requests.length <= 432);
+  assert.equal(
+    new Set(ledger.sessions.map((row) => row.id)).size,
+    ledger.sessions.length,
+  );
+  let accounted = 0;
+  for (const request of ledger.requests) {
+    const charge = request.costUsd ?? request.reservedUsd;
+    assert.ok(Number.isFinite(charge) && charge >= 0);
+    accounted += charge;
+    assert.ok(ledger.sessions.some((row) => row.id === request.session));
+  }
+  assert.ok(accounted <= 7.89);
+  for (const row of ledger.sessions) {
+    assert.match(
+      row.id,
+      /^visuals:(anthropic\/claude-sonnet-5\.5|moonshotai\/kimi-k2\.5|z-ai\/glm-5\.3):pr(403|354|376):[123]$/,
+    );
+    assert.ok(
+      ledger.requests.filter((request) => request.session === row.id).length <=
+        16,
+    );
+    assert.equal(row.task, "visuals");
+  }
+});
+
 test("visual fixtures apply generated exclusions before eligibility", async () => {
   const spec = await json("../evaluation/visual-fixtures.json");
   const matrix = await json("../evaluation/matrix.json");
