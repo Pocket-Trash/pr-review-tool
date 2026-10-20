@@ -161,6 +161,8 @@ export async function renderVisualReliabilityReport(
     "",
     `Campaign: ${spec.approval}. Status: ${ledger?.status ?? "approved, not run"}. Cap: $${spec.budgetUsd}, including paid failures, repairs and retained reservations. ${sessions.length}/${spec.maxSessions} slots recorded; ${requests.length}/${spec.maxRequests} requests. Accounted: $${budgetTotal(requests).toFixed(6)}. No paid replacements.`,
     "",
+    "[Results and request billing](visual-reliability-results.json) · [Source assessments](visual-reliability-assessments.json)",
+    "",
     `Planning estimate: $${spec.estimatedUsd}. ${spec.estimateMethod}`,
     "",
     "Structured completion is not source accuracy. A visual pass requires source, diagram, coverage, omissions, telemetry, billing and denied-tool assessments. Unassessed/unavailable output is never a zero-defect score. Runner coverage confirms supplied/read ranges, not comprehension. Source-call edges do not prove runtime infrastructure. Each candidate needs all nine frozen trials to pass; route approval and live activation remain separate.",

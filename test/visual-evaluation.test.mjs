@@ -78,6 +78,46 @@ test("reliability campaign has its own $15 approval and refuses mismatched autho
   assert.match(child.stderr, /Explicit new \$15 visual-only approval/);
 });
 
+test("recorded reliability campaign preserves bounded slots, charges and source-free evidence", async () => {
+  const ledger = await json("../evaluation/visual-reliability-results.json");
+  assert.equal(
+    ledger.campaign,
+    "owner-approved-15-visual-reliability-2026-10-20",
+  );
+  assert.equal(ledger.budgetUsd, 15);
+  assert.equal(ledger.maxSessions, 27);
+  assert.equal(ledger.maxRequests, 432);
+  assert.ok(ledger.sessions.length <= 27);
+  assert.ok(ledger.requests.length <= 432);
+  assert.equal(
+    new Set(ledger.sessions.map((row) => row.id)).size,
+    ledger.sessions.length,
+  );
+  assert.ok(
+    ledger.requests.reduce((sum, r) => sum + (r.costUsd ?? r.reservedUsd), 0) <=
+      15,
+  );
+  for (const row of ledger.sessions) {
+    assert.ok(ledger.requests.filter((r) => r.session === row.id).length <= 16);
+    if (row.review)
+      assert.equal(
+        Object.keys(row.review).sort().join(),
+        "changedAreas,coverageGaps,diagrams,overview",
+      );
+    if (row.evidence)
+      assert.doesNotMatch(
+        JSON.stringify(row.evidence),
+        /"(?:content|patch|output|filePath)":/,
+      );
+  }
+  for (const request of ledger.requests) {
+    assert.ok(ledger.sessions.some((row) => row.id === request.session));
+    assert.ok(request.maxOutputTokens <= 32768);
+    assert.ok(request.requestBytes <= 8388608);
+    assert.equal(request.reservationMethod, "full-model-context-v1");
+  }
+});
+
 test("reliability gates require current host evidence and complete invocation telemetry", async () => {
   const valid = {
     ...row,
