@@ -61,6 +61,8 @@ Phase 2 also supports one conditional `state` / `stateDiagram-v2` for changed so
 
 Dependency maps use `dependency` / `flowchart`, scoped to changed imports and declared runtime/development/peer/optional dependencies. Automatic Phase 2 analysis reads affected manifests at the exact frozen base and head (including renamed paths) to distinguish dependency changes from metadata-only edits. Missing/oversized base manifests are disclosed rather than guessed. Base evidence is materialized as plain text; no resolver, package install, or PR code runs. Transitive edges, unresolved aliases, and live runtime relationships remain unverified unless supplied source establishes them.
 
+Before/after views use `before-after` / `flowchart` with separate, exact-SHA base/head panels for affected architecture/schema declarations. Both sides must be available (or explicitly absent for added/removed files); renamed files read their previous path at the frozen base. Retained, added, removed, active-declared and staged paths must remain distinct, with no invented runtime handoff between revisions or live-deployment claim. Missing sides are omissions, not empty topology proof. They share the same four-diagram cap and source-quality gate and remain behind Phase 2 activation.
+
 ## Dependency policy
 
 Third-party GitHub Actions must be pinned to full commit SHAs, and downloaded command-line tools must use exact versions. Pull-request content is untrusted data: the reusable reviewer must never execute it, load configuration from it, or expose credentials to it.

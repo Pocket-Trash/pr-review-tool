@@ -21,6 +21,39 @@ const schemaPattern =
 const nonSourcePattern =
   /(?:^|\/)(?:test|tests|fixtures?|docs?)(?:\/|\.)|\.(?:test|spec)\.[^/]+$/i;
 
+function topologyFile({ filename, previous_filename }) {
+  return [filename, previous_filename].some(
+    (path) =>
+      typeof path === "string" &&
+      !nonSourcePattern.test(path) &&
+      (infrastructurePattern.test(path) ||
+        architectureSourcePattern.test(path) ||
+        schemaPattern.test(path)),
+  );
+}
+
+export function visualBaseCandidates(files) {
+  return files.filter(
+    (file) =>
+      topologyFile(file) ||
+      (!nonSourcePattern.test(file.filename) &&
+        /(?:^|\/)package\.json$/.test(file.filename)),
+  );
+}
+
+function beforeAfterChange(file) {
+  return (
+    topologyFile(file) &&
+    typeof file.baseContent === "string" &&
+    typeof file.content === "string" &&
+    /^[0-9a-f]{40}$/.test(file.baseSha || "") &&
+    /^[0-9a-f]{40}$/.test(file.headSha || "") &&
+    file.baseSha !== file.headSha &&
+    (file.baseContent !== (file.status === "removed" ? "" : file.content) ||
+      (file.previous_filename && file.previous_filename !== file.filename))
+  );
+}
+
 function dependencyChange(file) {
   if (
     !/(?:^|\/)package\.json$/.test(file.filename) ||
@@ -107,6 +140,7 @@ export function visualRequirements(files, visualPhase = 1) {
                 line,
               ),
             ),
+          beforeAfter: files.some(beforeAfterChange),
         }
       : {}),
     architecture,
@@ -145,6 +179,10 @@ export function visualPrompt(requirements) {
     requests.push(
       "one focused dependency flowchart from declared dependencies/imports in frozen source; distinguish runtime, development, peer, optional and builtin edges and label their source manifest/import anchors; do not infer transitive edges or runtime resolution, execute a resolver, install packages, or invent package/service relationships; disclose unavailable base declarations and unresolved aliases in coverageGaps",
     );
+  if (requirements.beforeAfter)
+    requests.push(
+      "one focused before-after flowchart comparing only supplied frozen base/head architecture or schema declarations in separately labelled panels; include exact base/head SHAs, retained/added/removed paths and staged versus active declarations; baseContentFile is the base source, contentFile is head source except for removed files where head is absent; added files have no base path, renamed files use previous_filename at base; do not treat declaration changes as live deployment state, invent a cutover, or connect the panels as a runtime path; disclose missing sides and significant omitted topology in coverageGaps",
+    );
   const syntaxes = ["flowchart", "erDiagram"];
   if (requirements.sequence) syntaxes.push("sequenceDiagram");
   if (requirements.state) syntaxes.push("stateDiagram-v2");
@@ -160,7 +198,8 @@ export function visualSkipReason(requirements) {
     requirements.schema === "none" &&
     !requirements.sequence &&
     !requirements.state &&
-    !requirements.dependency
+    !requirements.dependency &&
+    !requirements.beforeAfter
     ? "No eligible architecture, domain, or ERD changes; inference was skipped."
     : null;
 }
@@ -173,6 +212,7 @@ function permitted(kind, requirements) {
   if (kind === "sequence") return requirements.sequence === true;
   if (kind === "state") return requirements.state === true;
   if (kind === "dependency") return requirements.dependency === true;
+  if (kind === "before-after") return requirements.beforeAfter === true;
   return false;
 }
 
@@ -235,6 +275,7 @@ export async function sanitizeVisuals(
     sequence: 1,
     state: 1,
     dependency: 1,
+    "before-after": 1,
   };
   const priority = [];
   if (requirements?.architecture) priority.push("architecture");
@@ -247,6 +288,7 @@ export async function sanitizeVisuals(
     "sequence",
     "state",
     "dependency",
+    "before-after",
   ])
     if (!priority.includes(kind)) priority.push(kind);
   for (const kind of priority) {
@@ -303,5 +345,10 @@ export async function sanitizeVisuals(
     coverageGaps.push(
       "Dependency change had no valid source-grounded dependency map.",
     );
+  if (
+    requirements?.beforeAfter &&
+    !diagrams.some(({ kind }) => kind === "before-after")
+  )
+    coverageGaps.push("Frozen topology change had no valid before/after view.");
   return { ...review, diagrams, coverageGaps: [...new Set(coverageGaps)] };
 }

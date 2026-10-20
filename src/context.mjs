@@ -39,6 +39,10 @@ export async function prepareReviewContext(files, config, loadFile) {
       continue;
     }
     const loaded = await loadFile(file);
+    if (loaded.available === false) {
+      omissions.push(`${file.filename}: source content unavailable`);
+      continue;
+    }
     if (loaded.size > config.limits.maxFileBytes)
       omissions.push(`${file.filename}: file exceeds 512 KiB`);
     else reviewable.push({ ...file, content: loaded.content });

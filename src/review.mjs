@@ -1,7 +1,7 @@
 const providers = new Set(["cheaperinference", "openrouter"]);
 const severities = new Set(["critical", "high", "medium", "low"]);
 const diagramKinds = new Set(["architecture", "schema-domain", "schema-er"]);
-const phaseTwoKinds = ["sequence", "state", "dependency"];
+const phaseTwoKinds = ["sequence", "state", "dependency", "before-after"];
 
 export function visualDiagramKinds(phase = 1) {
   validateVisualPhase(phase);

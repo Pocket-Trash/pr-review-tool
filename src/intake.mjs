@@ -83,7 +83,7 @@ export async function loadChangedFile(
     fetch,
   );
   if (response.encoding !== "base64")
-    return { size: response.size ?? 0, content: "" };
+    return { size: response.size ?? 0, content: "", available: false };
   return {
     size: response.size,
     content: Buffer.from(response.content, "base64").toString("utf8"),

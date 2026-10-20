@@ -1,0 +1,48 @@
+{
+  "files": [
+    {
+      "filename": "infra/queue.json",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 0,
+      "patch": "+\"sharedRedis\": { \"staged\": true, \"active\": false }",
+      "baseSha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "baseContent": "{\"legacyRedis\":{\"active\":true}}",
+      "content": "{\"legacyRedis\":{\"active\":true},\"sharedRedis\":{\"staged\":true,\"active\":false}}"
+    }
+  ],
+  "visuals": {
+    "overview": "The source retains the active legacy Redis declaration and adds an inactive staged shared Redis declaration.",
+    "diagrams": [
+      {
+        "kind": "before-after",
+        "title": "Declared queue topology at frozen revisions",
+        "mermaid": "flowchart LR\n subgraph Base[\"Base bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"]\n LegacyBase[Legacy Redis active declaration]\n end\n subgraph Head[\"Head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"]\n LegacyHead[Legacy Redis retained active declaration]\n Shared[Shared Redis added staged inactive declaration]\n end"
+      }
+    ],
+    "changedAreas": [
+      {
+        "area": "Queue declarations",
+        "summary": "Adds staged infrastructure without a declared cutover."
+      }
+    ],
+    "coverageGaps": [
+      "Live deployment state and other source consumers were not inspected."
+    ]
+  },
+  "unsupported": {
+    "overview": "The shared Redis is live and the legacy Redis was removed.",
+    "diagrams": [
+      {
+        "kind": "before-after",
+        "title": "Invented live cutover",
+        "mermaid": "flowchart LR\n subgraph Base\n Legacy[Legacy Redis]\n end\n subgraph Head\n Shared[Shared Redis live active]\n end\n Legacy -->|runtime handoff| Shared"
+      }
+    ],
+    "changedAreas": [
+      { "area": "Queue", "summary": "Completes a production cutover." }
+    ],
+    "coverageGaps": []
+  }
+}
