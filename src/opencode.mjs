@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cp, mkdtemp, opendir, rm } from "node:fs/promises";
+import { cp, mkdtemp, opendir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -378,7 +378,9 @@ export async function runRestrictedReview({
   if (!model) throw new TypeError("model is required");
   if (!workspace) throw new TypeError("workspace is required");
 
-  const isolatedHome = await mkdtemp(join(tmpdir(), "pr-review-opencode-"));
+  const isolatedHome = await realpath(
+    await mkdtemp(join(tmpdir(), "pr-review-opencode-")),
+  );
   const deadline = Date.now() + timeoutMs;
   const isolatedConfig = join(isolatedHome, "config");
   const isolatedWorkspace = join(isolatedHome, "workspace");

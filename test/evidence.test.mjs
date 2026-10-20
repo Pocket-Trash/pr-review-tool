@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  realpath,
+  symlink,
+  readFile,
+  writeFile,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runRestrictedReview } from "../src/opencode.mjs";
@@ -234,6 +242,89 @@ test("visual invocation publishes runner coverage and attributes model omissions
       /one\\ntwo|state|output|filePath/,
     );
   } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("canonical workspace paths confirm reads through a temporary-directory alias", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "coverage-alias-"));
+  const originalTemp = process.env.TMPDIR;
+  let report;
+  try {
+    await mkdir(join(directory, "real"));
+    await mkdir(join(directory, "prepared"));
+    await symlink(join(directory, "real"), join(directory, "alias"), "dir");
+    await writeFile(
+      join(directory, "prepared/pull-request.json"),
+      JSON.stringify({
+        identity: { headSha: "a".repeat(40), baseSha: "b".repeat(40) },
+        files: [
+          {
+            filename: "railway.ts",
+            content: 'const queue=service("queue");\nconst active=queue;\n',
+          },
+        ],
+      }),
+    );
+    process.env.TMPDIR = join(directory, "alias");
+    await runRestrictedReview({
+      task: "visuals",
+      provider: "openrouter",
+      model: "fixture",
+      apiKey: "fixture",
+      workspace: join(directory, "prepared"),
+      visualRequirements: { architecture: true, schema: "none" },
+      onEvidence: (value) => {
+        report = value;
+      },
+      execute: async (_command, _args, options) => {
+        assert.equal(options.cwd, await realpath(options.cwd));
+        const catalog = JSON.parse(
+          await readFile(
+            join(options.cwd, "review-relationships.json"),
+            "utf8",
+          ),
+        );
+        const edge = catalog.relationships[0];
+        return {
+          stdout: [
+            read("confirmed", "1: const queue = service();", {
+              input: {
+                filePath: await realpath(
+                  join(options.cwd, "review-evidence/0-content.txt"),
+                ),
+              },
+            }),
+            {
+              type: "text",
+              part: {
+                text: JSON.stringify({
+                  overview: "Declared call.",
+                  diagrams: [
+                    {
+                      kind: "architecture",
+                      title: "Declared",
+                      nodeIds: [edge.from, edge.to],
+                      relationshipIds: [edge.id],
+                    },
+                  ],
+                  changedAreas: [],
+                  coverageGaps: [],
+                }),
+              },
+            },
+          ]
+            .map((event) => JSON.stringify(event))
+            .join("\n"),
+        };
+      },
+    });
+    const file = report.files.find((file) => file.kind === "content");
+    assert.deepEqual(file.returnedRanges, [[1, 1]]);
+    assert.equal(file.readState, "partial-returned");
+  } finally {
+    if (originalTemp === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = originalTemp;
     await rm(directory, { recursive: true, force: true });
   }
 });
