@@ -10,6 +10,48 @@ export function budgetTotal(requests) {
   }, 0);
 }
 
+export async function reconcileInterruptedEvaluation(ledger, receiptFor) {
+  const pending = ledger.requests.filter((request) =>
+    ["in-progress", "interrupted", "unmetered"].includes(request.status),
+  );
+  const receipts = [];
+  for (const request of pending) {
+    if (!request.generationId)
+      throw new Error(
+        "Interrupted request has no generation receipt; reservation retained",
+      );
+    const receipt = await receiptFor(request.generationId);
+    if (
+      receipt.id !== request.generationId ||
+      !Number.isFinite(receipt.total_cost) ||
+      receipt.total_cost < 0 ||
+      receipt.total_cost > request.reservedUsd ||
+      (!receipt.cancelled && !receipt.finish_reason)
+    )
+      throw new Error(
+        "Interrupted request billing is not confirmed within its reservation",
+      );
+    receipts.push({ request, receipt });
+  }
+  for (const { request, receipt } of receipts) {
+    request.reconciliation = {
+      priorStatus: request.status,
+      checkedAt: new Date().toISOString(),
+      cancelled: receipt.cancelled,
+      totalCostUsd: receipt.total_cost,
+    };
+    request.status = "complete";
+    request.costUsd = receipt.total_cost;
+  }
+  for (const session of ledger.sessions.filter(
+    (session) => session.status === "in-progress",
+  )) {
+    session.status = "interrupted";
+    session.error =
+      "Campaign process interrupted; no result recovered and no paid replacement attempted.";
+  }
+}
+
 // Only this loopback proxy holds the real key; OpenCode receives a random token.
 export async function startEvaluationProxy({
   apiKey,

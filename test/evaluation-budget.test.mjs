@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   budgetTotal,
   startEvaluationProxy,
+  reconcileInterruptedEvaluation,
 } from "../src/evaluation-budget.mjs";
 
 const model = {
@@ -11,6 +12,46 @@ const model = {
   inputPerMillionUsd: 1,
   outputPerMillionUsd: 2,
 };
+
+test("interrupted billing reconciles by generation receipt without replaying its session", async () => {
+  const ledger = {
+    requests: [
+      { generationId: "gen-1", status: "in-progress", reservedUsd: 0.2 },
+    ],
+    sessions: [{ id: "paid-session", status: "in-progress" }],
+  };
+  await reconcileInterruptedEvaluation(ledger, async () => ({
+    id: "gen-1",
+    total_cost: 0.03,
+    cancelled: true,
+    finish_reason: null,
+  }));
+  assert.equal(budgetTotal(ledger.requests), 0.03);
+  assert.equal(ledger.sessions[0].status, "interrupted");
+  assert.equal(ledger.requests[0].reconciliation.priorStatus, "in-progress");
+  for (const changes of [{ generationId: undefined }, { reservedUsd: 0.01 }]) {
+    const incomplete = {
+      requests: [
+        {
+          generationId: "gen-1",
+          status: "in-progress",
+          reservedUsd: 0.2,
+          ...changes,
+        },
+      ],
+      sessions: [],
+    };
+    await assert.rejects(
+      reconcileInterruptedEvaluation(incomplete, async () => ({
+        id: "gen-1",
+        total_cost: 0.03,
+        cancelled: true,
+      })),
+      /reservation|billing/,
+    );
+    assert.equal(incomplete.requests[0].status, "in-progress");
+  }
+});
 async function harness(fetchImpl, budgetUsd = 1, limits = {}) {
   const ledger = { budgetUsd, requests: [] };
   let checkpoints = 0;

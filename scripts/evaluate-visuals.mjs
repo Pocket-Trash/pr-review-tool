@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   startEvaluationProxy,
   budgetTotal,
+  reconcileInterruptedEvaluation,
 } from "../src/evaluation-budget.mjs";
 import { writeJsonAtomic } from "../src/evaluation.mjs";
 import { runRestrictedReview, VISUAL_SKILLS } from "../src/opencode.mjs";
@@ -36,20 +37,22 @@ if (
     "Explicit new $7.89 visual-only approval and API key required",
   );
 const path = join(root, "evaluation/visual-results.json");
+const resume = process.argv.includes("--resume");
 const lock = await open(`${path}.lock`, "wx");
 let proxy;
 let ledger;
 try {
-  // An existing campaign is never replayed, replaced or reset by this command.
-  const initial = await open(path, "wx", 0o600);
-  await initial.close();
+  if (!resume) {
+    const initial = await open(path, "wx", 0o600);
+    await initial.close();
+  }
   const catalogResponse = await fetch("https://openrouter.ai/api/v1/models", {
     signal: AbortSignal.timeout(20000),
   });
   if (!catalogResponse.ok)
     throw new Error(`Catalog HTTP ${catalogResponse.status}`);
   const catalog = (await catalogResponse.json()).data;
-  const models = ids.map((id) => {
+  let models = ids.map((id) => {
     const model = catalog.find((model) => model.id === id);
     if (!model) throw new Error(`Exact model unavailable: ${id}`);
     const entry = {
@@ -79,7 +82,7 @@ try {
       throw new Error(`Invalid model limits/pricing: ${id}`);
     return entry;
   });
-  ledger = {
+  const initialLedger = {
     runnerSha: execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: root,
       encoding: "utf8",
@@ -99,6 +102,61 @@ try {
     requests: [],
     status: "in-progress",
   };
+  if (resume) {
+    const existing = await json("visual-results.json");
+    if (
+      existing.campaign !== spec.approval ||
+      existing.budgetUsd !== 7.89 ||
+      existing.maxSessions !== 27 ||
+      existing.maxRequests !== 432 ||
+      existing.maxRequestsPerSession !== 16 ||
+      existing.status !== "in-progress" ||
+      JSON.stringify(existing.fixtures) !== JSON.stringify(matrix.fixtures) ||
+      existing.models.map((model) => model.id).join() !== ids.join() ||
+      budgetTotal(existing.requests) > 7.89
+    )
+      throw new Error(
+        "Resume requires the unchanged interrupted visual campaign",
+      );
+    ledger = existing;
+    for (const current of models) {
+      const approved = ledger.models.find((model) => model.id === current.id);
+      if (
+        current.inputPerMillionUsd > approved.inputPerMillionUsd ||
+        current.outputPerMillionUsd > approved.outputPerMillionUsd ||
+        current.reservedInputPerMillionUsd > approved.reservedInputPerMillionUsd
+      )
+        throw new Error(
+          "Catalog price increased; frozen campaign ceilings cannot be expanded",
+        );
+    }
+    await reconcileInterruptedEvaluation(ledger, async (id) => {
+      const response = await fetch(
+        `https://openrouter.ai/api/v1/generation?id=${encodeURIComponent(id)}`,
+        {
+          headers: {
+            authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          },
+          signal: AbortSignal.timeout(20000),
+        },
+      );
+      if (!response.ok)
+        throw new Error(
+          `Generation receipt HTTP ${response.status}; reservation retained`,
+        );
+      return (await response.json()).data;
+    });
+    ledger.resumptions = [
+      ...(ledger.resumptions ?? []),
+      {
+        at: new Date().toISOString(),
+        runnerSha: initialLedger.runnerSha,
+        reason:
+          "Owner requested resume after interruption; existing sessions skipped, no replacements.",
+      },
+    ];
+    models = ledger.models;
+  } else ledger = initialLedger;
   const checkpoint = () => writeJsonAtomic(path, ledger);
   await checkpoint();
   const githubToken =
@@ -186,6 +244,7 @@ try {
         )
           break;
         const id = `visuals:${model.id}:pr${fixture.pull}:${repetition}`;
+        if (ledger.sessions.some((session) => session.id === id)) continue;
         const entry = {
           id,
           task: "visuals",
