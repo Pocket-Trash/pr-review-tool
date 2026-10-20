@@ -13,7 +13,11 @@ import {
 } from "./intake.mjs";
 import { runRestrictedReview } from "./opencode.mjs";
 import { renderReview, validateProductionRoute } from "./review.mjs";
-import { visualPrompt, visualRequirements } from "./visuals.mjs";
+import {
+  visualPrompt,
+  visualRequirements,
+  visualSkipReason,
+} from "./visuals.mjs";
 import {
   discoverInstalledSkills,
   filterSkillOverrides,
@@ -52,6 +56,50 @@ const prepared = await prepareReviewContext(
   context.config,
   (file) => loadChangedFile(identity, file, process.env.GITHUB_TOKEN),
 );
+const requestedVisuals = visualRequirements(prepared.files);
+const skipReason =
+  prepared.conclusion === "neutral"
+    ? prepared.reason
+    : context.config.task === "visuals"
+      ? visualSkipReason(requestedVisuals)
+      : null;
+const baseRun = {
+  reviewedSha: identity.headSha,
+  runId: process.env.GITHUB_RUN_ID,
+  selectedSkills: [],
+  skillOverrides: [],
+  usage: {
+    inputTokens: 0,
+    cachedInputTokens: null,
+    reasoningTokens: null,
+    outputTokens: 0,
+    modelCalls: 0,
+    toolIterations: 0,
+    estimatedCostUsd: 0,
+  },
+};
+if (skipReason) {
+  await assertCurrentHead(identity, process.env.GITHUB_TOKEN);
+  if (process.env.GITHUB_STEP_SUMMARY)
+    await appendFile(
+      process.env.GITHUB_STEP_SUMMARY,
+      `${context.config.task === "visuals" ? "PR Visuals" : "Review"} skipped: ${skipReason}\n`,
+    );
+  await writeFile(
+    process.env.REVIEW_ARTIFACT_PATH,
+    buildArtifact({
+      task: context.config.task,
+      review: null,
+      run: baseRun,
+      selectedSkills: [],
+      omissions: prepared.omissions,
+      diagnostics: [skipReason],
+    }),
+  );
+  if (process.env.GITHUB_OUTPUT)
+    await appendFile(process.env.GITHUB_OUTPUT, "reviewed=true\n");
+  process.exit(0);
+}
 const packageEvidence = (
   await Promise.all(
     packageManifestPaths(prepared.files).map((path) =>
@@ -65,8 +113,8 @@ const packageEvidence = (
     ),
   )
 ).filter(Boolean);
-const requestedVisuals = visualRequirements(prepared.files);
 const skillSelection = selectRelevantSkills({
+  task: context.config.task,
   manifest: skillManifest,
   installed: await discoverInstalledSkills(join(reviewerRoot, "skills")),
   files: [...prepared.files, ...packageEvidence],
@@ -75,42 +123,8 @@ const skillSelection = selectRelevantSkills({
     join(reviewerRoot, "skills/install-status.json"),
   ),
 });
-const baseRun = {
-  reviewedSha: identity.headSha,
-  runId: process.env.GITHUB_RUN_ID,
-  selectedSkills: skillSelection.selected,
-  skillOverrides: skillSelection.overrides,
-  usage: {
-    inputTokens: 0,
-    cachedInputTokens: null,
-    reasoningTokens: null,
-    outputTokens: 0,
-    modelCalls: 0,
-    toolIterations: 0,
-    estimatedCostUsd: 0,
-  },
-};
-if (prepared.conclusion === "neutral") {
-  await assertCurrentHead(identity, process.env.GITHUB_TOKEN);
-  if (process.env.GITHUB_STEP_SUMMARY)
-    await appendFile(
-      process.env.GITHUB_STEP_SUMMARY,
-      `Review skipped: ${prepared.reason}\n`,
-    );
-  await writeFile(
-    process.env.REVIEW_ARTIFACT_PATH,
-    buildArtifact({
-      review: null,
-      run: baseRun,
-      selectedSkills: skillSelection.selected,
-      omissions: prepared.omissions,
-      diagnostics: [prepared.reason, ...skillSelection.overrides],
-    }),
-  );
-  if (process.env.GITHUB_OUTPUT)
-    await appendFile(process.env.GITHUB_OUTPUT, "reviewed=true\n");
-  process.exit(0);
-}
+baseRun.selectedSkills = skillSelection.selected;
+baseRun.skillOverrides = skillSelection.overrides;
 const workspace = await mkdtemp(join(tmpdir(), "pr-review-workspace-"));
 try {
   const packageEvidenceBudget = Math.min(
@@ -130,7 +144,11 @@ try {
   let invocationCount = 0;
   let usageReports = 0;
   const review = await runRestrictedReview({
-    apiKey: process.env.CHEAPER_INFERENCE_API_KEY,
+    task: context.config.task,
+    apiKey:
+      context.config.provider === "openrouter"
+        ? process.env.OPENROUTER_API_KEY
+        : process.env.CHEAPER_INFERENCE_API_KEY,
     provider: context.config.provider,
     model: context.config.model,
     skills: skillSelection.selected,
@@ -180,6 +198,7 @@ try {
   await writeFile(
     process.env.REVIEW_ARTIFACT_PATH,
     buildArtifact({
+      task: context.config.task,
       review,
       run,
       selectedSkills: run.selectedSkills,

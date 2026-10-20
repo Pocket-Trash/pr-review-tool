@@ -71,6 +71,12 @@ export function visualPrompt(requirements) {
     : "No architecture, infrastructure, or schema visual is requested; return no diagrams.";
 }
 
+export function visualSkipReason(requirements) {
+  return !requirements.architecture && requirements.schema === "none"
+    ? "No eligible architecture, domain, or ERD changes; inference was skipped."
+    : null;
+}
+
 function permitted(kind, requirements) {
   if (!requirements) return true;
   if (kind === "architecture") return requirements.architecture;

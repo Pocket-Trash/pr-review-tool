@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { validateTask } from "./review.mjs";
 
 const SHA = /^[0-9a-f]{40}$/;
 const CLI = /^skills@\d+\.\d+\.\d+$/;
@@ -190,17 +191,24 @@ export function selectRelevantSkills({
   files,
   configured = [],
   failed = [],
+  task = "review",
 }) {
+  validateTask(task);
   validateSkillManifest(manifest);
   const { paths, dependencies, owners } = evidence(files);
   const configuredNames = new Set(configured);
-  const selected = ["review-coordinator"];
+  const selected = task === "visuals" ? [] : ["review-coordinator"];
   const overrides = [];
   const coverageGaps = [];
   const failedNames = new Set(failed);
 
   for (const source of manifest.sources) {
     for (const skill of source.skills) {
+      if (
+        task === "visuals" &&
+        ["review-coordinator", "ponytail-review"].includes(skill.name)
+      )
+        continue;
       const pathMatch = (skill.paths || []).some((pattern) => {
         const regex = globRegex(pattern);
         return paths.some((path) => regex.test(path));

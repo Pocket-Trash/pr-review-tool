@@ -1,0 +1,14 @@
+{
+  "overview": "The change stages a shared queue alongside the existing queue.",
+  "diagrams": [
+    {
+      "kind": "architecture",
+      "title": "Staged queue path",
+      "mermaid": "flowchart LR\n Producer --> ExistingQueue\n SharedPackage --> NewQueue"
+    }
+  ],
+  "changedAreas": [
+    { "area": "Queue", "summary": "Adds a shared queue package." }
+  ],
+  "coverageGaps": ["Live deployment state was not inspected."]
+}

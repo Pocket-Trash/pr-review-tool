@@ -1,4 +1,4 @@
-import { validateConfig } from "./review.mjs";
+import { validateConfig, validateTask } from "./review.mjs";
 
 const API = "https://api.github.com";
 const ARTIFACT_LIMIT = 1024 * 1024;
@@ -139,14 +139,23 @@ export async function assertCurrentHead(
 }
 
 export function buildArtifact({
+  task,
   review,
   run,
   selectedSkills,
   omissions,
   diagnostics,
 }) {
+  validateTask(task);
   const artifact = JSON.stringify(
-    { review, run, selectedSkills, omissions, diagnostics },
+    {
+      ...(task ? { task } : {}),
+      review,
+      run,
+      selectedSkills,
+      omissions,
+      diagnostics,
+    },
     null,
     2,
   );
