@@ -1,0 +1,40 @@
+{
+  "repository": "Pocket-Trash/pocket-trash",
+  "repetitions": 3,
+  "approval": null,
+  "budgetUsd": null,
+  "maxSessions": null,
+  "maxRequests": null,
+  "fixtures": [
+    {
+      "pull": 403,
+      "architecture": true,
+      "schema": "none",
+      "sourceChecks": [
+        "Show scraper producers/processor and the shared queue abstraction accurately.",
+        "Separate staged shared Redis from the retained active scraper-queue; do not invent a production cutover or shared-volume attachment.",
+        "State that deployment state was not inspected; source topology is not live infrastructure evidence."
+      ]
+    },
+    {
+      "pull": 354,
+      "architecture": false,
+      "schema": "large",
+      "sourceChecks": [
+        "Show a domain map and focused ER slice(s), with explicit omitted tables and relationships.",
+        "Preserve shared-primary-key subtype optionality; a product is not simultaneously a mandatory pen, part and refill.",
+        "Verify nullable exclusive targets/carriers, non-unique successor links and selection-mediated installed items against migration/schema constraints."
+      ]
+    },
+    {
+      "pull": 376,
+      "architecture": false,
+      "schema": "small",
+      "sourceChecks": [
+        "Use a focused ERD for persisted Trends dimensions, not a UI screenshot or an invented architecture diagram.",
+        "Preserve nullable headline/Unspecified/general aggregation dimensions and many-to-one references across generations/scopes.",
+        "Distinguish exact live catalog counts from privacy-filtered persisted collection counts; do not infer a non-global material-specific primary key."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "source": "https://openrouter.ai/api/v1/models",
+  "verifiedAt": "2026-10-20T03:27:12.331Z",
+  "inferenceExecuted": false,
+  "models": [
+    {
+      "id": "anthropic/claude-sonnet-5.5",
+      "contextLength": 1000000,
+      "inputPerMillionUsd": 2,
+      "outputPerMillionUsd": 10
+    },
+    {
+      "id": "moonshotai/kimi-k2.5",
+      "contextLength": 262144,
+      "inputPerMillionUsd": 0.5,
+      "outputPerMillionUsd": 2.5
+    },
+    {
+      "id": "z-ai/glm-5.3",
+      "contextLength": 1048576,
+      "inputPerMillionUsd": 0.079,
+      "outputPerMillionUsd": 1.4
+    }
+  ]
+}

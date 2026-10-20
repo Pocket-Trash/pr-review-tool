@@ -1,0 +1,4 @@
+{
+  "methodology": "Visual-only assessments must verify the frozen source, including diagram topology, optionality/cardinality, descriptive prose, omissions, boundary, telemetry and tool-loop behavior. Historical full-review findings and peer agreement are not visual-task verdicts.",
+  "runs": {}
+}

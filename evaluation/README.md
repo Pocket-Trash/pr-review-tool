@@ -1,5 +1,13 @@
 # Model evaluation
 
+## Phase 1 visual-only evaluation
+
+Start with [visual-report.md](visual-report.md) for the separate architecture/domain/ERD evidence gate. `npm run evaluate:visuals:report` is offline: it inventories historical outputs, reruns current diagram syntax/scope validation and retains prior diagram-specific source assessments without importing full-review verdicts. Historical successes are not dedicated visual-task completions. Failed, runner-invalid and unassessed outputs cannot become perfect-accuracy or zero-defect claims.
+
+`visual-fixtures.json` retains the three frozen PRs and source-check criteria. Generated snapshots are excluded before eligibility, so #376 needs a focused ERD rather than a large domain map. `visual-assessments.json` requires separate source/diagram/coverage/boundary/telemetry/loop evidence. Any future session must use the strict visual task, exact frozen SHAs, completed billing and the runtime limit before it can pass. The source assessor must check prose and topology, not just valid Mermaid or keyword recall.
+
+The current public model catalog is recorded separately in `visual-catalog.json`; no inference or secret read was needed. Fresh inference requires a new dollar/session/request approval and a separate request-reserving ledger. The earlier $10 peer campaign is closed. No production model or failover route has been selected, and the report cannot run paid sessions.
+
 For the separately approved OpenRouter Kimi K2.5 / GLM-5.3 independent and peer-filtered campaign, start with [peer-report.md](peer-report.md). Its raw results, peer verdicts, request billing, and source-grounded assessments are separate from this original 54-attempt matrix. See [Peer campaign](#peer-campaign) below.
 
 The fixed matrix in `matrix.json` evaluates the three approved models three times against Pocket Trash PRs #403, #354, and #376 through each provider where the exact catalog entry exists. The script atomically persists a reservation before every paid invocation. An interrupted `in-progress` row is never replayed automatically and must be reconciled as a failed attempt, which keeps the 54-run ceiling intact.
