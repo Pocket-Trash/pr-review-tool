@@ -41,12 +41,18 @@ const skillManifest = JSON.parse(
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
 const task = process.env.REVIEW_TASK;
-const identity = await resolveReviewEvent(
-  event,
-  process.env.GITHUB_TOKEN,
-  globalThis.fetch,
-  task,
-);
+const identity =
+  task === "review" && process.env.REVIEW_CODE_ENABLED !== "true"
+    ? {
+        shouldRun: false,
+        reason: "review-only lane is not activated in this workflow",
+      }
+    : await resolveReviewEvent(
+        event,
+        process.env.GITHUB_TOKEN,
+        globalThis.fetch,
+        task,
+      );
 if (!identity.shouldRun) {
   if (process.env.GITHUB_STEP_SUMMARY)
     await appendFile(
@@ -64,6 +70,15 @@ const context = await collectInternalReviewContext(
   process.env.GITHUB_TOKEN,
 );
 validateProductionRoute(context.config);
+if (task === "review" && context.config.task !== "review")
+  throw new TypeError(
+    "review-only workflow requires explicit review configuration",
+  );
+if (
+  context.config.task === "review" &&
+  process.env.REVIEW_CODE_ENABLED !== "true"
+)
+  throw new TypeError("review-only lane is not activated in this workflow");
 if (
   validateVisualPhase(context.config.visualPhase) >
   validateVisualPhase(Number(process.env.REVIEW_VISUAL_PHASE || 1))
@@ -102,7 +117,9 @@ const skipReason =
     ? prepared.reason
     : context.config.task === "visuals"
       ? visualSkipReason(requestedVisuals)
-      : null;
+      : context.config.task === "review" && prepared.files.length === 0
+        ? "No reviewable files remain after trusted exclusions; inference was skipped."
+        : null;
 const baseRun = {
   reviewedSha: identity.headSha,
   runId: process.env.GITHUB_RUN_ID,
@@ -187,6 +204,7 @@ try {
   let usageReports = 0;
   const review = await runRestrictedReview({
     task: context.config.task,
+    reviewOnly: context.config.task === "review",
     visualPhase: context.config.visualPhase,
     apiKey:
       context.config.provider === "openrouter"
@@ -195,7 +213,7 @@ try {
     provider: context.config.provider,
     model: context.config.model,
     skills: skillSelection.selected,
-    prompt: `${context.config.prompt}\nRepository evidence and installed package versions override conflicting skill advice.\n${visualPrompt(requestedVisuals)}`,
+    prompt: `${context.config.prompt}\nRepository evidence and installed package versions override conflicting skill advice.${context.config.task === "review" ? "" : `\n${visualPrompt(requestedVisuals)}`}`,
     workspace,
     visualRequirements: requestedVisuals,
     onSkillsResolved: (skills) => {
@@ -210,7 +228,11 @@ try {
       effectiveUsage.outputTokens += usage.outputTokens;
       effectiveUsage.modelCalls += usage.modelCalls;
       effectiveUsage.toolIterations += usage.toolIterations;
-      effectiveUsage.estimatedCostUsd += usage.estimatedCostUsd;
+      effectiveUsage.estimatedCostUsd =
+        effectiveUsage.estimatedCostUsd === null ||
+        usage.estimatedCostUsd === null
+          ? null
+          : effectiveUsage.estimatedCostUsd + usage.estimatedCostUsd;
     },
     onInvocation: () => {
       invocationCount += 1;
@@ -221,6 +243,11 @@ try {
     ...prepared.omissions,
     ...skillSelection.coverageGaps,
   );
+  if (usageReports < invocationCount) effectiveUsage.estimatedCostUsd = null;
+  if (effectiveUsage.estimatedCostUsd === null)
+    review.coverageGaps.push(
+      "Complete inference cost metadata was unavailable; total cost is unknown.",
+    );
   if (usageReports < invocationCount)
     review.coverageGaps.push(
       `${invocationCount - usageReports} model invocation(s) did not expose usage metadata; recorded usage is a lower bound.`,

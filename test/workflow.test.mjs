@@ -38,19 +38,33 @@ test("only an authorized event enters per-pull-request concurrency", () => {
   const jobs = workflow.indexOf("\njobs:\n");
   assert.match(
     workflow.slice(0, jobs),
-    /concurrency:[\s\S]*group: pr-visuals-.*inputs\.pull-number[\s\S]*cancel-in-progress: true/,
+    /concurrency:[\s\S]*group: pr-\$\{\{ inputs\.task \}\}-.*inputs\.pull-number[\s\S]*cancel-in-progress: true/,
   );
   assert.doesNotMatch(workflow.slice(jobs), /\n\s+concurrency:/);
 });
 
-test("Phase 1 workflows select only the visual lane and its artifact namespace", () => {
+test("workflows default to Phase 1 visuals and keep review activation disabled", () => {
   for (const yaml of [dispatcher, workflow])
-    assert.match(yaml, /REVIEW_TASK: visuals/);
+    assert.match(yaml, /REVIEW_TASK: \$\{\{ inputs\.task \}\}/);
+  for (const yaml of [dispatcher, workflow]) {
+    assert.match(yaml, /default: visuals/);
+    assert.match(yaml, /REVIEW_CODE_ENABLED: "false"/);
+  }
   for (const yaml of [dispatcher, workflow])
     assert.match(yaml, /REVIEW_VISUAL_PHASE: "1"/);
-  assert.match(dispatcher, /default: \.github\/pr-visuals\.json/);
-  assert.equal((workflow.match(/name: pr-visuals-/g) || []).length, 2);
-  assert.doesNotMatch(workflow, /name: pr-review-|group: pr-review-/);
+  assert.match(
+    dispatcher,
+    /inputs\.task == 'review'.*\.github\/pr-review\.json.*\.github\/pr-visuals\.json/,
+  );
+  assert.equal(
+    (workflow.match(/name: pr-\$\{\{ inputs\.task \}\}-/g) || []).length,
+    2,
+  );
+  assert.match(workflow, /REVIEW_ARTIFACT_LIMIT_BYTES: "524288"/);
+  assert.match(
+    workflow,
+    /inputs\.task != 'review' \|\| needs\.review\.outputs\.review-enabled == 'true'/,
+  );
   assert.match(workflow, /retention-days: 90/);
 });
 

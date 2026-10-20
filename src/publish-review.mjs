@@ -1,12 +1,15 @@
 import { readFile, stat } from "node:fs/promises";
 import { publishReview } from "./publication.mjs";
 import { validateTask, validateVisualPhase } from "./review.mjs";
+import { artifactByteLimit } from "./intake.mjs";
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
 const task = validateTask(process.env.REVIEW_TASK);
+if (task === "review" && process.env.REVIEW_CODE_ENABLED !== "true")
+  process.exit(0);
 let artifact = null;
 try {
-  if ((await stat(process.env.REVIEW_ARTIFACT_PATH)).size > 1024 * 1024)
+  if ((await stat(process.env.REVIEW_ARTIFACT_PATH)).size > artifactByteLimit())
     throw new RangeError("analysis artifact exceeds the shared 1 MiB limit");
   artifact = JSON.parse(
     await readFile(process.env.REVIEW_ARTIFACT_PATH, "utf8"),
@@ -17,7 +20,7 @@ try {
       task,
       conclusion: "failure",
       diagnostics: [
-        "Analysis artifact was invalid or exceeded the shared 1 MiB limit.",
+        "Analysis artifact was invalid or exceeded its lane allocation under the shared 1 MiB limit.",
       ],
     };
 }
@@ -52,6 +55,7 @@ if (!expectedHeadSha)
   throw new TypeError("publisher requires a pull request head SHA");
 await publishReview({
   task,
+  reviewOnly: task === "review",
   visualPhase: validateVisualPhase(
     Number(process.env.REVIEW_VISUAL_PHASE || 1),
   ),

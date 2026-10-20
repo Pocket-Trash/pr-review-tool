@@ -64,6 +64,7 @@ let invocations = 0;
 let usageReports = 0;
 const review = await runRestrictedReview({
   task: config.task,
+  reviewOnly: config.task === "review",
   visualPhase: config.visualPhase,
   apiKey:
     config.provider === "openrouter"
@@ -86,6 +87,13 @@ const review = await runRestrictedReview({
   onUsage: (usage) => {
     usageReports += 1;
     for (const [field, value] of Object.entries(usage)) {
+      if (
+        field === "estimatedCostUsd" &&
+        (value === null || run.usage[field] === null)
+      ) {
+        run.usage[field] = null;
+        continue;
+      }
       if (value !== null) run.usage[field] = (run.usage[field] ?? 0) + value;
     }
   },
@@ -95,6 +103,11 @@ run.skillOverrides = filterSkillOverrides(
   run.selectedSkills,
 );
 review.coverageGaps.push(...(prepared?.omissions ?? []));
+if (usageReports < invocations) run.usage.estimatedCostUsd = null;
+if (run.usage.estimatedCostUsd === null)
+  review.coverageGaps.push(
+    "Complete inference cost metadata was unavailable; total cost is unknown.",
+  );
 if (usageReports < invocations)
   review.coverageGaps.push(
     `${invocations - usageReports} model invocation(s) did not expose usage metadata; recorded usage is a lower bound.`,

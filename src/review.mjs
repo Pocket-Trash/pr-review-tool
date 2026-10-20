@@ -180,6 +180,18 @@ export function validateVisualAnalysis(input, visualPhase = 1) {
   return visuals;
 }
 
+export function validateCodeReview(input) {
+  const review = object(input, "codeReview");
+  exactKeys(review, "codeReview", [
+    "overview",
+    "findings",
+    "changedAreas",
+    "coverageGaps",
+  ]);
+  validateReview({ ...review, diagrams: [] });
+  return review;
+}
+
 export function validateRun(input) {
   const run = object(input, "run");
   exactKeys(run, "run", [
@@ -211,10 +223,10 @@ export function validateRun(input) {
   for (const field of ["cachedInputTokens", "reasoningTokens"])
     if (usage[field] !== null) integer(usage[field], `run.usage.${field}`);
   if (
-    typeof usage.estimatedCostUsd !== "number" ||
-    usage.estimatedCostUsd < 0
+    usage.estimatedCostUsd !== null &&
+    (!Number.isFinite(usage.estimatedCostUsd) || usage.estimatedCostUsd < 0)
   ) {
-    fail("run.usage.estimatedCostUsd", "a number >= 0");
+    fail("run.usage.estimatedCostUsd", "a finite number >= 0 or null");
   }
   return run;
 }
@@ -222,9 +234,12 @@ export function validateRun(input) {
 export function renderReview(configInput, reviewInput, runInput) {
   const config = validateConfig(configInput);
   const visualOnly = config.task === "visuals";
+  const reviewOnly = config.task === "review";
   const review = visualOnly
     ? validateVisualAnalysis(reviewInput, config.visualPhase)
-    : validateReview(reviewInput);
+    : reviewOnly
+      ? validateCodeReview(reviewInput)
+      : validateReview(reviewInput);
   const run = validateRun(runInput);
   const findings = visualOnly
     ? ""
@@ -236,14 +251,16 @@ export function renderReview(configInput, reviewInput, runInput) {
           )
           .join("\n\n")
       : "No findings found in the supplied diff.";
-  const diagrams = review.diagrams.length
-    ? review.diagrams
-        .map(
-          (diagram) =>
-            `### ${diagram.title}\n\n\`\`\`mermaid\n${diagram.mermaid}\n\`\`\``,
-        )
-        .join("\n\n")
-    : "No diagram was needed for this change.";
+  const diagrams = reviewOnly
+    ? ""
+    : review.diagrams.length
+      ? review.diagrams
+          .map(
+            (diagram) =>
+              `### ${diagram.title}\n\n\`\`\`mermaid\n${diagram.mermaid}\n\`\`\``,
+          )
+          .join("\n\n")
+      : "No diagram was needed for this change.";
   const areas = review.changedAreas
     .map(({ area, summary }) => `- **${area}:** ${summary}`)
     .join("\n");
@@ -258,5 +275,9 @@ export function renderReview(configInput, reviewInput, runInput) {
   const overrides = run.skillOverrides.length
     ? `\nSkill overrides: ${run.skillOverrides.join(", ")}`
     : "";
-  return `${visualOnly ? "## PR Visuals\n\n" : ""}## Overview\n\n${review.overview}\n\n${visualOnly ? "" : `## Findings\n\n${findings}\n\n`}## ${diagramHeading}\n\n${diagrams}\n\n## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}${overrides}\nTokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\nModel calls: ${run.usage.modelCalls}\nTool iterations: ${run.usage.toolIterations}\nEstimated cost: $${run.usage.estimatedCostUsd.toFixed(5)}\n\n</details>\n`;
+  const cost =
+    run.usage.estimatedCostUsd === null
+      ? "unknown"
+      : `$${run.usage.estimatedCostUsd.toFixed(5)}`;
+  return `${visualOnly ? "## PR Visuals\n\n" : reviewOnly ? "## PR Review\n\n" : ""}## Overview\n\n${review.overview}\n\n${visualOnly ? "" : `## Findings\n\n${findings}\n\n`}${reviewOnly ? "" : `## ${diagramHeading}\n\n${diagrams}\n\n`}## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}${overrides}\nTokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\nModel calls: ${run.usage.modelCalls}\nTool iterations: ${run.usage.toolIterations}\nEstimated cost: ${cost}\n\n</details>\n`;
 }

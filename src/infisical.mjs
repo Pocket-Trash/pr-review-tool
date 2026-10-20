@@ -18,6 +18,12 @@ export async function fetchInfisicalCredential(
 ) {
   if (!Object.hasOwn(credentials, kind))
     throw new Error("Invalid credential job");
+  const provider = env.REVIEW_PROVIDER || "cheaperinference";
+  if (
+    kind === "analysis" &&
+    !["cheaperinference", "openrouter"].includes(provider)
+  )
+    throw new Error("Invalid analysis credential provider");
   for (const name of [
     "INFISICAL_GITHUB_IDENTITY_ID",
     "INFISICAL_PROJECT_ID",
@@ -90,7 +96,10 @@ export async function fetchInfisicalCredential(
   if (typeof accessToken !== "string" || !accessToken)
     throw new Error("Missing Infisical access token");
   mask(accessToken);
-  const [secretName, name] = credentials[kind];
+  const [secretName, name] =
+    kind === "analysis" && provider === "openrouter"
+      ? ["OPENROUTER_API_KEY", "OPENROUTER_API_KEY"]
+      : credentials[kind];
   const secretUrl = new URL(`/api/v4/secrets/${secretName}`, domain);
   secretUrl.search = new URLSearchParams({
     projectId: env.INFISICAL_PROJECT_ID,

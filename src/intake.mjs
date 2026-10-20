@@ -3,6 +3,15 @@ import { validateConfig, validateTask } from "./review.mjs";
 const API = "https://api.github.com";
 const ARTIFACT_LIMIT = 1024 * 1024;
 
+export function artifactByteLimit(env = process.env) {
+  const limit = Number(env.REVIEW_ARTIFACT_LIMIT_BYTES || ARTIFACT_LIMIT);
+  if (!Number.isInteger(limit) || limit < 1 || limit > ARTIFACT_LIMIT)
+    throw new TypeError(
+      "artifact byte limit must be within the shared 1 MiB ceiling",
+    );
+  return limit;
+}
+
 async function githubJson(path, token, fetch) {
   const response = await fetch(`${API}${path}`, {
     headers: {
@@ -205,7 +214,9 @@ export function buildArtifact({
     null,
     2,
   );
-  if (Buffer.byteLength(artifact) > ARTIFACT_LIMIT)
-    throw new RangeError("review artifact exceeds the 1 MiB limit");
+  if (Buffer.byteLength(artifact) > artifactByteLimit())
+    throw new RangeError(
+      `analysis artifact exceeds its ${artifactByteLimit()} byte lane limit within the shared 1 MiB ceiling`,
+    );
   return `${artifact}\n`;
 }

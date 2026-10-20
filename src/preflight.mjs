@@ -9,12 +9,20 @@ import {
 
 const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
 const task = validateTask(process.env.REVIEW_TASK);
-const identity = await resolveReviewEvent(
-  event,
-  process.env.GITHUB_TOKEN,
-  globalThis.fetch,
-  task,
-);
+let provider;
+const identity =
+  process.env.REVIEW_TASK === "review" &&
+  process.env.REVIEW_CODE_ENABLED !== "true"
+    ? {
+        shouldRun: false,
+        reason: "review-only lane is not activated in this workflow",
+      }
+    : await resolveReviewEvent(
+        event,
+        process.env.GITHUB_TOKEN,
+        globalThis.fetch,
+        task,
+      );
 
 if (identity.shouldRun && process.env.REVIEW_AUTHORIZE_ONLY !== "true") {
   const context = await collectInternalReviewContext(
@@ -23,6 +31,10 @@ if (identity.shouldRun && process.env.REVIEW_AUTHORIZE_ONLY !== "true") {
     process.env.GITHUB_TOKEN,
   );
   validateProductionRoute(context.config);
+  if (task === "review" && context.config.task !== "review")
+    throw new TypeError(
+      "review-only workflow requires explicit review configuration",
+    );
   if (
     validateVisualPhase(context.config.visualPhase) >
     validateVisualPhase(Number(process.env.REVIEW_VISUAL_PHASE || 1))
@@ -32,6 +44,7 @@ if (identity.shouldRun && process.env.REVIEW_AUTHORIZE_ONLY !== "true") {
     throw new TypeError(
       "trusted configuration task does not match the workflow lane",
     );
+  provider = context.config.provider;
 }
 
 if (process.env.GITHUB_OUTPUT) {
@@ -44,6 +57,8 @@ if (process.env.GITHUB_OUTPUT) {
       process.env.GITHUB_OUTPUT,
       `pull-number=${identity.pullNumber}\nhead-sha=${identity.headSha}\n`,
     );
+  if (provider)
+    await appendFile(process.env.GITHUB_OUTPUT, `provider=${provider}\n`);
 }
 if (!identity.shouldRun && process.env.GITHUB_STEP_SUMMARY)
   await appendFile(

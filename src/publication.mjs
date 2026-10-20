@@ -6,6 +6,7 @@ import {
   validateTask,
   validateVisualAnalysis,
   validateVisualPhase,
+  validateCodeReview,
 } from "./review.mjs";
 import { sanitizeVisuals } from "./visuals.mjs";
 
@@ -33,12 +34,11 @@ export function sanitizePublishedText(value) {
     .replace(/@(?!\u200b)(?=[\w-])/g, "@\u200b");
 }
 
-function sanitizeReview(review, task) {
+function sanitizeReview(review) {
   return {
     overview: sanitizePublishedText(review.overview),
-    ...(task === "visuals"
-      ? {}
-      : {
+    ...(review.findings
+      ? {
           findings: review.findings.map((finding) =>
             Object.fromEntries(
               Object.entries(finding).map(([key, value]) => [
@@ -49,11 +49,16 @@ function sanitizeReview(review, task) {
               ]),
             ),
           ),
-        }),
-    diagrams: review.diagrams.map((diagram) => ({
-      ...diagram,
-      title: sanitizePublishedText(diagram.title),
-    })),
+        }
+      : {}),
+    ...(review.diagrams
+      ? {
+          diagrams: review.diagrams.map((diagram) => ({
+            ...diagram,
+            title: sanitizePublishedText(diagram.title),
+          })),
+        }
+      : {}),
     changedAreas: review.changedAreas.map((area) => ({
       area: sanitizePublishedText(area.area),
       summary: sanitizePublishedText(area.summary),
@@ -62,7 +67,14 @@ function sanitizeReview(review, task) {
   };
 }
 
-function operationalBody(conclusion, detail, runUrl, task, reviewedSha) {
+function operationalBody(
+  conclusion,
+  detail,
+  runUrl,
+  task,
+  reviewedSha,
+  reviewOnly = false,
+) {
   const status = conclusion.replaceAll("_", " ");
   const safeDetail = sanitizePublishedText(
     detail || "No diagnostic was available.",
@@ -74,18 +86,27 @@ function operationalBody(conclusion, detail, runUrl, task, reviewedSha) {
       ? runUrl
       : null;
   const visualOnly = task === "visuals";
-  return `${visualOnly ? "## PR Visuals\n\n" : ""}## Overview\n\nThe automated ${visualOnly ? "visual analysis" : "review"} ended with an operational **${status}** result.\n\n${visualOnly ? "" : "## Findings\n\nNo advisory findings were published because analysis did not complete successfully.\n\n"}## Architecture and schema\n\nNo diagram was published.\n\n## Changed areas\n\n- ${visualOnly ? "Visual analysis" : "Review"} system only; pull-request changes were not assessed.\n\n## Coverage gaps\n\n- ${safeDetail}\n\n<details>\n<summary>Run and cost details</summary>\n\nConclusion: ${status}${visualOnly && reviewedSha ? `\nReviewed SHA: ${sanitizePublishedText(reviewedSha)}` : ""}${safeRunUrl ? `\nRun: ${safeRunUrl}` : ""}\n\n</details>\n`;
+  return `${visualOnly ? "## PR Visuals\n\n" : reviewOnly ? "## PR Review\n\n" : ""}## Overview\n\nThe automated ${visualOnly ? "visual analysis" : "review"} ended with an operational **${status}** result.\n\n${visualOnly ? "" : "## Findings\n\nNo advisory findings were published because analysis did not complete successfully.\n\n"}${reviewOnly ? "" : "## Architecture and schema\n\nNo diagram was published.\n\n"}## Changed areas\n\n- ${visualOnly ? "Visual analysis" : "Review"} system only; pull-request changes were not assessed.\n\n## Coverage gaps\n\n- ${safeDetail}\n\n<details>\n<summary>Run and cost details</summary>\n\nConclusion: ${status}${(visualOnly || reviewOnly) && reviewedSha ? `\nReviewed SHA: ${sanitizePublishedText(reviewedSha)}` : ""}${safeRunUrl ? `\nRun: ${safeRunUrl}` : ""}\n\n</details>\n`;
 }
 
 export async function preparePublication(artifact, fallback = {}) {
   const task = validateTask(fallback.task);
+  const reviewOnly = fallback.reviewOnly === true;
+  if (reviewOnly && task !== "review")
+    throw new TypeError("review-only publication requires the review lane");
+  const stamp =
+    task === "visuals" || reviewOnly
+      ? laneRunStamp(task, fallback.runId, fallback.runAttempt)
+      : "";
   const visualPhase = validateVisualPhase(fallback.visualPhase);
   if (validateVisualPhase(artifact?.config?.visualPhase) > visualPhase)
     throw new TypeError(
       "artifact visual phase is not activated in this workflow",
     );
-  if (task === "visuals" && artifact?.task !== "visuals")
-    throw new TypeError("visual publication requires a visual artifact");
+  if ((task === "visuals" || reviewOnly) && artifact?.task !== task)
+    throw new TypeError(
+      `${task === "visuals" ? "visual" : "review-only"} publication requires a ${task === "visuals" ? "visual" : "review-only"} artifact`,
+    );
   if (artifact?.task && artifact.task !== task)
     throw new TypeError("artifact task does not match the publication lane");
   if (artifact?.config && validateTask(artifact.config.task) !== task)
@@ -94,6 +115,18 @@ export async function preparePublication(artifact, fallback = {}) {
     );
   if (task === "visuals" && artifact?.review != null)
     validateVisualAnalysis(artifact.review, artifact.config?.visualPhase);
+  if (reviewOnly && artifact?.config && artifact.config.task !== "review")
+    throw new TypeError(
+      "review-only publication requires explicit review configuration",
+    );
+  if (reviewOnly && artifact?.review != null)
+    validateCodeReview(artifact.review);
+  if (
+    (task === "visuals" || reviewOnly) &&
+    artifact?.run &&
+    String(artifact.run.runId) !== String(fallback.runId)
+  )
+    throw new TypeError("artifact run does not match the publication run");
   if (
     fallback.reviewedSha &&
     artifact?.run &&
@@ -101,10 +134,6 @@ export async function preparePublication(artifact, fallback = {}) {
   )
     throw new TypeError("artifact SHA does not match the publication SHA");
   const marker = task === "visuals" ? VISUAL_COMMENT_MARKER : COMMENT_MARKER;
-  const stamp =
-    task === "visuals"
-      ? visualRunStamp(fallback.runId, fallback.runAttempt)
-      : "";
   const conclusion = conclusions.has(artifact?.conclusion)
     ? artifact.conclusion
     : conclusions.has(fallback.conclusion)
@@ -113,14 +142,14 @@ export async function preparePublication(artifact, fallback = {}) {
   let content;
   if (conclusion === "success") {
     const config = validateConfig(artifact.config);
-    const review = await sanitizeVisuals(
-      sanitizeReview(
-        task === "visuals"
-          ? validateVisualAnalysis(artifact.review, config.visualPhase)
+    const sanitized = sanitizeReview(
+      task === "visuals"
+        ? validateVisualAnalysis(artifact.review, config.visualPhase)
+        : reviewOnly
+          ? validateCodeReview(artifact.review)
           : validateReview(artifact.review),
-        task,
-      ),
     );
+    const review = reviewOnly ? sanitized : await sanitizeVisuals(sanitized);
     const run = validateRun(artifact.run);
     content = renderReview(config, review, {
       ...run,
@@ -134,6 +163,7 @@ export async function preparePublication(artifact, fallback = {}) {
       fallback.runUrl,
       task,
       fallback.reviewedSha,
+      reviewOnly,
     );
   }
   const prefix = `${marker}\n${stamp}`;
@@ -145,6 +175,7 @@ export async function preparePublication(artifact, fallback = {}) {
       fallback.runUrl,
       task,
       fallback.reviewedSha,
+      reviewOnly,
     )}`;
     return { body, conclusion: "failure" };
   }
@@ -165,17 +196,17 @@ export function findOwnedMarkerComment(comments, appSlug, task = "review") {
 
 export class StaleReviewError extends Error {}
 
-function visualRunStamp(runId, runAttempt = "1") {
+function laneRunStamp(task, runId, runAttempt = "1") {
   if (!/^\d+$/.test(String(runId)) || !/^\d+$/.test(String(runAttempt)))
     throw new TypeError(
-      "visual publication requires a numeric workflow run and attempt",
+      "lane publication requires a numeric workflow run and attempt",
     );
-  return `<!-- pockettrash:pr-visuals-run ${runId}:${runAttempt} -->\n`;
+  return `<!-- pockettrash:pr-${task}-run ${runId}:${runAttempt} -->\n`;
 }
 
-function assertVisualRunOrder(comment, runId, runAttempt = "1") {
+function assertLaneRunOrder(comment, task, runId, runAttempt = "1") {
   const previous = comment?.body?.match(
-    /(?:^|\n)<!-- pockettrash:pr-visuals-run (\d+):(\d+) -->/,
+    new RegExp(`(?:^|\\n)<!-- pockettrash:pr-${task}-run (\\d+):(\\d+) -->`),
   );
   if (
     previous &&
@@ -183,11 +214,14 @@ function assertVisualRunOrder(comment, runId, runAttempt = "1") {
       (BigInt(previous[1]) === BigInt(runId) &&
         BigInt(previous[2]) > BigInt(runAttempt)))
   )
-    throw new StaleReviewError("refusing to overwrite a newer visual run");
+    throw new StaleReviewError(
+      `refusing to overwrite a newer ${task === "visuals" ? "visual" : "review"} run`,
+    );
 }
 
 export async function publishReview({
   task = "review",
+  reviewOnly = false,
   visualPhase = 1,
   runId,
   runAttempt = "1",
@@ -202,7 +236,9 @@ export async function publishReview({
   fetch = globalThis.fetch,
 }) {
   validateTask(task);
-  if (task === "visuals") visualRunStamp(runId, runAttempt);
+  if (typeof reviewOnly !== "boolean" || (reviewOnly && task !== "review"))
+    throw new TypeError("review-only publication requires the review lane");
+  if (task === "visuals" || reviewOnly) laneRunStamp(task, runId, runAttempt);
   const checkName = task === "visuals" ? VISUAL_CHECK_NAME : CHECK_NAME;
   if (!token) throw new TypeError("GitHub App token is required");
   if (authenticatedAppSlug !== expectedAppSlug)
@@ -232,6 +268,7 @@ export async function publishReview({
   try {
     publication = await preparePublication(artifact, {
       task,
+      reviewOnly,
       visualPhase,
       runId,
       runAttempt,
@@ -250,6 +287,7 @@ export async function publishReview({
       },
       {
         task,
+        reviewOnly,
         visualPhase,
         runId,
         runAttempt,
@@ -285,8 +323,8 @@ export async function publishReview({
     authenticatedAppSlug,
     task,
   );
-  if (task === "visuals")
-    assertVisualRunOrder(existingComment, runId, runAttempt);
+  if (task === "visuals" || reviewOnly)
+    assertLaneRunOrder(existingComment, task, runId, runAttempt);
   const latestPull = await request(
     `/repos/${owner}/${repo}/pulls/${pullNumber}`,
   );

@@ -35,6 +35,44 @@ function harness(secretName, value = "credential-value") {
   return { requests, masks, fetch, mask: (value) => masks.push(value) };
 }
 
+test("analysis selects only the validated provider credential and publication stays App-only", async () => {
+  const h = harness("OPENROUTER_API_KEY");
+  assert.deepEqual(
+    await fetchInfisicalCredential(
+      "analysis",
+      { ...env, REVIEW_PROVIDER: "openrouter" },
+      h.fetch,
+      h.mask,
+    ),
+    { name: "OPENROUTER_API_KEY", value: "credential-value" },
+  );
+  assert.equal(
+    h.requests.at(-1).url.pathname,
+    "/api/v4/secrets/OPENROUTER_API_KEY",
+  );
+  assert.equal(h.requests.length, 3);
+  const app = harness("PR_REVIEW_APP_PRIVATE_KEY");
+  assert.equal(
+    (
+      await fetchInfisicalCredential(
+        "publication",
+        { ...env, REVIEW_PROVIDER: "openrouter" },
+        app.fetch,
+        app.mask,
+      )
+    ).name,
+    "PR_REVIEW_APP_PRIVATE_KEY",
+  );
+  await assert.rejects(
+    fetchInfisicalCredential(
+      "analysis",
+      { ...env, REVIEW_PROVIDER: "PR_REVIEW_APP_PRIVATE_KEY" },
+      async () => assert.fail("invalid provider called OIDC"),
+    ),
+    /Invalid analysis credential provider/,
+  );
+});
+
 for (const [kind, source, target] of [
   ["analysis", "CHEAPERINFERENCE_API_KEY", "CHEAPER_INFERENCE_API_KEY"],
   ["publication", "PR_REVIEW_APP_PRIVATE_KEY", "PR_REVIEW_APP_PRIVATE_KEY"],

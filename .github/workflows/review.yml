@@ -1,8 +1,13 @@
-name: Pocket Trash PR Visuals dispatcher
+name: Pocket Trash PR analysis dispatcher
 
 on:
   workflow_call:
     inputs:
+      task:
+        description: Analysis lane (visuals or review); review remains gated
+        required: false
+        default: visuals
+        type: string
       infisical-project-id:
         description: Infisical project ID for OIDC credential reads
         required: false
@@ -19,7 +24,7 @@ on:
       config-path:
         description: Trusted configuration path on the base SHA
         required: false
-        default: .github/pr-visuals.json
+        default: ""
         type: string
       app-id:
         description: Pocket Trash PR Review GitHub App ID
@@ -39,6 +44,8 @@ on:
         required: false
       CHEAPER_INFERENCE_API_KEY:
         required: false
+      OPENROUTER_API_KEY:
+        required: false
       APP_PRIVATE_KEY:
         required: false
 
@@ -47,8 +54,9 @@ permissions:
   pull-requests: read
 
 env:
-  REVIEW_TASK: visuals
+  REVIEW_TASK: ${{ inputs.task }}
   REVIEW_VISUAL_PHASE: "1"
+  REVIEW_CODE_ENABLED: "false"
 
 jobs:
   authorize:
@@ -81,12 +89,13 @@ jobs:
       id-token: write
     uses: ./.github/workflows/run-review.yml
     with:
+      task: ${{ inputs.task }}
       infisical-project-id: ${{ inputs.infisical-project-id }}
       infisical-environment: ${{ inputs.infisical-environment }}
       infisical-path: ${{ inputs.infisical-path }}
       app-id: ${{ inputs.app-id }}
       app-slug: ${{ inputs.app-slug }}
-      config-path: ${{ inputs.config-path }}
+      config-path: ${{ inputs.config-path || (inputs.task == 'review' && '.github/pr-review.json' || '.github/pr-visuals.json') }}
       pull-number: ${{ fromJSON(needs.authorize.outputs.pull-number) }}
     secrets:
       INFISICAL_GITHUB_IDENTITY_ID: ${{ secrets.INFISICAL_GITHUB_IDENTITY_ID }}
@@ -94,3 +103,4 @@ jobs:
       INFISICAL_OIDC_AUDIENCE: ${{ secrets.INFISICAL_OIDC_AUDIENCE }}
       APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
       CHEAPER_INFERENCE_API_KEY: ${{ secrets.CHEAPER_INFERENCE_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

@@ -1,0 +1,10 @@
+{
+  "overview": "The supplied source stages a queue without an active production cutover.",
+  "findings": [],
+  "changedAreas": [
+    { "area": "Queue", "summary": "Adds a shared queue boundary." }
+  ],
+  "coverageGaps": [
+    "Live deployment state and callers outside the supplied source were not inspected."
+  ]
+}

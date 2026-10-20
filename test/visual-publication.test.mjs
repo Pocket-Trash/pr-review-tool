@@ -20,7 +20,7 @@ const artifact = {
   conclusion: "success",
   config: await fixture("config.visuals.json"),
   review: await fixture("visuals.valid.json"),
-  run: await fixture("run.valid.json"),
+  run: { ...(await fixture("run.valid.json")), runId: "100" },
   diagnostics: [],
 };
 const options = {

@@ -1,8 +1,12 @@
-name: Pocket Trash authorized PR Visuals
+name: Pocket Trash authorized PR analysis
 
 on:
   workflow_call:
     inputs:
+      task:
+        required: false
+        default: visuals
+        type: string
       infisical-project-id:
         description: Infisical project ID for OIDC credential reads
         required: false
@@ -37,6 +41,8 @@ on:
         required: false
       CHEAPER_INFERENCE_API_KEY:
         required: false
+      OPENROUTER_API_KEY:
+        required: false
       APP_PRIVATE_KEY:
         required: false
 
@@ -45,11 +51,13 @@ permissions:
   pull-requests: read
 
 env:
-  REVIEW_TASK: visuals
+  REVIEW_TASK: ${{ inputs.task }}
   REVIEW_VISUAL_PHASE: "1"
+  REVIEW_CODE_ENABLED: "false"
+  REVIEW_ARTIFACT_LIMIT_BYTES: "524288"
 
 concurrency:
-  group: pr-visuals-${{ github.repository }}-${{ inputs.pull-number }}
+  group: pr-${{ inputs.task }}-${{ github.repository }}-${{ inputs.pull-number }}
   cancel-in-progress: true
 
 jobs:
@@ -63,6 +71,7 @@ jobs:
       pull-requests: read
       id-token: write
     outputs:
+      review-enabled: ${{ env.REVIEW_CODE_ENABLED }}
       publish: ${{ steps.preflight.outcome == 'failure' || steps.preflight.outputs.runnable == 'true' }}
       pull-number: ${{ steps.preflight.outputs.pull-number || inputs.pull-number }}
       head-sha: ${{ steps.preflight.outputs.head-sha || github.event.pull_request.head.sha }}
@@ -99,6 +108,7 @@ jobs:
         continue-on-error: true
         run: node reviewer/src/infisical.mjs analysis 2> "${{ runner.temp }}/review-error.log"
         env:
+          REVIEW_PROVIDER: ${{ steps.preflight.outputs.provider }}
           INFISICAL_PROJECT_ID: ${{ inputs.infisical-project-id }}
           INFISICAL_ENVIRONMENT: ${{ inputs.infisical-environment }}
           INFISICAL_SECRET_PATH: ${{ inputs.infisical-path }}
@@ -109,7 +119,8 @@ jobs:
         continue-on-error: true
         run: node reviewer/src/automatic-review.mjs 2> "${{ runner.temp }}/review-error.log"
         env:
-          CHEAPER_INFERENCE_API_KEY: ${{ env.CHEAPER_INFERENCE_API_KEY || secrets.CHEAPER_INFERENCE_API_KEY }}
+          CHEAPER_INFERENCE_API_KEY: ${{ steps.preflight.outputs.provider == 'cheaperinference' && (env.CHEAPER_INFERENCE_API_KEY || secrets.CHEAPER_INFERENCE_API_KEY) || '' }}
+          OPENROUTER_API_KEY: ${{ steps.preflight.outputs.provider == 'openrouter' && (env.OPENROUTER_API_KEY || secrets.OPENROUTER_API_KEY) || '' }}
           GITHUB_TOKEN: ${{ github.token }}
           REVIEW_ARTIFACT_PATH: ${{ runner.temp }}/review-result.json
           REVIEW_CONFIG_PATH: ${{ inputs.config-path }}
@@ -130,7 +141,7 @@ jobs:
       - if: always() && (steps.preflight.outcome == 'failure' || steps.preflight.outputs.runnable == 'true')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: pr-visuals-${{ steps.preflight.outputs.pull-number || inputs.pull-number }}-${{ steps.preflight.outputs.head-sha || github.event.pull_request.head.sha || github.run_id }}
+          name: pr-${{ inputs.task }}-${{ steps.preflight.outputs.pull-number || inputs.pull-number }}-${{ steps.preflight.outputs.head-sha || github.event.pull_request.head.sha || github.run_id }}
           path: ${{ runner.temp }}/review-result.json
           retention-days: 90
       - name: Preserve analysis failure state
@@ -138,7 +149,7 @@ jobs:
         run: exit 1
 
   publish:
-    if: always() && (needs.review.outputs.publish == 'true' || needs.review.result == 'failure' || needs.review.result == 'cancelled')
+    if: always() && (inputs.task != 'review' || needs.review.outputs.review-enabled == 'true') && (needs.review.outputs.publish == 'true' || needs.review.result == 'failure' || needs.review.result == 'cancelled')
     needs: review
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -158,7 +169,7 @@ jobs:
       - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         continue-on-error: true
         with:
-          name: pr-visuals-${{ needs.review.outputs.pull-number }}-${{ needs.review.outputs.artifact-key }}
+          name: pr-${{ inputs.task }}-${{ needs.review.outputs.pull-number }}-${{ needs.review.outputs.artifact-key }}
           path: ${{ runner.temp }}/review-artifact
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:

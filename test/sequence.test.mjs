@@ -180,7 +180,7 @@ test("sequence runner and publication require explicit Phase 2 without changing 
     conclusion: "success",
     config,
     review: result,
-    run,
+    run: { ...run, runId: "100" },
   };
   const options = {
     task: "visuals",
