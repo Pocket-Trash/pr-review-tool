@@ -43,22 +43,34 @@ export function visualRequirements(files, visualPhase = 1) {
     (total, file) => total + (file.additions || 0) + (file.deletions || 0),
     0,
   );
+  const changedSourceLines =
+    visualPhase === 2
+      ? files
+          .filter(
+            ({ filename }) =>
+              !nonSourcePattern.test(filename) &&
+              /\.(?:[cm]?[jt]sx?|py|go|rs|java|rb)$/.test(filename),
+          )
+          .flatMap(({ patch }) =>
+            String(patch || "")
+              .split("\n")
+              .filter(
+                (line) =>
+                  /^[+-](?![+-])/.test(line) &&
+                  !/^[+-]\s*(?:\/\/|#|\/\*|\*)/.test(line),
+              ),
+          )
+      : [];
   return {
     ...(visualPhase === 2
       ? {
-          sequence: files.some(
-            ({ filename, patch }) =>
-              !nonSourcePattern.test(filename) &&
-              /\.(?:[cm]?[jt]sx?|py|go|rs|java|rb)$/.test(filename) &&
-              String(patch || "")
-                .split("\n")
-                .some(
-                  (line) =>
-                    /^[+-](?![+-])/.test(line) &&
-                    /\b(?:await|enqueue|publish|dispatch|emit|fetch|send)\b/.test(
-                      line,
-                    ),
-                ),
+          sequence: changedSourceLines.some((line) =>
+            /\b(?:await|enqueue|publish|dispatch|emit|fetch|send)\b/.test(line),
+          ),
+          state: changedSourceLines.some((line) =>
+            /\b(?:state|status)\s*(?:=|:)|\b(?:setState|setStatus|transition)\s*\(/.test(
+              line,
+            ),
           ),
         }
       : {}),
@@ -90,15 +102,25 @@ export function visualPrompt(requirements) {
     requests.push(
       "one focused sequence sequenceDiagram only when source establishes participants and call/message ordering; label participants with source symbols and messages with file/line anchors, distinguish awaited ordering from concurrent work, and omit invented or unverified runtime steps with coverageGaps instead",
     );
+  if (requirements.state)
+    requests.push(
+      "one focused state stateDiagram-v2 only for source-defined states, transitions and guards; label transitions with source file/line anchors, do not invent retries, terminal states or concurrency guarantees, and disclose inferred/unverified transitions in coverageGaps rather than drawing them as established facts",
+    );
+  const syntaxes = ["flowchart", "erDiagram"];
+  if (requirements.sequence) syntaxes.push("sequenceDiagram");
+  if (requirements.state) syntaxes.push("stateDiagram-v2");
+  const syntaxList =
+    syntaxes.length === 2 ? "flowchart and erDiagram" : syntaxes.join(", ");
   return requests.length
-    ? `Conditional visuals requested: ${requests.join("; ")}. Return at most four diagrams. Use only ${requirements.sequence ? "flowchart, erDiagram, and sequenceDiagram" : "flowchart and erDiagram"} with plain-text labels. Do not include raw HTML, click directives, initialization directives, or external links.`
+    ? `Conditional visuals requested: ${requests.join("; ")}. Return at most four diagrams. Use only ${syntaxList} with plain-text labels. Do not include raw HTML, click directives, initialization directives, or external links.`
     : "No architecture, infrastructure, or schema visual is requested; return no diagrams.";
 }
 
 export function visualSkipReason(requirements) {
   return !requirements.architecture &&
     requirements.schema === "none" &&
-    !requirements.sequence
+    !requirements.sequence &&
+    !requirements.state
     ? "No eligible architecture, domain, or ERD changes; inference was skipped."
     : null;
 }
@@ -109,6 +131,7 @@ function permitted(kind, requirements) {
   if (kind === "schema-domain") return requirements.schema === "large";
   if (kind === "schema-er") return requirements.schema !== "none";
   if (kind === "sequence") return requirements.sequence === true;
+  if (kind === "state") return requirements.state === true;
   return false;
 }
 
@@ -147,11 +170,13 @@ export async function sanitizeVisuals(
       continue;
     }
     const expected =
-      diagram.kind === "sequence"
-        ? "sequence"
-        : diagram.kind === "schema-er"
-          ? "er"
-          : "flowchart-v2";
+      diagram.kind === "state"
+        ? "stateDiagram"
+        : diagram.kind === "sequence"
+          ? "sequence"
+          : diagram.kind === "schema-er"
+            ? "er"
+            : "flowchart-v2";
     try {
       const parsed = await parse(diagram.mermaid);
       if (!parsed || parsed.diagramType !== expected)
@@ -167,12 +192,19 @@ export async function sanitizeVisuals(
     "schema-domain": 1,
     "schema-er": requirements?.schema === "small" ? 1 : 2,
     sequence: 1,
+    state: 1,
   };
   const priority = [];
   if (requirements?.architecture) priority.push("architecture");
   if (requirements?.schema === "large") priority.push("schema-domain");
   if (requirements?.schema !== "none") priority.push("schema-er");
-  for (const kind of ["architecture", "schema-domain", "schema-er", "sequence"])
+  for (const kind of [
+    "architecture",
+    "schema-domain",
+    "schema-er",
+    "sequence",
+    "state",
+  ])
     if (!priority.includes(kind)) priority.push(kind);
   for (const kind of priority) {
     for (const diagram of valid.filter(
@@ -216,6 +248,10 @@ export async function sanitizeVisuals(
   )
     coverageGaps.push(
       "Interaction change had no valid source-grounded sequence diagram.",
+    );
+  if (requirements?.state && !diagrams.some(({ kind }) => kind === "state"))
+    coverageGaps.push(
+      "State change had no valid source-grounded state diagram.",
     );
   return { ...review, diagrams, coverageGaps: [...new Set(coverageGaps)] };
 }

@@ -57,6 +57,8 @@ Trusted local visual configuration can opt into `"visualPhase": 2` for condition
 
 Sequence diagrams share the same PR Visuals comment and four-diagram cap; required architecture/domain/ER slices take priority, with omitted scope disclosed. Phase 1 remains the default, rejects sequence output, and skips inference for unrelated changes. Reusable workflows are explicitly pinned to Phase 1; preflight and publication reject Phase 2 configuration/artifacts until a separately reviewed activation after Phase 1 adoption and task-specific quality/cost approval.
 
+Phase 2 also supports one conditional `state` / `stateDiagram-v2` for changed source-defined states, transitions and guards. It must not invent initial/terminal states, retries or concurrency guarantees. Unverified paths are coverage gaps, not established transitions. State diagrams use the same cap and source-assessment gate; tests distinguish valid Mermaid from semantically unsupported state paths. No pull-request code is executed.
+
 ## Dependency policy
 
 Third-party GitHub Actions must be pinned to full commit SHAs, and downloaded command-line tools must use exact versions. Pull-request content is untrusted data: the reusable reviewer must never execute it, load configuration from it, or expose credentials to it.

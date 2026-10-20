@@ -165,7 +165,7 @@ test("sequence runner and publication require explicit Phase 2 without changing 
     workspace: new URL("fixtures/workspace", import.meta.url).pathname,
     visualRequirements: requirements,
     execute: async (_command, args) => {
-      assert.match(args.at(-1), /schema-er, or sequence/);
+      assert.match(args.at(-1), /kind is .*sequence/);
       return {
         stdout: JSON.stringify({
           type: "text",

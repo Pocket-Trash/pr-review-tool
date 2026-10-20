@@ -1,0 +1,39 @@
+{
+  "files": [
+    {
+      "filename": "src/job.ts",
+      "additions": 5,
+      "deletions": 0,
+      "patch": "+export function transition(job, event) {\n+ if (job.status === 'queued' && event === 'start') { job.status = 'running'; return; }\n+ if (job.status === 'running' && event === 'finish') { job.status = 'done'; return; }\n+ throw new Error('unsupported transition');\n+}",
+      "content": "export function transition(job, event) {\n if (job.status === 'queued' && event === 'start') { job.status = 'running'; return; }\n if (job.status === 'running' && event === 'finish') { job.status = 'done'; return; }\n throw new Error('unsupported transition');\n}"
+    }
+  ],
+  "visuals": {
+    "overview": "The transition function checks both current status and event.",
+    "diagrams": [
+      {
+        "kind": "state",
+        "title": "Job transition guards",
+        "mermaid": "stateDiagram-v2\n Queued --> Running: start when queued (job.ts:2)\n Running --> Done: finish when running (job.ts:3)"
+      }
+    ],
+    "changedAreas": [
+      { "area": "Job", "summary": "Defines guarded transitions." }
+    ],
+    "coverageGaps": [
+      "Initial creation, other state writers and live concurrency were not inspected."
+    ]
+  },
+  "unsupported": {
+    "overview": "Any queued job can finish directly.",
+    "diagrams": [
+      {
+        "kind": "state",
+        "title": "Invented transition",
+        "mermaid": "stateDiagram-v2\n Queued --> Done: finish\n Done --> Cancelled: cancel"
+      }
+    ],
+    "changedAreas": [{ "area": "Job", "summary": "Skips running." }],
+    "coverageGaps": []
+  }
+}

@@ -144,7 +144,7 @@ export function validateReview(input, visualPhase = 1) {
     ]);
     if (
       !diagramKinds.has(diagram.kind) &&
-      !(visualPhase === 2 && diagram.kind === "sequence")
+      !(visualPhase === 2 && ["sequence", "state"].includes(diagram.kind))
     )
       fail(`review.diagrams[${index}].kind`, "a supported diagram kind");
     string(diagram.title, `review.diagrams[${index}].title`);
