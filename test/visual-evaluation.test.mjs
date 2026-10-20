@@ -160,6 +160,55 @@ test("visual fixtures apply generated exclusions before eligibility", async () =
   }
 });
 
+test("recorded retest preserves its one-run matrix and cumulative spending cap", async () => {
+  let ledger;
+  try {
+    ledger = await json("../evaluation/visual-retest-results.json");
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  assert.equal(ledger.campaign, "owner-approved-5.08-visual-retest-2026-10-20");
+  assert.equal(ledger.budgetUsd, 5.08);
+  assert.equal(ledger.maxSessions, 9);
+  assert.equal(ledger.maxRequests, 144);
+  assert.equal(ledger.repetitions, 1);
+  assert.ok(ledger.sessions.length <= 9);
+  assert.ok(ledger.requests.length <= 144);
+  assert.equal(
+    new Set(ledger.sessions.map((row) => row.id)).size,
+    ledger.sessions.length,
+  );
+  let accounted = 0;
+  for (const request of ledger.requests) {
+    const charge = request.costUsd ?? request.reservedUsd;
+    assert.ok(Number.isFinite(charge) && charge >= 0);
+    accounted += charge;
+    assert.ok(ledger.sessions.some((row) => row.id === request.session));
+  }
+  assert.ok(accounted <= 5.08);
+  if (ledger.creditReconciliation) {
+    const credit = ledger.creditReconciliation;
+    assert.ok(Math.abs(credit.beforeUsd - credit.afterUsd - accounted) < 1e-8);
+    assert.ok(Math.abs(credit.returnedBilledUsd - accounted) < 1e-8);
+    assert.equal(credit.outstandingReservations, 0);
+    assert.ok(
+      ledger.requests.every((request) => request.status === "complete"),
+    );
+  }
+  for (const row of ledger.sessions) {
+    assert.match(
+      row.id,
+      /^visuals:(anthropic\/claude-sonnet-5\.5|moonshotai\/kimi-k2\.5|z-ai\/glm-5\.3):pr(403|354|376):1$/,
+    );
+    assert.ok(
+      ledger.requests.filter((request) => request.session === row.id).length <=
+        16,
+    );
+    assert.equal(row.task, "visuals");
+  }
+});
+
 test("unavailable, runner-invalid, legacy and unassessed results never pass the visual gate", async () => {
   for (const status of ["error", "in-progress", "unavailable"]) {
     const evaluated = await evaluateVisualTrial(
@@ -295,6 +344,8 @@ test("offline report is deterministic and leaves closed ledgers unchanged", asyn
     "adjudication.json",
     "peer-results.json",
     "peer-adjudication.json",
+    "visual-results.json",
+    "visual-assessments.json",
   ];
   const digests = async () =>
     Promise.all(
@@ -339,6 +390,36 @@ test("offline report is deterministic and leaves closed ledgers unchanged", asyn
       );
     }
     assert.deepEqual(await digests(), before);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("offline retest report stays separate and cannot claim the adoption gate", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "visual-retest-report-test-"));
+  try {
+    const output = join(directory, "retest.md");
+    const generated = spawnSync(
+      process.execPath,
+      ["scripts/render-visual-report.mjs", "--retest", output],
+      { encoding: "utf8", env: { PATH: process.env.PATH } },
+    );
+    assert.equal(generated.status, 0, generated.stderr);
+    const text = await readFile(output, "utf8");
+    assert.equal(
+      text,
+      await readFile(
+        new URL("../evaluation/visual-retest-report.md", import.meta.url),
+        "utf8",
+      ),
+    );
+    assert.match(text, /# Phase 1 source-grounding retest/);
+    assert.match(text, /one repetition per model\/fixture/);
+    assert.match(text, /\$5\.08 cumulative cap and 9-session \/ 144-request/);
+    assert.doesNotMatch(
+      text,
+      /Candidates meeting all nine dedicated visual trials:/,
+    );
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

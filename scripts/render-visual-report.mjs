@@ -10,7 +10,9 @@ import {
 const root = fileURLToPath(new URL("..", import.meta.url));
 const json = async (path) =>
   JSON.parse(await readFile(join(root, path), "utf8"));
-const [matrix, original, peers, prior, peerPrior, spec, assessments] =
+const retest = process.argv.includes("--retest");
+const prefix = retest ? "visual-retest" : "visual";
+const [matrix, original, peers, prior, peerPrior, baseSpec, assessments] =
   await Promise.all([
     json("evaluation/matrix.json"),
     json("evaluation/results.json"),
@@ -18,12 +20,16 @@ const [matrix, original, peers, prior, peerPrior, spec, assessments] =
     json("evaluation/adjudication.json"),
     json("evaluation/peer-adjudication.json"),
     json("evaluation/visual-fixtures.json"),
-    json("evaluation/visual-assessments.json"),
+    json(`evaluation/${prefix}-assessments.json`),
   ]);
+const spec = {
+  ...baseSpec,
+  ...(retest ? await json("evaluation/visual-retest-spec.json") : {}),
+};
 let catalog = await json("evaluation/visual-catalog.json");
 let fresh = { sessions: [] };
 try {
-  fresh = await json("evaluation/visual-results.json");
+  fresh = await json(`evaluation/${prefix}-results.json`);
 } catch (error) {
   if (error.code !== "ENOENT") throw error;
 }
@@ -71,7 +77,9 @@ const inspected = await Promise.all(
   })),
 );
 const lines = [
-  "# Phase 1 visual-only evaluation",
+  retest
+    ? "# Phase 1 source-grounding retest"
+    : "# Phase 1 visual-only evaluation",
   "",
   fresh.sessions.length
     ? `New visual-only campaign: ${fresh.status}. Approved cap $${fresh.budgetUsd}; ${fresh.sessions.length}/${fresh.maxSessions} sessions and ${fresh.requests.length}/${fresh.maxRequests} API requests. Accounted spend including retained reservations: $${budgetTotal(fresh.requests).toFixed(6)}. No paid replacements. The owner's exact provider/model/failover decision remains pending.`
@@ -94,6 +102,7 @@ if (fresh.creditReconciliation)
     "",
     `Read-only credit reconciliation at ${fresh.creditReconciliation.checkedAt}: $${fresh.creditReconciliation.beforeUsd.toFixed(6)} before, $${fresh.creditReconciliation.afterUsd.toFixed(6)} after. The decrease matches $${fresh.creditReconciliation.returnedBilledUsd.toFixed(6)} in request charges; ${fresh.creditReconciliation.outstandingReservations} outstanding reservations.`,
   );
+if (fresh.stopReason) lines.splice(3, 0, "", fresh.stopReason);
 for (const candidate of [...new Set(inspected.map((row) => row.candidate))]) {
   const rows = inspected.filter((row) => row.candidate === candidate);
   const usable = rows.filter((row) => row.status === "historical-only");
@@ -107,7 +116,9 @@ lines.push(
   "",
   "## Dedicated visual-task gate",
   "",
-  "All three repetitions of every frozen fixture must complete the strict four-key visual contract, pass source/diagram/omission checks, preserve denied-tool boundaries, report stable telemetry and returned request billing, and finish within 15 minutes. No candidate is selected from historical evidence alone.",
+  retest
+    ? "Exploratory retest of the corrected generic source-grounding instructions: one repetition per model/fixture, not the three-repetition adoption gate. A visual pass still requires the strict four-key contract, source/diagram/omission checks, denied-tool boundaries, stable telemetry, returned request billing and a runtime within 15 minutes. No model is adopted from this retest."
+    : "All three repetitions of every frozen fixture must complete the strict four-key visual contract, pass source/diagram/omission checks, preserve denied-tool boundaries, report stable telemetry and returned request billing, and finish within 15 minutes. No candidate is selected from historical evidence alone.",
   "",
   "<!-- prettier-ignore -->",
   "| Session | Result | Assessed | Visual pass |",
@@ -156,7 +167,9 @@ if (fresh.sessions.length) {
     "",
     "## Candidate completion, quality and cost",
     "",
-    "Each candidate has nine planned sessions. Passes require a source assessment, not just JSON/Mermaid validity. Accounted cost includes failed-call reservations; returned billed cost excludes unknown charges. Mean latency uses known attempt durations, including validation failures; interrupted sessions with no final duration are excluded, not assigned zero. The gate uses returned request billing rather than treating missing SDK cost as zero. One Kimi PR 403 repetition-three session was interrupted and not replaced; its last request charge was reconciled from the provider's generation receipt.",
+    retest
+      ? "Each candidate has three planned sessions, one per frozen fixture. Completed means structured output, not proven diagram accuracy. Passes require a source assessment. Failed calls and retained reservations count toward the cap; missing billing is not zero. No paid replacements. A single trial per fixture cannot establish reliability or satisfy the adoption gate."
+      : "Each candidate has nine planned sessions. Passes require a source assessment, not just JSON/Mermaid validity. Accounted cost includes failed-call reservations; returned billed cost excludes unknown charges. Mean latency uses known attempt durations, including validation failures; interrupted sessions with no final duration are excluded, not assigned zero. The gate uses returned request billing rather than treating missing SDK cost as zero. One Kimi PR 403 repetition-three session was interrupted and not replaced; its last request charge was reconciled from the provider's generation receipt.",
     "",
     "<!-- prettier-ignore -->",
     "| Model | Attempted / planned | Completed | Failed / unfinished | Source assessed | Visual passes | False visual claims | Requests | Accounted USD | Returned billed USD | Mean latency seconds |",
@@ -177,7 +190,7 @@ if (fresh.sessions.length) {
       .map(({ row }) => row.latencyMs)
       .filter(Number.isFinite);
     lines.push(
-      `| ${model.id} | ${entries.length} / 9 | ${entries.filter(({ row }) => row.status === "success").length} | ${entries.filter(({ row }) => row.status !== "success").length} | ${assessed.length} | ${assessed.length ? entries.filter(({ result }) => result.passes).length : "N/A"} | ${assessed.length ? claims : "N/A"} | ${requests.length} | ${budgetTotal(requests).toFixed(6)} | ${requests
+      `| ${model.id} | ${entries.length} / ${retest ? 3 : 9} | ${entries.filter(({ row }) => row.status === "success").length} | ${entries.filter(({ row }) => row.status !== "success").length} | ${assessed.length} | ${assessed.length ? entries.filter(({ result }) => result.passes).length : "N/A"} | ${assessed.length ? claims : "N/A"} | ${requests.length} | ${budgetTotal(requests).toFixed(6)} | ${requests
         .filter((request) => Number.isFinite(request.costUsd))
         .reduce((sum, request) => sum + request.costUsd, 0)
         .toFixed(
@@ -191,9 +204,11 @@ if (fresh.sessions.length) {
   });
   lines.push(
     "",
-    clearsGate.length
-      ? `Candidates meeting all nine dedicated visual trials: ${clearsGate.map((model) => model.id).join(", ")}. Owner route approval is still required.`
-      : "No candidate clears all nine dedicated visual trials. Structured completion alone is not a visual quality pass; keep model adoption disabled.",
+    retest
+      ? "This single-repetition retest cannot clear the three-repetition adoption gate. Keep model adoption disabled regardless of exploratory passes."
+      : clearsGate.length
+        ? `Candidates meeting all nine dedicated visual trials: ${clearsGate.map((model) => model.id).join(", ")}. Owner route approval is still required.`
+        : "No candidate clears all nine dedicated visual trials. Structured completion alone is not a visual quality pass; keep model adoption disabled.",
     "",
   );
   lines.push("", "## Dedicated source assessment notes", "");
@@ -271,10 +286,11 @@ lines.push(
   "",
   "## Next approval",
   "",
-  "This campaign has a separately approved $7.89 cumulative cap and 27-session / 432-request ceilings, with no paid replacements. Returned per-request billing supplies gate cost when complete; unknown/retained request billing cannot pass. Stop before a conservative reservation cannot fit, even if the nominal balance is positive. Any further campaign or replacement needs new authorization. No production model is selected; the owner's exact provider/model/failover approval and live adoption checks remain required. The report command itself is offline and cannot execute inference.",
+  `This campaign has a separately approved $${retest ? "5.08" : "7.89"} cumulative cap and ${retest ? "9-session / 144-request" : "27-session / 432-request"} ceilings, with no paid replacements. Returned per-request billing supplies gate cost when complete; unknown/retained request billing cannot pass. Stop before a conservative reservation cannot fit, even if the nominal balance is positive. Any further campaign or replacement needs new authorization. No production model is selected; the owner's exact provider/model/failover approval and live adoption checks remain required. The report command itself is offline and cannot execute inference.`,
   "",
 );
 await writeFile(
-  process.argv[2] || join(root, "evaluation/visual-report.md"),
+  process.argv.slice(2).find((argument) => argument !== "--retest") ||
+    join(root, `evaluation/${prefix}-report.md`),
   lines.join("\n").replace(/\n{3,}/g, "\n\n"),
 );

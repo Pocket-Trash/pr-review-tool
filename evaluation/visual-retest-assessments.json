@@ -1,0 +1,58 @@
+{
+  "runs": {
+    "visuals:anthropic/claude-sonnet-5.5:pr403:1": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [],
+      "evidence": [
+        "143990e030030f5d6bd2c2b51306c0750f8c9bbf:.railway/railway.ts:25-63 retains scraper-queue, adds pocket-trash-queue and separately declares redis-volume without an attachment field; :103 preserves REDIS_URL.",
+        "143990e030030f5d6bd2c2b51306c0750f8c9bbf:apps/scraper/src/jobs.ts:118-129 passes env.REDIS_URL to the checkpoint connection and createScraperQueues; apps/scraper/src/queue/queues.ts:297-318 defines the two bounded adapter queues.",
+        "143990e030030f5d6bd2c2b51306c0750f8c9bbf:.github/workflows/deploy.yml:664 constructs the preview scraper-queue reference; docs/railway.md:104-134 and :274-276 reserve the later cutover for separate approval."
+      ],
+      "notes": "The prior unsupported shared-volume topology is removed: the volume is an isolated declaration, production REDIS_URL is left unresolved, and legacy preview workflow bindings are distinguished from documented shared-queue intent. Code adapter/producers/processor edges are source anchored; omitted bot/runtime/unchanged-source details are disclosed. Minor overbroad overview wording ('no checked-in file binds') is immediately qualified by the explicit preview workflow binding in both prose and diagram, so it is not scored as a material topology error. This is an implementation-agent source adjudication, not independent human approval; one successful trial does not establish reliability."
+    },
+    "visuals:moonshotai/kimi-k2.5:pr403:1": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "fail",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Claims both Redis resources use redis-volume, but the IaC declares the volume separately without either attachment binding.",
+        "Summarizes queue policy as five retries and 24-hour retention; the source sets five total attempts, 24-hour completed retention and seven-day failed retention."
+      ],
+      "evidence": [
+        "143990e030030f5d6bd2c2b51306c0750f8c9bbf:.railway/railway.ts:25-63 and :117 list two Redis resources plus a separately declared 5000 MB volume; no attachment field binds them.",
+        "143990e030030f5d6bd2c2b51306c0750f8c9bbf:apps/scraper/src/queue/queues.ts:17-27 sets attempts:5, completed ageSeconds:86400/count:1000 and failed ageSeconds:604800.",
+        "Retained output diagrams is empty; coverageGaps records architecture removal for unsafe raw HTML and removal of ineligible schema-domain/schema-er diagrams."
+      ],
+      "notes": "Structured completion is not a visual pass: all diagrams were removed, including the required architecture flowchart. The output also repeats the unsupported shared-volume assertion in prose. It correctly preserves the staged cutover and preview legacy reference, but the source-grounding correction did not fix this trial. The separate policy wording error is recorded rather than treating otherwise useful prose as fully accurate. No paid replacement or repair was attempted."
+    },
+    "visuals:z-ai/glm-5.3:pr403:1": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Claims supplied deploy.yml content was truncated after line 1191; the runner supplied the complete changed head file (1771 lines, 74552 bytes). Unread or tool-output-limited content is not missing evidence."
+      ],
+      "evidence": [
+        "143990e030030f5d6bd2c2b51306c0750f8c9bbf:apps/scraper/src/jobs.ts:118-129 and apps/scraper/src/queue/queues.ts:297-324 establish the Redis URL and bounded item/image adapter wiring.",
+        "143990e030030f5d6bd2c2b51306c0750f8c9bbf:packages/queue/src/bullmq.ts:33-46, :120-143 and :389-407 pass the adapter's Redis connection to Queue and Worker; packages/queue/src/index.ts:276 defines the in-memory test adapter.",
+        "143990e030030f5d6bd2c2b51306c0750f8c9bbf:.railway/railway.ts:25-63 and :103 declare retained/staged resources separately from preserved runtime URL; deploy.yml:664 and docs/railway.md:274-276 preserve the preview legacy target.",
+        "Frozen .github/workflows/deploy.yml is 1771 lines / 74552 bytes, below matrix.context.limits.maxFileBytes 524288. prepareReviewContext and materializeReviewEvidence supply full head content; production metadata at lines 1575-1601 is supplied but unread, not truncated out of the evidence."
+      ],
+      "notes": "The retained application architecture diagram is source-grounded, and prose correctly separates retained/staged Redis resources and unverified runtime state without inventing a volume binding. This improves the prior material topology failure. The overall trial still fails the coverage gate because it calls supplied workflow content truncated rather than unread. Minor transcription errors in the head SHA and queue name in coverage prose are noted but not counted as independent material relationship errors. Ineligible payload-domain/ER diagrams and an excess architecture diagram were removed and disclosed. No paid replacement or repair was attempted."
+    }
+  }
+}

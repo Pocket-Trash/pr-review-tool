@@ -1,0 +1,1318 @@
+{
+  "runnerSha": "1ef2d6f9ea6e1e5e34b877677e8337fe467ec724",
+  "campaign": "owner-approved-5.08-visual-retest-2026-10-20",
+  "task": "visuals",
+  "visualPhase": 1,
+  "budgetUsd": 5.08,
+  "maxSessions": 9,
+  "maxRequests": 144,
+  "maxRequestsPerSession": 16,
+  "repetitions": 1,
+  "models": [
+    {
+      "id": "anthropic/claude-sonnet-5.5",
+      "contextLength": 1000000,
+      "maxOutputTokens": 32768,
+      "inputPerMillionUsd": 2,
+      "reservedInputPerMillionUsd": 4,
+      "outputPerMillionUsd": 10
+    },
+    {
+      "id": "moonshotai/kimi-k2.5",
+      "contextLength": 262144,
+      "maxOutputTokens": 32768,
+      "inputPerMillionUsd": 0.5,
+      "reservedInputPerMillionUsd": 0.5,
+      "outputPerMillionUsd": 2.5
+    },
+    {
+      "id": "z-ai/glm-5.3",
+      "contextLength": 1048576,
+      "maxOutputTokens": 32768,
+      "inputPerMillionUsd": 0.079,
+      "reservedInputPerMillionUsd": 0.079,
+      "outputPerMillionUsd": 1.4
+    }
+  ],
+  "catalogVerifiedAt": "2026-10-20T19:15:42.678Z",
+  "fixtures": [
+    {
+      "pull": 403,
+      "title": "feat: stage shared Railway queue",
+      "baseSha": "bf39b9ac64ebfc70a63cd878b9d09c12af087a46",
+      "headSha": "143990e030030f5d6bd2c2b51306c0750f8c9bbf",
+      "expectedFacts": [
+        ["shared queue", "queue package"],
+        ["redis"],
+        ["staged", "no cutover", "not cut over", "existing queue"]
+      ]
+    },
+    {
+      "pull": 354,
+      "title": "feat(database): add Pens catalog schema",
+      "baseSha": "bb113ecd82a2aab50e18941fc090a3dc21a52cfc",
+      "headSha": "0c3e8fe0d5cd58f2841f479cdeffd901b416f4fb",
+      "expectedFacts": [["pen"], ["catalog"], ["schema", "table"]]
+    },
+    {
+      "pull": 376,
+      "title": "feat: add material Trends drill-downs",
+      "baseSha": "572891683ca3a377fdeaf91ed86cd368bb2712e6",
+      "headSha": "7fd6eeb5ecec326cd2e77b940c7e2a5cb340a9f5",
+      "expectedFacts": [["trend"], ["material"], ["drill", "breakdown"]]
+    }
+  ],
+  "sessions": [
+    {
+      "id": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "task": "visuals",
+      "visualPhase": 1,
+      "provider": "openrouter",
+      "model": "anthropic/claude-sonnet-5.5",
+      "pull": 403,
+      "baseSha": "bf39b9ac64ebfc70a63cd878b9d09c12af087a46",
+      "headSha": "143990e030030f5d6bd2c2b51306c0750f8c9bbf",
+      "repetition": 1,
+      "status": "success",
+      "startedAt": "2026-10-20T19:15:57.680Z",
+      "contextFormat": "plain-text-v1",
+      "validatorFormat": "node-dom-v1",
+      "outputFormat": "final-message-v1",
+      "selectedSkills": ["i-have-adhd", "stop-slop"],
+      "skillOverrides": [],
+      "usage": {
+        "inputTokens": 24,
+        "cachedInputTokens": 610884,
+        "reasoningTokens": 4553,
+        "outputTokens": 9208,
+        "modelCalls": 11,
+        "toolIterations": 37,
+        "estimatedCostUsd": 0.5021064000000001
+      },
+      "review": {
+        "overview": "PR #403 (feat: stage shared Railway queue, head 143990e) does two things in the evidence. It moves the scraper's BullMQ usage behind a new private workspace package, @package/queue. It also adds a second Railway Redis resource, pocket-trash-queue, to the IaC next to the existing scraper-queue, with RDB and AOF persistence in its start command. In code, the scraper builds its queues from env.REDIS_URL through a BullMQ adapter in packages/queue. The scraper IaC leaves REDIS_URL as preserve(), so no checked-in file binds the scraper service to either Redis resource. The preview deploy workflow still builds the preview REDIS_URL reference from scraper-queue. docs/railway.md describes pocket-trash-queue as the intended target after a separate, unapproved cutover. The Discord bot appears only in docs. No bot source is in the supplied evidence. One diagram follows. No schema or ER diagram is drawn because the PR has no schema changes in the evidence.",
+        "diagrams": [
+          {
+            "kind": "architecture",
+            "title": "Scraper queue boundary and staged Railway Redis resources",
+            "mermaid": "flowchart LR\n  subgraph CODE[\"Scraper code path, source-bound\"]\n    jobs[\"apps/scraper/src/jobs.ts createScraperJobContext\"]\n    qfac[\"apps/scraper/src/queue/queues.ts createScraperQueues\"]\n    prod[\"Autmog and Grimsmo producers\"]\n    proc[\"apps/scraper/src/queue/processor.ts\"]\n    cp[\"queue/redis.ts createRedisConnection, cron checkpoints, file not supplied\"]\n    pkg[\"packages/queue/src/index.ts QueueAdapter contract\"]\n    bull[\"packages/queue/src/bullmq.ts BullMQ and ioredis adapter\"]\n    mem[\"In-memory adapter, createInMemoryQueueAdapter in index.ts\"]\n    itest[\"bullmq.integration.test.ts local redis-server process\"]\n  end\n\n  envvar[\"REDIS_URL variable, value not in repo, railway.ts preserve\"]\n\n  subgraph INFRA[\"Railway IaC declared resources, .railway/railway.ts\"]\n    svc[\"service pocket-trash and pocket-trash preview, cron every 5 minutes\"]\n    legacy[\"redis scraper-queue, retained as legacy\"]\n    shared[\"redis pocket-trash-queue, added, save 60 1 plus appendonly\"]\n    vol[\"volume redis-volume 5000 MB\"]\n  end\n\n  wf[\"deploy.yml preview job\"]\n  docs[\"docs/railway.md and docs/infrastructure-diagram.yaml\"]\n\n  jobs ==>|\"BOUND jobs.ts line 129 passes env.REDIS_URL\"| qfac\n  jobs ==>|\"BOUND jobs.ts lines 118-121 env.REDIS_URL, ping\"| cp\n  qfac ==>|\"BOUND queues.ts lines 297-300 default adapter\"| bull\n  pkg ==>|\"BOUND index.ts line 3 re-exports createBullMqQueueAdapter\"| bull\n  qfac ==>|\"BOUND queues.test.ts line 9 injects in-memory adapter\"| mem\n  prod ==>|\"BOUND autmog producer.ts line 104, grimsmo producer.ts line 189, enqueueScraperJobs\"| qfac\n  proc ==>|\"BOUND processor.ts lines 319, 335, 417-418 process and redriveFailed\"| qfac\n  itest ==>|\"BOUND bullmq.integration.test.ts line 13 spawns redis-server\"| bull\n  bull -->|\"bullmq.ts line 33 new Redis with options.redisUrl\"| envvar\n  cp -->|\"redis URL argument is env.REDIS_URL per jobs.ts line 118\"| envvar\n\n  svc -->|\"DECLARED railway.ts line 103 REDIS_URL preserve, target not set in file\"| envvar\n  wf -->|\"WORKFLOW deploy.yml lines 664 and 720 set REDIS_URL on preview service\"| svc\n  wf -->|\"WORKFLOW deploy.yml line 664 reference names scraper-queue REDIS_PUBLIC_URL\"| legacy\n  wf -->|\"WORKFLOW deploy.yml lines 828-833 redeploy scraper-queue from source\"| legacy\n\n  docs -.->|\"INTENT railway.md line 209 REDIS_URL references pocket-trash-queue, not applied per lines 132-134\"| shared\n  docs -.->|\"INTENT infrastructure-diagram.yaml scraper to pocket-trash-queue, prod and preview\"| shared\n  docs -.->|\"INTENT railway.md lines 274-276 preview keeps scraper-queue until cutover\"| legacy"
+          }
+        ],
+        "changedAreas": [
+          {
+            "area": "New package @package/queue",
+            "summary": "packages/queue/package.json, tsconfig.json and src/ are all new. src/index.ts defines the transport-independent contract (QueueDefinition at line 91, DefinedQueue at line 172, QueueAdapter at line 234) and an in-memory adapter (line 276). src/bullmq.ts adds the BullMQ and ioredis adapter. It opens one Redis connection from options.redisUrl at line 33 and creates a BullMQ Queue per definition at lines 120-127. src/contract.test.ts and src/test-contract.ts hold a shared adapter contract suite. src/bullmq.integration.test.ts runs that suite against a locally spawned redis-server at line 13. decisions/architecture/eng-497-shared-queue-boundary.md lines 12-25 describe this boundary as the decision."
+          },
+          {
+            "area": "Scraper migration to the queue package",
+            "summary": "apps/scraper/package.json adds @package/queue and removes the direct bullmq dependency. queue/queues.ts:297-300 now takes a Redis URL and defaults to createBullMqQueueAdapter. It defines the items and images queues with a shared retry and retention policy (lines 17-27) and Zod payload schemas. jobs.ts:129 passes env.REDIS_URL into createScraperQueues. jobs.ts:118-121 still opens a separate Redis connection for cron checkpoints. Producers (autmog/producer.ts:104, grimsmo/producer.ts:189) enqueue through enqueueScraperJobs. queue/processor.ts calls queues.*.process at lines 319 and 335 and redriveFailed at lines 417-418, replacing the earlier direct BullMQ worker code. Tests use the in-memory adapter (queues.test.ts:9)."
+          },
+          {
+            "area": "Railway IaC: staged additive Redis resource",
+            "summary": ".railway/railway.ts renames the existing queue constant to legacyScraperQueue (scraper-queue, line 26, comment at line 25 says retained until separately approved cleanup). It adds sharedQueue (pocket-trash-queue, lines 39-49) with --appendonly yes and --appendfsync everysec in its start command. Both resources are in project resources at line 117 together with the scraper service and redis-volume. The scraper service env keeps REDIS_URL as preserve() (line 103). The IaC has no field linking redis-volume to either Redis resource. scripts/railway-config.test.mjs:86-98 asserts that both database resources exist and that the new queue's start command carries the save and AOF flags."
+          },
+          {
+            "area": "Preview and production deploy workflow",
+            "summary": "deploy.yml adds a RAILPACK_INSTALL_CMD variable set for the preview scraper service (lines 706-711) and the production scraper service (lines 1587-1592). Preview REDIS_URL is still set from the scraper-queue service's REDIS_PUBLIC_URL (line 30 env name, lines 664 and 720), and scraper-queue is still redeployed from source (lines 828-833). The production metadata step (lines 1575-1601) sets no REDIS_URL. docs/railway.md lines 274-276 state that the preview workflow continues to use scraper-queue until the approved cutover."
+          },
+          {
+            "area": "Documented migration intent for Redis",
+            "summary": "docs/railway.md lines 104-134 describe a staged migration. The checked-in stage keeps both Redis resources, and the reviewed plan is reported as 1 to add, 0 to change, 0 to destroy. Later stages (pause producers, drain, switch REDIS_URL, observe, remove scraper-queue) need separate approval, and lines 132-134 say this change authorizes none of them. Line 209 gives the intended reference ${{pocket-trash-queue.REDIS_URL}} for the scraper and the Discord bot. docs/environment-variables.md, docs/complete-erasure.md, docs/infrastructure-diagram.yaml and the .eraser file are updated to describe pocket-trash-queue as shared, with RDB and AOF. Those diagram files draw scraper to pocket-trash-queue for prod, preview and dev. That differs from deploy.yml:664 and railway.md:274-276 for preview."
+          },
+          {
+            "area": "Build and CI context",
+            "summary": "railpack.json is new and sets the Railpack install command to ./scripts/pnpm-install.sh --frozen-lockfile --prefer-offline. .railwayignore now allows railpack.json, scripts/pnpm-install.sh and packages/queue/**. railway.ts watchPatterns adds railpack.json and scripts/pnpm-install.sh. ci.yml installs redis-server before the test step, which matches the integration test spawning redis-server. scripts/check-railway-context.mjs, classify-changes.mjs and their tests are updated; their diffs were not examined in detail. Two changesets are added: .changeset/quiet-queues-flow.md and tidy-queues-persist.md."
+          }
+        ],
+        "coverageGaps": [
+          "No verified runtime connection exists in the evidence. All edges are source bindings, declared IaC or workflow settings, or documented intent. Nothing shows a live Railway plan, deployment or connection.",
+          "The scraper service's actual REDIS_URL target in production is not shown. railway.ts:103 uses preserve(), and the production deploy step (deploy.yml:1575-1601) does not set REDIS_URL. No edge from the production scraper service to scraper-queue or pocket-trash-queue is drawn.",
+          "The redis-volume attachment is omitted. railway.ts declares the volume as a resource but has no field tying it to scraper-queue or pocket-trash-queue. docs/railway.md line 20 says pocket-trash-queue uses redis-volume. Lines 117-118 say provisioning must not detach redis-volume from scraper-queue. The docs do not say which resource the volume is mounted on.",
+          "Source conflict, not resolved: docs/infrastructure-diagram.yaml and the .eraser file show preview_scraper to preview_queue labelled pocket-trash-queue preview. deploy.yml:664 builds the preview REDIS_URL from scraper-queue, and docs/railway.md:274-276 says preview keeps scraper-queue until cutover. Both are shown, as workflow binding and as documented intent.",
+          "The dev_queue node in docs/infrastructure-diagram.yaml (local Redis queue, service railway) is documented only, and no source evidence supports it. It is omitted from the diagram.",
+          "The Discord bot is omitted. It appears only in docs (railway.md lines 3, 124 and 206, environment-variables.md, complete-erasure.md). No apps/discord-bot source, IaC service or workflow step is in the supplied evidence. Its REDIS_URL reference and its notification, ticket and Axiom cursor queues are documented intent only.",
+          "apps/scraper/src/queue/redis.ts (createRedisConnection) is imported by jobs.ts:22 but is not in the supplied files. The cron-checkpoint connection is drawn only from jobs.ts:118.",
+          "env.REDIS_URL is read from createScraperJobEnv, whose schema file (env.schema.ts) is not in the supplied files. env.test.ts and cli.test.ts only supply fixture strings such as ${{pocket-trash-queue.REDIS_URL}}, and these are not treated as attachments or a cutover.",
+          "scripts/check-railway-context.mjs, classify-changes.mjs and their tests, and the .github/workflows/railway-config.yml referenced by tests and docs, were not examined. The railway-config.yml workflow is not among the PR's changed files. Their effect on the architecture is not drawn.",
+          "pnpm-lock.yaml is omitted from the evidence as a trusted generated-file pattern (pull-request.json omissions). Dependency-resolution detail for bullmq and ioredis is not covered.",
+          "The line ranges of the remaining processor.ts and packages/queue/src/index.ts content (processor.ts after line 150, index.ts after line 200) were only partly read. Only the cited bindings are drawn. Remaining adapter internals, such as in-memory behavior and BullMQ worker handling, are not diagrammed.",
+          "No schema-er or schema-domain diagram is included. The evidence shows no database schema, migration or entity-relationship changes. Scraper payload Zod schemas in queues.ts are queue payload shapes, not stored entities.",
+          "pnpm-lock.yaml: trusted generated-file pattern"
+        ]
+      },
+      "latencyMs": 119254
+    },
+    {
+      "id": "visuals:moonshotai/kimi-k2.5:pr403:1",
+      "task": "visuals",
+      "visualPhase": 1,
+      "provider": "openrouter",
+      "model": "moonshotai/kimi-k2.5",
+      "pull": 403,
+      "baseSha": "bf39b9ac64ebfc70a63cd878b9d09c12af087a46",
+      "headSha": "143990e030030f5d6bd2c2b51306c0750f8c9bbf",
+      "repetition": 1,
+      "status": "success",
+      "startedAt": "2026-10-20T19:17:56.950Z",
+      "contextFormat": "plain-text-v1",
+      "validatorFormat": "node-dom-v1",
+      "outputFormat": "final-message-v1",
+      "selectedSkills": ["i-have-adhd", "stop-slop"],
+      "skillOverrides": [],
+      "usage": {
+        "inputTokens": 152465,
+        "cachedInputTokens": 57728,
+        "reasoningTokens": 798,
+        "outputTokens": 2817,
+        "modelCalls": 7,
+        "toolIterations": 18,
+        "estimatedCostUsd": 0.0939292
+      },
+      "review": {
+        "overview": "PR #403 establishes a transport-independent queue boundary via the new @package/queue package. Applications define typed queues through this package, owning payload schemas, worker modes, retry/retention settings, and deduplication policies. The package encapsulates BullMQ and ioredis in production while exposing a portable contract. A deterministic in-memory adapter implements the same contract for tests. Railway infrastructure stages a new shared Redis resource (pocket-trash-queue) alongside the legacy scraper-queue during migration.",
+        "diagrams": [],
+        "changedAreas": [
+          {
+            "area": "@package/queue package creation",
+            "summary": "New shared queue package at packages/queue/ containing transport-independent contract (index.ts), BullMQ production adapter (bullmq.ts), test utilities (test-contract.ts, contract.test.ts), and integration tests (bullmq.integration.test.ts). Exports portable types: QueueAdapter, DefinedQueue, QueueDefinition, QueueJob, QueueEnqueueResult, QueueProcessResult, QueueLifecycleEvent."
+          },
+          {
+            "area": "apps/scraper queue migration",
+            "summary": "Scraper migrated from direct BullMQ usage to @package/queue. apps/scraper/src/queue/queues.ts now creates scraper queues via createScraperQueues() using transport adapter injection. Defines scraper-items and scraper-images queues with shared policy (5 retries, exponential backoff, 24h retention). Queue processor at apps/scraper/src/queue/processor.ts refactored to use portable QueueJob and DefinedQueue interfaces."
+          },
+          {
+            "area": "Railway IaC shared queue staging",
+            "summary": ".railway/railway.ts modified to declare both legacyScraperQueue (retained) and sharedQueue (pocket-trash-queue) resources. Staged additive provisioning prevents cutover during IaC apply. Both use redis-volume (5GB). Shared queue includes AOF persistence (appendonly yes, appendfsync everysec). Migration procedure documented in docs/railway.md lines 104-134."
+          },
+          {
+            "area": "Scraper payload types",
+            "summary": "ScraperItemJob and ScraperImageJob discriminated union types in apps/scraper/src/scraper-types.ts define 11 job variants across 5 source types. Payloads validated via Zod schemas in apps/scraper/src/queue/queues.ts. Queue names scraper-items and scraper-images retained for compatibility."
+          },
+          {
+            "area": "CI/deploy workflow Railway references",
+            "summary": ".github/workflows/deploy.yml references RAILWAY_SCRAPER_QUEUE_PREVIEW_SERVICE_NAME as scraper-queue (line 30). Preview workflow sets REDIS_URL via Railway service reference ${{scraper-queue.REDIS_PUBLIC_URL}} (line 664). Workflow cutover to pocket-trash-queue pending approved migration stages."
+          }
+        ],
+        "coverageGaps": [
+          "Discord bot queue usage not in PR evidence; referenced as future consumer in docs/railway.md lines 4, 206, 215 but no code changes shown",
+          "Runtime Redis connection verification not in evidence; connection test results between scraper and pocket-trash-queue unavailable",
+          "Railway plan apply results for pocket-trash-queue provisioning not in evidence; IaC plan output showing 1 add, 0 change, 0 destroy referenced but not provided",
+          "Legacy scraper-queue data migration procedure not in evidence; steps 3-4 of migration (drain, switch, copy checkpoints) described in docs only",
+          "Neon database schema for scraper persistence not modified in this PR; external durable source unchanged",
+          "Bunny CDN image storage integration unchanged; remains outside queue boundary",
+          "Omitted Queue Architecture with Transport-Independent Boundary: unsafe Mermaid raw HTML.",
+          "Omitted Scraper Queue Payload Types: schema-domain was not eligible for this change.",
+          "Omitted Queue Entity Relationships: schema-er was not eligible for this change.",
+          "Architecture change had no valid architecture flowchart.",
+          "pnpm-lock.yaml: trusted generated-file pattern"
+        ]
+      },
+      "latencyMs": 85890
+    },
+    {
+      "id": "visuals:z-ai/glm-5.3:pr403:1",
+      "task": "visuals",
+      "visualPhase": 1,
+      "provider": "openrouter",
+      "model": "z-ai/glm-5.3",
+      "pull": 403,
+      "baseSha": "bf39b9ac64ebfc70a63cd878b9d09c12af087a46",
+      "headSha": "143990e030030f5d6bd2c2b51306c0750f8c9bbf",
+      "repetition": 1,
+      "status": "success",
+      "startedAt": "2026-10-20T19:19:22.854Z",
+      "contextFormat": "plain-text-v1",
+      "validatorFormat": "node-dom-v1",
+      "outputFormat": "final-message-v1",
+      "selectedSkills": ["i-have-adhd", "stop-slop"],
+      "skillOverrides": [],
+      "usage": {
+        "inputTokens": 66451,
+        "cachedInputTokens": 190272,
+        "reasoningTokens": 3370,
+        "outputTokens": 3268,
+        "modelCalls": 8,
+        "toolIterations": 17,
+        "estimatedCostUsd": 0.051953245
+      },
+      "review": {
+        "overview": "PR 403 (feat: stage shared Railway queue) adds a transport-independent queue package at packages/queue, migrates apps/scraper item and image queues onto its QueueAdapter contract, stages a shared Railway Redis resource named pocket-trash-queue in .railway/railway.ts while retaining the legacy scraper-queue resource, and documents a six-stage migration and cutover plan. The scraper keeps its existing stable queue names scraper-items and scraper-images (apps/scraper/src/scraper-types.ts:41-44). Production adapter transport (BullMQ over ioredis) is now owned by packages/queue rather than the scraper (packages/queue/src/bullmq.ts:23, decisions/architecture/eng-497-shared-queue-boundary.md:17-21). Declared IaC resources, documented cutover intent, and workflow-staged preview bindings are kept distinct below; no runtime Redis attachment for the production scraper service is verifiable from the supplied evidence.",
+        "diagrams": [
+          {
+            "kind": "architecture",
+            "title": "Scraper queue stack over the new @package/queue boundary (changed code bindings)",
+            "mermaid": "flowchart TB\n  subgraph Scraper[\"apps/scraper changed files\"]\n    CTX[\"createScraperJobContext jobs.ts:101\"]\n    AUT[\"runAutmogProducerJob jobs.ts:154\"]\n    GRM[\"runGrimsmoProducerJob jobs.ts:289\"]\n    QPROC[\"runQueueProcessor processor.ts:297\"]\n    DLQ[\"runQueueDeadLetterProcessor processor.ts:403\"]\n    SQ[\"createScraperQueues queues.ts:297 defines bounded items and images\"]\n  end\n  subgraph PkgQ[\"packages/queue new package\"]\n    CONTRACT[\"QueueAdapter and DefinedQueue contract index.ts:172-250\"]\n    BULL[\"createBullMqQueueAdapter bullmq.ts:23 production adapter\"]\n    MEM[\"createInMemoryQueueAdapter index.ts:276 deterministic test adapter\"]\n  end\n  REDIS[(\"Redis via env REDIS_URL\")]\n  CTX -->|\"createRedisConnection then createScraperQueues both from env.REDIS_URL jobs.ts:118 and 129\"| SQ\n  CTX -->|\"redis.ping verification jobs.ts:121\"| REDIS\n  SQ -->|\"imports @package/queue queues.ts:1-7\"| CONTRACT\n  CONTRACT -->|\"exported factory index.ts:3\"| BULL\n  CONTRACT -->|\"same public adapter contract eng-497 decision line 19-21\"| MEM\n  BULL -->|\"ioredis Redis instance from options.redisUrl bullmq.ts:33\"| REDIS\n  BULL -->|\"BullMQ Queue and Worker share that connection bullmq.ts:120-143 and 389-408\"| REDIS\n  AUT -->|\"producer enqueues normalized item jobs via context.queues jobs.ts:184-192\"| SQ\n  GRM -->|\"producer enqueues normalized item jobs via context.queues jobs.ts:327-336\"| SQ\n  QPROC -->|\"drains items queue then images queue processor.ts:319 and 335\"| SQ\n  DLQ -->|\"redriveFailed on items then images processor.ts:417-418\"| SQ\n  QPROC -->|\"processItemJob enqueues follow-up image jobs on queues.images processor.ts:488-548 and 627-654\"| SQ"
+          }
+        ],
+        "changedAreas": [
+          {
+            "area": "packages/queue (new @package/queue)",
+            "summary": "Defines the transport-independent DefinedQueue and QueueAdapter contract (packages/queue/src/index.ts:172-250), a BullMQ and ioredis production adapter owning one shared Redis connection per adapter (packages/queue/src/bullmq.ts:23-46), and a deterministic in-memory adapter for tests (packages/queue/src/index.ts:276-496). The decision record states the package owns BullMQ and ioredis in production and that scraper and bot code share queue policy without importing BullMQ (decisions/architecture/eng-497-shared-queue-boundary.md:17-32)."
+          },
+          {
+            "area": "apps/scraper queue wiring and processing",
+            "summary": "createScraperQueues now defines both bounded queues through the shared adapter with unchanged physical names scraper-items and scraper-images (apps/scraper/src/queue/queues.ts:297-324, name source apps/scraper/src/scraper-types.ts:41-44). createScraperJobContext opens the checkpoint Redis connection and the queues from the same env.REDIS_URL and verifies the checkpoint connection with ping before use (apps/scraper/src/jobs.ts:117-129). The processor drains items then images and supports redriveFailed dead-letter retries (apps/scraper/src/queue/processor.ts:297-445)."
+          },
+          {
+            "area": "Railway infrastructure as code",
+            "summary": "The IaC file stages a shared Redis resource pocket-trash-queue with appendonly yes and appendfsync everysec while retaining the legacy scraper-queue resource and the unchanged redis-volume (railway.ts as .railway/railway.ts:26-56). The scraper service declares REDIS_URL with preserve only (railway.ts:103), so this change declares resources without verifying or performing any runtime cutover, matching the documented staging intent (docs/railway.md:104-134)."
+          },
+          {
+            "area": "Deploy workflow preview handoff",
+            "summary": "The preview path continues to resolve REDIS_URL from the legacy scraper-queue service reference REDIS_PUBLIC_URL (deploy.yml:30, 664, 720-725) and redeploys that queue service from source before the native scraper deploy (deploy.yml:784-833). The workflow stages DATABASE_URL, Bunny image prefix, cron flag, and logging metadata on the preview scraper service with --skip-deploys (deploy.yml:692-746), consistent with the documented handoff that keeps scraper-queue until the approved cutover (docs/railway.md:261-276)."
+          },
+          {
+            "area": "Documentation and generated diagram",
+            "summary": "docs/railway.md records the shared Redis migration plan and cutover stages (docs/railway.md:104-134), the documented REDIS_URL service reference to pocket-trash-queue for the scraper and the Discord bot (docs/railway.md:205-212), and preview queue usage (docs/railway.md:261-276). docs/infrastructure-diagram.yaml adds a production pocket-trash-queue node with RDB and AOF and a scraper-to-queue edge labelled scraper-images and scraper-items (docs/infrastructure-diagram.yaml:74-77, 113-115). Changesets and the root railpack.json and .railwayignore support the staging (files 0, 1, 5, 34 of the PR)."
+          }
+        ],
+        "coverageGaps": [
+          "The pull request body is empty (pull-request.json:11), so no authored intent statement exists; all intent is taken from the added decision record and docs, which are themselves claims rather than runtime evidence.",
+          "pnpm-lock.yaml is omitted from review evidence as a trusted generated file (pull-request.json omissions), so the installed bullmq and ioredis versions declared by packages/queue cannot be confirmed from this PR.",
+          "Only changed-file contents were supplied; the full repository at head SHA 143990e0300300f5d6bd2c2b51306c0750f8c9bbf is unavailable, so relationships to unchanged modules (apps/scraper/src/cron.ts, env.schema.ts, db sync helpers, @package/services, @package/database) are inferred only from imports inside changed files and are not independently verified.",
+          "The Discord bot's REDIS_URL binding to pocket-trash-queue is documented intent only (docs/railway.md:205-212); no bot code appears in this PR, so no edge between the bot and either Redis resource is drawn.",
+          "The production scraper service's REDIS_URL is declared as preserve (railway.ts:103) and preview REDIS_URL is staged against scraper-queue.REDIS_PUBLIC_URL (deploy.yml:664); neither establishes a verified runtime attachment to the pocket-trash-queue resource, so no scraper-to-pockel-trash-queue runtime edge is drawn as fact.",
+          "The Deploy workflow content was truncated after line 1191 of the supplied evidence file, so the production staging and release steps beyond that line are unread and omitted from the deployment diagram.",
+          "Evidence files 28, 30, and 32 (packages/queue contract tests, BullMQ integration test, and test-contract suite) were not read in this pass; their assertions about adapter behavior are not reflected in the diagrams.",
+          "No deployed plan artifact, Railway console state, or runtime observation is included in the evidence, so the documented plan counts of 1 to add 0 to change 0 to destroy (docs/railway.md:109-111) are documented claims rather than verified state.",
+          "Omitted Queue payload domain map defined in apps/scraper/src/queue/queues.ts: schema-domain was not eligible for this change.",
+          "Omitted Entity relationships between queue payload kinds and their stable identifiers: schema-er was not eligible for this change.",
+          "Diagram cap or visual-scope limit reached; omitted 1 diagram(s).",
+          "pnpm-lock.yaml: trusted generated-file pattern"
+        ]
+      },
+      "latencyMs": 81698
+    },
+    {
+      "id": "visuals:anthropic/claude-sonnet-5.5:pr354:1",
+      "task": "visuals",
+      "visualPhase": 1,
+      "provider": "openrouter",
+      "model": "anthropic/claude-sonnet-5.5",
+      "pull": 354,
+      "baseSha": "bb113ecd82a2aab50e18941fc090a3dc21a52cfc",
+      "headSha": "0c3e8fe0d5cd58f2841f479cdeffd901b416f4fb",
+      "repetition": 1,
+      "status": "error",
+      "startedAt": "2026-10-20T19:20:44.564Z",
+      "contextFormat": "plain-text-v1",
+      "validatorFormat": "node-dom-v1",
+      "outputFormat": "final-message-v1",
+      "selectedSkills": [],
+      "skillOverrides": [],
+      "usage": {
+        "inputTokens": 10,
+        "cachedInputTokens": 20083,
+        "reasoningTokens": 53,
+        "outputTokens": 889,
+        "modelCalls": 4,
+        "toolIterations": 9,
+        "estimatedCostUsd": 0.1739183
+      },
+      "error": "npx exited with code 1",
+      "latencyMs": 23378
+    }
+  ],
+  "requests": [
+    {
+      "id": "b024d725-b297-4b3e-9e09-a2ff20eeea51",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523769-djO9XCcz7ie3tyc5R0yD",
+      "costUsd": 0.015608,
+      "usage": {
+        "prompt_tokens": 5660,
+        "completion_tokens": 146,
+        "total_tokens": 5806,
+        "cost": 0.015608,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 5656,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.015608,
+          "upstream_inference_prompt_cost": 0.014148,
+          "upstream_inference_completions_cost": 0.00146
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "a58e93f2-63d0-4fc0-b1b6-583ea405791e",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523770-xkoNTlrNV7RuQImHa4fK",
+      "costUsd": 0.033109,
+      "usage": {
+        "prompt_tokens": 12348,
+        "completion_tokens": 224,
+        "total_tokens": 12572,
+        "cost": 0.033109,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 12346,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.033109,
+          "upstream_inference_prompt_cost": 0.030869,
+          "upstream_inference_completions_cost": 0.00224
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "ee3fa81c-2c78-4036-a934-01daa779bc93",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523773-jaEcu7lwUWgoM3JJkFhV",
+      "costUsd": 0.0329236,
+      "usage": {
+        "prompt_tokens": 23170,
+        "completion_tokens": 463,
+        "total_tokens": 23633,
+        "cost": 0.0329236,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 12346,
+          "cache_write_tokens": 10822,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0329236,
+          "upstream_inference_prompt_cost": 0.0282936,
+          "upstream_inference_completions_cost": 0.00463
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "7146526b-18a4-447f-83bb-9163cb060884",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523776-V0mncnNZwdIMNhNMqIcN",
+      "costUsd": 0.0966233,
+      "usage": {
+        "prompt_tokens": 58247,
+        "completion_tokens": 661,
+        "total_tokens": 58908,
+        "cost": 0.0966233,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 23168,
+          "cache_write_tokens": 35077,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0966233,
+          "upstream_inference_prompt_cost": 0.0900133,
+          "upstream_inference_completions_cost": 0.00661
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 107,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "aee30d59-69fc-4451-81c4-127b9b6d2ee0",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523781-YiUJsdWHbOtqEOnPfsM8",
+      "costUsd": 0.029431,
+      "usage": {
+        "prompt_tokens": 66124,
+        "completion_tokens": 391,
+        "total_tokens": 66515,
+        "cost": 0.029431,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 58245,
+          "cache_write_tokens": 7877,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.029431,
+          "upstream_inference_prompt_cost": 0.025521,
+          "upstream_inference_completions_cost": 0.00391
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 59,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "84739b5a-6a5a-4e3d-a669-8b7a46d37d57",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523785-QydPdSkm4UGSA6IdFjn4",
+      "costUsd": 0.0328237,
+      "usage": {
+        "prompt_tokens": 73603,
+        "completion_tokens": 751,
+        "total_tokens": 74354,
+        "cost": 0.0328237,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 66122,
+          "cache_write_tokens": 7479,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0328237,
+          "upstream_inference_prompt_cost": 0.0253137,
+          "upstream_inference_completions_cost": 0.00751
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "5e081993-6cec-4628-bef4-0b385af95797",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523792-YwcbLQm1zhAseipwPcPG",
+      "costUsd": 0.0330516,
+      "usage": {
+        "prompt_tokens": 82074,
+        "completion_tokens": 451,
+        "total_tokens": 82525,
+        "cost": 0.0330516,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 73601,
+          "cache_write_tokens": 8471,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0330516,
+          "upstream_inference_prompt_cost": 0.0285416,
+          "upstream_inference_completions_cost": 0.00451
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 84,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "7ac1902e-16d0-4ea0-bea6-cd3866f75633",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523797-LK1d8w7EkKxaSjPAFu8I",
+      "costUsd": 0.0340287,
+      "usage": {
+        "prompt_tokens": 90249,
+        "completion_tokens": 538,
+        "total_tokens": 90787,
+        "cost": 0.0340287,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 82072,
+          "cache_write_tokens": 8175,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0340287,
+          "upstream_inference_prompt_cost": 0.0286487,
+          "upstream_inference_completions_cost": 0.00538
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 161,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "0fdfd531-8781-4104-a872-59362824739d",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523802-PA3W0CksNpDsYYZndJXk",
+      "costUsd": 0.0443862,
+      "usage": {
+        "prompt_tokens": 99388,
+        "completion_tokens": 1251,
+        "total_tokens": 100639,
+        "cost": 0.0443862,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 90247,
+          "cache_write_tokens": 9139,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0443862,
+          "upstream_inference_prompt_cost": 0.0318762,
+          "upstream_inference_completions_cost": 0.01251
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 503,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "8b9fe1fa-caf7-4091-88f8-49725658bf13",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523813-CTti2DhsSDTb2Ld3Oe8T",
+      "costUsd": 0.0311601,
+      "usage": {
+        "prompt_tokens": 105699,
+        "completion_tokens": 544,
+        "total_tokens": 106243,
+        "cost": 0.0311601,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 99386,
+          "cache_write_tokens": 6311,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0311601,
+          "upstream_inference_prompt_cost": 0.0257201,
+          "upstream_inference_completions_cost": 0.00544
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 75,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "3202df10-9aa6-45aa-be2f-c0d89df08d1c",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr403:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523819-W4TwO1feZOgy70BbGtkm",
+      "costUsd": 0.1189612,
+      "usage": {
+        "prompt_tokens": 115690,
+        "completion_tokens": 8341,
+        "total_tokens": 124031,
+        "cost": 0.1189612,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 105697,
+          "cache_write_tokens": 9991,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.1189612,
+          "upstream_inference_prompt_cost": 0.0355512,
+          "upstream_inference_completions_cost": 0.08341
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 3564,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "10c14c28-5382-4126-9fdf-d1eef156bedb",
+      "session": "visuals:moonshotai/kimi-k2.5:pr403:1",
+      "model": "moonshotai/kimi-k2.5",
+      "status": "complete",
+      "reservedUsd": 0.21512192,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523889-LXhG4aBkNPnozhzlecd8",
+      "costUsd": 0.00237963,
+      "usage": {
+        "prompt_tokens": 3387,
+        "completion_tokens": 288,
+        "total_tokens": 3675,
+        "cost": 0.00237963,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.00237963,
+          "upstream_inference_prompt_cost": 0.00165963,
+          "upstream_inference_completions_cost": 0.00072
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 210,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "ecb25e0c-de62-4271-b4f3-dff5a0c55cda",
+      "session": "visuals:moonshotai/kimi-k2.5:pr403:1",
+      "model": "moonshotai/kimi-k2.5",
+      "status": "complete",
+      "reservedUsd": 0.21512192,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523896-871IapNevErQbvY3bWVU",
+      "costUsd": 0.00146946,
+      "usage": {
+        "prompt_tokens": 4392,
+        "completion_tokens": 113,
+        "total_tokens": 4505,
+        "cost": 0.00146946,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 3328,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.00146946,
+          "upstream_inference_prompt_cost": 0.00118696,
+          "upstream_inference_completions_cost": 0.0002825
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 15,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "2d3cc496-9d91-4859-b8f0-e661a32e17d8",
+      "session": "visuals:moonshotai/kimi-k2.5:pr403:1",
+      "model": "moonshotai/kimi-k2.5",
+      "status": "complete",
+      "reservedUsd": 0.21512192,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523900-F46rd6qHrhR5JCc7e6np",
+      "costUsd": 0.00373668,
+      "usage": {
+        "prompt_tokens": 8574,
+        "completion_tokens": 319,
+        "total_tokens": 8893,
+        "cost": 0.00373668,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 4352,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.00373668,
+          "upstream_inference_prompt_cost": 0.00293918,
+          "upstream_inference_completions_cost": 0.0007975
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 95,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "5a4dc72d-50ff-48b1-aca3-3b57096dd375",
+      "session": "visuals:moonshotai/kimi-k2.5:pr403:1",
+      "model": "moonshotai/kimi-k2.5",
+      "status": "complete",
+      "reservedUsd": 0.21512192,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523908-vEUiHjT8Cx8yUguQteta",
+      "costUsd": 0.00956448,
+      "usage": {
+        "prompt_tokens": 23310,
+        "completion_tokens": 237,
+        "total_tokens": 23547,
+        "cost": 0.00956448,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 8448,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.00956448,
+          "upstream_inference_prompt_cost": 0.00897198,
+          "upstream_inference_completions_cost": 0.0005925
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 26,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "35464e73-fed4-46b0-884e-23bfa8ba18e6",
+      "session": "visuals:moonshotai/kimi-k2.5:pr403:1",
+      "model": "moonshotai/kimi-k2.5",
+      "status": "complete",
+      "reservedUsd": 0.21512192,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523915-5qGSBcdToBVOqpxDCXo4",
+      "costUsd": 0.02086625,
+      "usage": {
+        "prompt_tokens": 41625,
+        "completion_tokens": 188,
+        "total_tokens": 41813,
+        "cost": 0.02086625,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.02086625,
+          "upstream_inference_prompt_cost": 0.02039625,
+          "upstream_inference_completions_cost": 0.00047
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 29,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "24379755-618f-4efe-b00a-ee2659457146",
+      "session": "visuals:moonshotai/kimi-k2.5:pr403:1",
+      "model": "moonshotai/kimi-k2.5",
+      "status": "complete",
+      "reservedUsd": 0.21512192,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523920-bssRVlpzsyc9pqgOqM6A",
+      "costUsd": 0.02006576,
+      "usage": {
+        "prompt_tokens": 63974,
+        "completion_tokens": 313,
+        "total_tokens": 64287,
+        "cost": 0.02006576,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 41600,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.02006576,
+          "upstream_inference_prompt_cost": 0.01928326,
+          "upstream_inference_completions_cost": 0.0007825
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 249,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "e1ab8fbd-8f6e-4647-aaab-c88585026574",
+      "session": "visuals:moonshotai/kimi-k2.5:pr403:1",
+      "model": "moonshotai/kimi-k2.5",
+      "status": "complete",
+      "reservedUsd": 0.21512192,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523928-eWmuhYOjz2iGBdw1vTvZ",
+      "costUsd": 0.03720869,
+      "usage": {
+        "prompt_tokens": 64931,
+        "completion_tokens": 2157,
+        "total_tokens": 67088,
+        "cost": 0.03720869,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.03720869,
+          "upstream_inference_prompt_cost": 0.03181619,
+          "upstream_inference_completions_cost": 0.0053925
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 174,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "81a3f487-5b8f-498c-be24-5cc1816c1384",
+      "session": "visuals:z-ai/glm-5.3:pr403:1",
+      "model": "z-ai/glm-5.3",
+      "status": "complete",
+      "reservedUsd": 0.12999983104,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523975-CS4yqTq5MDD8tl5wQTbW",
+      "costUsd": 0.000428618,
+      "usage": {
+        "prompt_tokens": 3742,
+        "completion_tokens": 95,
+        "total_tokens": 3837,
+        "cost": 0.000428618,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.000428618,
+          "upstream_inference_prompt_cost": 0.000295618,
+          "upstream_inference_completions_cost": 0.000133
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 95,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "dc03dffd-c894-460b-b939-fb8a92fe1735",
+      "session": "visuals:z-ai/glm-5.3:pr403:1",
+      "model": "z-ai/glm-5.3",
+      "status": "complete",
+      "reservedUsd": 0.12999983104,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523976-HpZkzfUrqWOMsOosjL0Z",
+      "costUsd": 0.000488459,
+      "usage": {
+        "prompt_tokens": 4565,
+        "completion_tokens": 94,
+        "total_tokens": 4659,
+        "cost": 0.000488459,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 3776,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.000488459,
+          "upstream_inference_prompt_cost": 0.000356859,
+          "upstream_inference_completions_cost": 0.0001316
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "705f97a7-7aa3-4d90-8f22-edfe4c348abe",
+      "session": "visuals:z-ai/glm-5.3:pr403:1",
+      "model": "z-ai/glm-5.3",
+      "status": "complete",
+      "reservedUsd": 0.12999983104,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523977-mHsKDlQBRnwZmDZsQMvj",
+      "costUsd": 0.001151175,
+      "usage": {
+        "prompt_tokens": 8977,
+        "completion_tokens": 319,
+        "total_tokens": 9296,
+        "cost": 0.001151175,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 4608,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.001151175,
+          "upstream_inference_prompt_cost": 0.000704575,
+          "upstream_inference_completions_cost": 0.0004466
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 319,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "c98c27da-b674-4160-bd34-f2907e096684",
+      "session": "visuals:z-ai/glm-5.3:pr403:1",
+      "model": "z-ai/glm-5.3",
+      "status": "complete",
+      "reservedUsd": 0.12999983104,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523979-0qkGRnM96vxRdxtw9hii",
+      "costUsd": 0.001827802,
+      "usage": {
+        "prompt_tokens": 19958,
+        "completion_tokens": 186,
+        "total_tokens": 20144,
+        "cost": 0.001827802,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 9280,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.001827802,
+          "upstream_inference_prompt_cost": 0.001567402,
+          "upstream_inference_completions_cost": 0.0002604
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 186,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "46ca3951-89b0-4e12-bef0-862002e7e0e9",
+      "session": "visuals:z-ai/glm-5.3:pr403:1",
+      "model": "z-ai/glm-5.3",
+      "status": "complete",
+      "reservedUsd": 0.12999983104,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523980-6ekrt2w4aDspuIGU2Xf7",
+      "costUsd": 0.00321847,
+      "usage": {
+        "prompt_tokens": 36954,
+        "completion_tokens": 228,
+        "total_tokens": 37182,
+        "cost": 0.00321847,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 20096,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.00321847,
+          "upstream_inference_prompt_cost": 0.00289927,
+          "upstream_inference_completions_cost": 0.0003192
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 228,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "23e29b39-8d25-4dee-84ed-13f893680a5b",
+      "session": "visuals:z-ai/glm-5.3:pr403:1",
+      "model": "z-ai/glm-5.3",
+      "status": "complete",
+      "reservedUsd": 0.12999983104,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523982-RkJ1Ibh3FJLxc6Ga1Y4l",
+      "costUsd": 0.004474065,
+      "usage": {
+        "prompt_tokens": 54215,
+        "completion_tokens": 163,
+        "total_tokens": 54378,
+        "cost": 0.004474065,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 37120,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.004474065,
+          "upstream_inference_prompt_cost": 0.004245865,
+          "upstream_inference_completions_cost": 0.0002282
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 163,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "6b86a660-c3b4-4e3d-91e2-f09cea3b6f6a",
+      "session": "visuals:z-ai/glm-5.3:pr403:1",
+      "model": "z-ai/glm-5.3",
+      "status": "complete",
+      "reservedUsd": 0.12999983104,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523985-sKOCd5RoOSKF2F1aP3qw",
+      "costUsd": 0.005061288,
+      "usage": {
+        "prompt_tokens": 60856,
+        "completion_tokens": 220,
+        "total_tokens": 61076,
+        "cost": 0.005061288,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 54336,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.005061288,
+          "upstream_inference_prompt_cost": 0.004753288,
+          "upstream_inference_completions_cost": 0.000308
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 220,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "987dbe1e-290d-4b0c-af36-f8c6641a628b",
+      "session": "visuals:z-ai/glm-5.3:pr403:1",
+      "model": "z-ai/glm-5.3",
+      "status": "complete",
+      "reservedUsd": 0.12999983104,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792523987-8J66wZCHObNY7Rdw7s9a",
+      "costUsd": 0.012734168,
+      "usage": {
+        "prompt_tokens": 67456,
+        "completion_tokens": 5333,
+        "total_tokens": 72789,
+        "cost": 0.012734168,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 61056,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.012734168,
+          "upstream_inference_prompt_cost": 0.005267968,
+          "upstream_inference_completions_cost": 0.0074662
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 2159,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "145424ef-1e2f-45fa-b20e-9564b583dc7d",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr354:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792524058-09nGBLHgGlU848Z4O7O0",
+      "costUsd": 0.0160355,
+      "usage": {
+        "prompt_tokens": 5831,
+        "completion_tokens": 146,
+        "total_tokens": 5977,
+        "cost": 0.0160355,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 5827,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0160355,
+          "upstream_inference_prompt_cost": 0.0145755,
+          "upstream_inference_completions_cost": 0.00146
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "097e6da0-41dd-46a5-b215-3e7357244d54",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr354:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792524059-TwJvhRRsXp3BEBX9f8Br",
+      "costUsd": 0.0245565,
+      "usage": {
+        "prompt_tokens": 8911,
+        "completion_tokens": 228,
+        "total_tokens": 9139,
+        "cost": 0.0245565,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 8909,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0245565,
+          "upstream_inference_prompt_cost": 0.0222765,
+          "upstream_inference_completions_cost": 0.00228
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "263f97cc-26d8-4ade-b8a9-5636ddad9eba",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr354:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792524061-eTmNACfDu7kLy2gOWNtO",
+      "costUsd": 0.0087874,
+      "usage": {
+        "prompt_tokens": 11176,
+        "completion_tokens": 223,
+        "total_tokens": 11399,
+        "cost": 0.0087874,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 8909,
+          "cache_write_tokens": 2265,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.0087874,
+          "upstream_inference_prompt_cost": 0.0065574,
+          "upstream_inference_completions_cost": 0.00223
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "9d01098f-2abd-4e6c-b3c6-6bf2353003e7",
+      "session": "visuals:anthropic/claude-sonnet-5.5:pr354:1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "status": "complete",
+      "reservedUsd": 4.3709568,
+      "maxOutputTokens": 32768,
+      "generationId": "gen-1792524063-0zQTiJ2tH0ngxmMfGM0n",
+      "costUsd": 0.1245389,
+      "usage": {
+        "prompt_tokens": 59163,
+        "completion_tokens": 345,
+        "total_tokens": 59508,
+        "cost": 0.1245389,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 11174,
+          "cache_write_tokens": 47987,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.1245389,
+          "upstream_inference_prompt_cost": 0.1210889,
+          "upstream_inference_completions_cost": 0.00345
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 53,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      }
+    }
+  ],
+  "creditReconciliation": {
+    "checkedAt": "2026-10-20T19:22:32.662Z",
+    "beforeUsd": 5.082637981,
+    "afterUsd": 4.281938286,
+    "returnedBilledUsd": 0.800699695,
+    "outstandingReservations": 0
+  },
+  "status": "stopped-at-guard",
+  "stopReason": "The conservative guard stopped during Sonnet PR 354 after four billed requests, without a completed visual result. Accounted spend $0.800699695 plus the next Sonnet worst-case reservation $4.3709568 would exceed the $5.08 cap. No billing reservations remain outstanding. All three PR 403 architecture trials completed; Kimi/GLM PR 354 and all PR 376 trials were not started. This is a budget-limited attempt, not evidence of a large-schema quality failure. No replacements or restarts were performed.",
+  "finishedAt": "2026-10-20T19:21:07.957Z"
+}
