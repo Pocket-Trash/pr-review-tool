@@ -1,0 +1,14 @@
+{
+  "approval": "owner-approved-15-visual-reliability-2026-10-20",
+  "budgetUsd": 15,
+  "maxSessions": 27,
+  "maxRequests": 432,
+  "repetitions": 3,
+  "maxRequestsPerSession": 16,
+  "maxInputBytes": 8388608,
+  "maxOutputTokens": 32768,
+  "repairVisuals": true,
+  "estimatedUsd": 12.83,
+  "estimateMethod": "For each model/fixture use the highest previously billed completed session. For Kimi PR376, with no completion, use its highest other fixture. Sum three repetitions: $4.070786526. Allow a full additional pass for every slot, 50% extra context cost and 5% price cushion: $12.8229775569, rounded up. This is a planning estimate, not a completion guarantee. All paid failures, repairs and retained reservations count; stop at $15, no paid replacements.",
+  "purpose": "Evaluate runner-owned coverage, evidence-rendered Phase 1 diagrams and one bounded repair on the existing frozen failure cases plus small-schema control. Three repetitions, separate ledger; no model substitution, prior-campaign reopening, activation or production deployment."
+}

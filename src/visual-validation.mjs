@@ -2,6 +2,15 @@ import { validateVisualAnalysis, visualDiagramKinds } from "./review.mjs";
 import { renderEvidenceVisuals } from "./relationships.mjs";
 import { sanitizeVisuals, missingRequiredVisuals } from "./visuals.mjs";
 
+export const VISUAL_RELIABILITY_FORMATS = Object.freeze({
+  runner: "phase1-reliability-v1",
+  prompt: "host-graph-selection-v1",
+  evidence: "frozen-evidence-v1",
+  relationships: "visual-relationships-v1",
+  repair: "single-pass-v1",
+  budget: "session-capability-full-context-v1",
+});
+
 export async function validateVisualAttempt(
   value,
   requirements,

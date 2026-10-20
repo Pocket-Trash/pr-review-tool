@@ -13,25 +13,33 @@ import { runRestrictedReview, VISUAL_SKILLS } from "../src/opencode.mjs";
 import { loadChangedFile } from "../src/intake.mjs";
 import { prepareReviewContext } from "../src/context.mjs";
 import { preparedVisualRequirements, visualPrompt } from "../src/visuals.mjs";
+import { VISUAL_RELIABILITY_FORMATS } from "../src/visual-validation.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const json = async (name) =>
   JSON.parse(await readFile(join(root, "evaluation", name), "utf8"));
 const retest = process.argv.includes("--retest");
+const reliability = process.argv.includes("--reliability");
+if (retest && reliability) throw new TypeError("Select one distinct campaign");
 const spec = {
   ...(await json("visual-fixtures.json")),
   ...(retest ? await json("visual-retest-spec.json") : {}),
+  ...(reliability ? await json("visual-reliability-spec.json") : {}),
 };
-const approvedBudget = retest ? 5.08 : 7.89;
+const approvedBudget = reliability ? 15 : retest ? 5.08 : 7.89;
 const approvedSessions = retest ? 9 : 27;
 const approvedRequests = approvedSessions * 16;
 const approvedRepetitions = retest ? 1 : 3;
-const approval = retest
-  ? "owner-approved-5.08-visual-retest-2026-10-20"
-  : "owner-approved-7.89-visuals-2026-10-20";
-const resultsFile = retest
-  ? "visual-retest-results.json"
-  : "visual-results.json";
+const approval = reliability
+  ? "owner-approved-15-visual-reliability-2026-10-20"
+  : retest
+    ? "owner-approved-5.08-visual-retest-2026-10-20"
+    : "owner-approved-7.89-visuals-2026-10-20";
+const resultsFile = reliability
+  ? "visual-reliability-results.json"
+  : retest
+    ? "visual-retest-results.json"
+    : "visual-results.json";
 const matrix = await json("matrix.json");
 const ids = [
   "anthropic/claude-sonnet-5.5",
@@ -45,13 +53,29 @@ if (
   spec.maxSessions !== approvedSessions ||
   spec.maxRequests !== approvedRequests ||
   spec.repetitions !== approvedRepetitions ||
-  spec.approval !== approval
+  spec.approval !== approval ||
+  (reliability &&
+    (spec.repairVisuals !== true ||
+      spec.estimatedUsd > approvedBudget ||
+      spec.maxRequestsPerSession !== 16 ||
+      spec.maxOutputTokens !== 32768 ||
+      spec.maxInputBytes !== 8388608))
 )
   throw new Error(
     `Explicit new $${approvedBudget} visual-only approval and API key required`,
   );
 const path = join(root, "evaluation", resultsFile);
 const resume = process.argv.includes("--resume");
+if (
+  reliability &&
+  execFileSync("git", ["status", "--porcelain", "--untracked-files=no"], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim()
+)
+  throw new Error(
+    "Commit and offline-validate the reliability runner before paid evaluation",
+  );
 const lock = await open(`${path}.lock`, "wx");
 let proxy;
 let ledger;
@@ -73,6 +97,7 @@ try {
       id,
       contextLength: model.context_length,
       maxOutputTokens: 32768,
+      ...(reliability ? { maxInputBytes: spec.maxInputBytes } : {}),
       inputPerMillionUsd: Number(model.pricing.prompt) * 1e6,
       reservedInputPerMillionUsd: Math.max(
         ...[
@@ -96,6 +121,22 @@ try {
       throw new Error(`Invalid model limits/pricing: ${id}`);
     return entry;
   });
+  let creditBefore;
+  if (reliability && !resume) {
+    const response = await fetch("https://openrouter.ai/api/v1/credits", {
+      headers: { authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!response.ok)
+      throw new Error(`Credit preflight HTTP ${response.status}`);
+    const { data } = await response.json();
+    const availableUsd = data.total_credits - data.total_usage;
+    if (!Number.isFinite(availableUsd) || availableUsd < approvedBudget)
+      throw new Error(
+        "Available credits do not fund the approved campaign cap",
+      );
+    creditBefore = { checkedAt: new Date().toISOString(), availableUsd };
+  }
   const initialLedger = {
     runnerSha: execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: root,
@@ -115,6 +156,9 @@ try {
     sessions: [],
     requests: [],
     status: "in-progress",
+    ...(reliability
+      ? { pipelineFormats: VISUAL_RELIABILITY_FORMATS, creditBefore }
+      : {}),
   };
   if (resume) {
     const existing = await json(resultsFile);
@@ -128,7 +172,11 @@ try {
       existing.status !== "in-progress" ||
       JSON.stringify(existing.fixtures) !== JSON.stringify(matrix.fixtures) ||
       existing.models.map((model) => model.id).join() !== ids.join() ||
-      budgetTotal(existing.requests) > approvedBudget
+      budgetTotal(existing.requests) > approvedBudget ||
+      (reliability &&
+        (existing.runnerSha !== initialLedger.runnerSha ||
+          JSON.stringify(existing.pipelineFormats) !==
+            JSON.stringify(VISUAL_RELIABILITY_FORMATS)))
     )
       throw new Error(
         "Resume requires the unchanged interrupted visual campaign",
@@ -279,6 +327,13 @@ try {
           outputFormat: "final-message-v1",
           selectedSkills: [],
           skillOverrides: [],
+          ...(reliability
+            ? {
+                pipelineFormats: VISUAL_RELIABILITY_FORMATS,
+                invocations: 0,
+                usageReports: 0,
+              }
+            : {}),
         };
         ledger.sessions.push(entry);
         await checkpoint();
@@ -309,11 +364,29 @@ try {
             prompt: `Generate descriptive visual-only analysis for ${spec.repository} PR #${fixture.pull}. ${visualPrompt(requirements)}`,
             allowSkillFallback: false,
             maxTransientRetries: 0,
+            repairVisuals: reliability,
+            onVisualValidation: (report) => {
+              if (reliability) entry.visualValidation = report;
+            },
+            onInvocation: () => {
+              if (reliability) entry.invocations++;
+            },
             onSkillsResolved: (skills) => {
               entry.selectedSkills = skills;
             },
             onUsage: (usage) => {
-              entry.usage = usage;
+              if (reliability) entry.usageReports++;
+              if (!entry.usage) entry.usage = usage;
+              else
+                for (const [field, value] of Object.entries(usage)) {
+                  if (
+                    field === "estimatedCostUsd" &&
+                    (value === null || entry.usage[field] === null)
+                  )
+                    entry.usage[field] = null;
+                  else if (value !== null)
+                    entry.usage[field] = (entry.usage[field] ?? 0) + value;
+                }
             },
             onEvidence: (report) => {
               entry.evidence = report;
@@ -371,6 +444,43 @@ try {
 } finally {
   if (proxy) await proxy.close();
   if (ledger) {
+    if (reliability && ledger.creditBefore) {
+      try {
+        const response = await fetch("https://openrouter.ai/api/v1/credits", {
+          headers: {
+            authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          },
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!response.ok) throw new Error("Credit reconciliation unavailable");
+        const { data } = await response.json();
+        const afterUsd = data.total_credits - data.total_usage;
+        if (!Number.isFinite(afterUsd))
+          throw new Error("Invalid credit response");
+        const returnedBilledUsd = ledger.requests.reduce(
+          (sum, request) => sum + (request.costUsd ?? 0),
+          0,
+        );
+        ledger.creditReconciliation = {
+          checkedAt: new Date().toISOString(),
+          beforeUsd: ledger.creditBefore.availableUsd,
+          afterUsd,
+          returnedBilledUsd,
+          outstandingReservations: ledger.requests.filter(
+            (request) => !Number.isFinite(request.costUsd),
+          ).length,
+          deltaMatchesBilled:
+            Math.abs(
+              ledger.creditBefore.availableUsd - afterUsd - returnedBilledUsd,
+            ) < 0.000001,
+        };
+      } catch {
+        ledger.creditReconciliation = {
+          checkedAt: new Date().toISOString(),
+          status: "unavailable; request reservations retained",
+        };
+      }
+    }
     ledger.finishedAt = new Date().toISOString();
     await writeJsonAtomic(path, ledger);
   }

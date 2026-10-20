@@ -10,7 +10,9 @@ import {
   evaluateVisualTrial,
   inspectHistoricalVisuals,
   validateVisualAssessment,
+  renderVisualReliabilityReport,
 } from "../src/visual-evaluation.mjs";
+import { VISUAL_RELIABILITY_FORMATS } from "../src/visual-validation.mjs";
 import { visualRequirements } from "../src/visuals.mjs";
 
 const json = async (path) =>
@@ -51,6 +53,144 @@ const assessment = {
   evidence: ["Frozen fixture: retained active queue and staged shared queue."],
   notes: "Descriptive output matches the supplied source.",
 };
+
+test("reliability campaign has its own $15 approval and refuses mismatched authorization offline", async () => {
+  const spec = await json("../evaluation/visual-reliability-spec.json");
+  assert.equal(spec.budgetUsd, 15);
+  assert.equal(spec.repetitions, 3);
+  assert.equal(spec.maxSessions, 27);
+  assert.equal(spec.maxRequests, 432);
+  assert.ok(spec.estimatedUsd <= 15);
+  assert.equal(spec.repairVisuals, true);
+  const child = spawnSync(
+    process.execPath,
+    ["scripts/evaluate-visuals.mjs", "--reliability"],
+    {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        OPENROUTER_API_KEY: "not-a-real-key",
+        EVALUATION_BUDGET_USD: "5.08",
+      },
+    },
+  );
+  assert.notEqual(child.status, 0);
+  assert.match(child.stderr, /Explicit new \$15 visual-only approval/);
+});
+
+test("reliability gates require current host evidence and complete invocation telemetry", async () => {
+  const valid = {
+    ...row,
+    pipelineFormats: VISUAL_RELIABILITY_FORMATS,
+    evidence: { version: "frozen-evidence-v1" },
+    visualValidation: {
+      version: "visual-validation-v1",
+      relationshipCatalog: {
+        version: "visual-relationships-v1",
+        sha256: "c".repeat(64),
+      },
+      attempts: [{ attempt: 0, missing: [] }],
+    },
+    invocations: 1,
+    usageReports: 1,
+  };
+  assert.equal(
+    (
+      await evaluateVisualTrial(
+        valid,
+        { ...requirements, reliability: true },
+        assessment,
+      )
+    ).passes,
+    true,
+  );
+  for (const change of [
+    { pipelineFormats: undefined },
+    { evidence: undefined },
+    { visualValidation: undefined },
+    { invocations: undefined, usageReports: undefined },
+    { invocations: 2, usageReports: 1 },
+  ])
+    assert.equal(
+      (
+        await evaluateVisualTrial(
+          { ...valid, ...change },
+          { ...requirements, reliability: true },
+          assessment,
+        )
+      ).status,
+      "ineligible",
+    );
+});
+
+test("reliability report separates unassessed structured output, repairs, budget limits and unstarted slots", async () => {
+  const base = await json("../evaluation/visual-fixtures.json");
+  const spec = {
+    ...base,
+    ...(await json("../evaluation/visual-reliability-spec.json")),
+  };
+  const models = [{ id: "anthropic/claude-sonnet-5.5" }];
+  const sessions = [
+    {
+      ...row,
+      id: "complete",
+      model: models[0].id,
+      pull: 403,
+      visualValidation: { attempts: [{}, {}] },
+    },
+    { id: "limited", model: models[0].id, pull: 403, status: "budget-limited" },
+    {
+      id: "deferred",
+      model: models[0].id,
+      pull: 403,
+      status: "deferred-unstarted",
+    },
+  ];
+  const requests = [
+    { session: "complete", status: "complete", costUsd: 0.1 },
+    { session: "limited", status: "complete", costUsd: 0.1 },
+  ];
+  const fixtures = [
+    { pull: 403, baseSha: requirements.baseSha, headSha: requirements.headSha },
+  ];
+  const report = await renderVisualReliabilityReport(
+    { models, sessions, requests },
+    spec,
+    fixtures,
+    { runs: {} },
+  );
+  assert.match(
+    report,
+    /complete \| success \| yes \| yes \| unassessed \| no \| N\/A/,
+  );
+  assert.match(
+    report,
+    /claude-sonnet-5\.5 \| 1 \/ 9 \| 1 \| 1 \| 0 \| 7 \| 0 \| 1 \| N\/A/,
+  );
+  assert.match(report, /Source assessment pending; not a visual pass/);
+});
+
+test("reliability report is deterministic and offline", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "reliability-report-"));
+  try {
+    const output = join(directory, "report.md");
+    const child = spawnSync(
+      process.execPath,
+      ["scripts/render-visual-reliability-report.mjs", output],
+      { encoding: "utf8", env: { PATH: process.env.PATH } },
+    );
+    assert.equal(child.status, 0, child.stderr);
+    assert.equal(
+      await readFile(output, "utf8"),
+      await readFile(
+        new URL("../evaluation/visual-reliability-report.md", import.meta.url),
+        "utf8",
+      ),
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("paid visual runner refuses missing campaign approval before touching the ledger", async () => {
   const child = spawnSync(process.execPath, ["scripts/evaluate-visuals.mjs"], {

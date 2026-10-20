@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cp, mkdtemp, opendir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -404,6 +405,22 @@ export async function runRestrictedReview({
       relationships: visualOnly && visualPhase === 1,
     });
     const allEvents = [];
+    const relationshipCatalog = evidence?.relationships
+      ? {
+          version: evidence.relationships.version,
+          sha256: createHash("sha256")
+            .update(JSON.stringify(evidence.relationships))
+            .digest("hex"),
+          nodes: evidence.relationships.nodes.length,
+          relationships: evidence.relationships.relationships.length,
+        }
+      : undefined;
+    const validationReport = (attempts) =>
+      onVisualValidation({
+        version: "visual-validation-v1",
+        relationshipCatalog,
+        attempts,
+      });
     const invoke = async (activeSkills, repairPrompt = "") => {
       const contract =
         (visualOnly
@@ -539,7 +556,7 @@ export async function runRestrictedReview({
           missing: result.missing,
         },
       ];
-      onVisualValidation({ version: "visual-validation-v1", attempts });
+      validationReport(attempts);
       let finalEvidence = initial.evidenceReport;
       if (result.missing.length && repairVisuals && !repairAttempted) {
         repairAttempted = true;
@@ -557,7 +574,7 @@ export async function runRestrictedReview({
             missing: result.missing,
             diagnostics: [{ code: "repair-invocation-failed" }],
           });
-          onVisualValidation({ version: "visual-validation-v1", attempts });
+          validationReport(attempts);
           throw error;
         }
         finalEvidence = repair.evidenceReport;
@@ -592,7 +609,7 @@ export async function runRestrictedReview({
           diagnostics: repaired.diagnostics,
           missing: result.missing,
         });
-        onVisualValidation({ version: "visual-validation-v1", attempts });
+        validationReport(attempts);
       }
       if (result.missing.length) throw visualFailure(attempts);
       result.review.coverageGaps = [

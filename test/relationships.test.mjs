@@ -190,3 +190,21 @@ test("unknown overrides and dynamic uniqueness cannot prove cardinalities", () =
     catalog.omissions.some((gap) => gap.includes("dynamic constraints")),
   );
 });
+
+test("relationship evidence is bounded and never contains executable source text", () => {
+  const catalog = build(
+    Array.from(
+      { length: 1500 },
+      (_, i) => `const item${i}=service("node${i}");`,
+    ).join("\n"),
+    "queue.ts",
+  );
+  assert.ok(catalog.nodes.length <= 512);
+  assert.ok(Buffer.byteLength(JSON.stringify(catalog)) <= 256 * 1024);
+  assert.ok(
+    catalog.omissions.some((gap) =>
+      gap.includes("Bounded relationship catalogue omitted"),
+    ),
+  );
+  assert.doesNotMatch(JSON.stringify(catalog), /const item|service\(/);
+});
