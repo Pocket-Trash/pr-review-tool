@@ -59,9 +59,13 @@ test("repair rechecks runner-owned relationship IDs before rendering", async () 
     );
     for (const invent of [true, false]) {
       let calls = 0;
+      let validation;
       const run = runRestrictedReview({
         ...options,
         workspace,
+        onVisualValidation: (report) => {
+          validation = report;
+        },
         execute: async (_command, _args, settings) => {
           calls++;
           if (calls === 1) return output(value([]));
@@ -84,12 +88,16 @@ test("repair rechecks runner-owned relationship IDs before rendering", async () 
           );
         },
       });
-      if (invent)
+      if (invent) {
         await assert.rejects(
           run,
           (error) => error.code === "VISUAL_REQUIRED_MISSING",
         );
-      else {
+        assert.equal(
+          validation.attempts.at(-1).diagnostics[0].reason,
+          "Diagram contains unmatched relationship evidence",
+        );
+      } else {
         const result = await run;
         assert.match(result.diagrams[0].mermaid, /source-call/);
       }

@@ -251,3 +251,44 @@ test("an unsupported extra target index cannot erase a proven primary key", () =
   assert.equal(edges.length, 1);
   assert.equal(edges[0].optional, false);
 });
+
+test("required flowcharts cannot turn a node-only selection into a relationship diagram", () => {
+  const catalog = build();
+  assert.throws(
+    () =>
+      renderEvidenceVisuals(
+        {
+          diagrams: [
+            diagram(catalog, { kind: "schema-domain", relationshipIds: [] }),
+          ],
+        },
+        catalog,
+      ),
+    /Invalid evidence diagram selection/,
+  );
+  assert.equal(
+    renderEvidenceVisuals(
+      { diagrams: [diagram(catalog, { relationshipIds: [] })] },
+      catalog,
+    ).diagrams.length,
+    1,
+  );
+  const calls = build('const queue=service("queue");', "queue.ts");
+  assert.throws(
+    () =>
+      renderEvidenceVisuals(
+        {
+          diagrams: [
+            {
+              kind: "architecture",
+              title: "No edges",
+              nodeIds: calls.nodes.map((n) => n.id),
+              relationshipIds: [],
+            },
+          ],
+        },
+        calls,
+      ),
+    /Invalid evidence diagram selection/,
+  );
+});

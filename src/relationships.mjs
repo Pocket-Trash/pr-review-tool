@@ -604,6 +604,7 @@ export function renderEvidenceVisuals(value, catalog) {
       diagram.nodeIds.length > 32 ||
       new Set(diagram.nodeIds).size !== diagram.nodeIds.length ||
       !Array.isArray(diagram.relationshipIds) ||
+      (diagram.kind !== "schema-er" && diagram.relationshipIds.length === 0) ||
       diagram.relationshipIds.length > 64 ||
       new Set(diagram.relationshipIds).size !== diagram.relationshipIds.length
     )

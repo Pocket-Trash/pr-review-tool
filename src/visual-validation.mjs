@@ -30,12 +30,20 @@ export async function validateVisualAttempt(
         : candidate;
       validateVisualAnalysis(rendered, phase);
       diagrams.push(...rendered.diagrams);
-    } catch {
+    } catch (error) {
       diagnostics.push({
         kind: visualDiagramKinds(phase).includes(diagram?.kind)
           ? diagram.kind
           : "unknown",
         code: "evidence-or-contract",
+        reason: [
+          "Invalid evidence diagram selection",
+          "Diagram contains unmatched relationship evidence",
+          "Diagram evidence kind mismatch",
+          "Ambiguous entity names",
+        ].includes(error.message)
+          ? error.message
+          : "Invalid diagram contract",
       });
     }
   }
