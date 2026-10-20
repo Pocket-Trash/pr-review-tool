@@ -10,6 +10,56 @@ export function budgetTotal(requests) {
   }, 0);
 }
 
+export function evaluationReservation(
+  model,
+  outputTokens = model.maxOutputTokens ?? 32768,
+) {
+  for (const [field, value] of Object.entries({
+    contextLength: model.contextLength,
+    maxOutputTokens: outputTokens,
+    maxInputBytes: model.maxInputBytes ?? 8 * 1024 * 1024,
+  }))
+    if (!Number.isSafeInteger(value) || value < 1)
+      throw new TypeError(`Invalid ${field}`);
+  const inputRate = Math.max(
+    model.inputPerMillionUsd,
+    model.reservedInputPerMillionUsd ?? model.inputPerMillionUsd,
+  );
+  for (const rate of [
+    inputRate,
+    model.inputPerMillionUsd,
+    model.outputPerMillionUsd,
+    model.reservedInputPerMillionUsd ?? model.inputPerMillionUsd,
+  ])
+    if (!Number.isFinite(rate) || rate < 0)
+      throw new TypeError("Invalid model price");
+  const reservedUsd =
+    ((model.contextLength * inputRate +
+      outputTokens * model.outputPerMillionUsd) /
+      1e6) *
+    1.01;
+  if (!Number.isFinite(reservedUsd)) throw new TypeError("Invalid reservation");
+  // shortcut: provider framing/tokenization is not proven; retain the full context until a bound is verified.
+  return {
+    reservedUsd,
+    inputReservationTokens: model.contextLength,
+    reservationMethod: "full-model-context-v1",
+    maxOutputTokens: outputTokens,
+  };
+}
+
+export function evaluationOutputLimit(model, body) {
+  const values = [
+    32768,
+    model.maxOutputTokens,
+    body.max_tokens,
+    body.max_completion_tokens,
+  ].filter((value) => value !== undefined);
+  if (values.some((value) => !Number.isSafeInteger(value) || value < 1))
+    throw new TypeError("Invalid output limit");
+  return Math.min(...values);
+}
+
 export async function reconcileInterruptedEvaluation(ledger, receiptFor) {
   const pending = ledger.requests.filter((request) =>
     ["in-progress", "interrupted", "unmetered"].includes(request.status),
@@ -66,6 +116,15 @@ export async function startEvaluationProxy({
       (!Number.isInteger(ledger[field]) || ledger[field] < 1)
     )
       throw new TypeError(`Invalid ${field}`);
+  if (!Number.isFinite(ledger.budgetUsd) || ledger.budgetUsd < 0)
+    throw new TypeError("Invalid evaluation budget");
+  if (
+    !models.length ||
+    new Set(models.map((model) => model.id)).size !== models.length ||
+    models.some((model) => typeof model.id !== "string" || !model.id.trim())
+  )
+    throw new TypeError("Invalid evaluation models");
+  for (const model of models) evaluationReservation(model);
   const token = randomUUID();
   const control = {
     session: null,
@@ -102,42 +161,80 @@ export async function startEvaluationProxy({
       )
         return fail(403, "Unsupported evaluation request");
       let raw = "";
+      request.setEncoding("utf8");
       for await (const chunk of request) {
         raw += chunk;
         if (Buffer.byteLength(raw) > 8 * 1024 * 1024)
           return fail(413, "Evaluation request exceeds input limit");
       }
-      const body = JSON.parse(raw);
+      let body;
+      try {
+        body = JSON.parse(raw);
+      } catch {
+        return fail(400, "Invalid evaluation JSON");
+      }
+      if (
+        !body ||
+        typeof body !== "object" ||
+        Array.isArray(body) ||
+        !Array.isArray(body.messages)
+      )
+        return fail(400, "Invalid evaluation request");
       const model = models.find((model) => model.id === body.model);
       if (
         !model ||
         !control.session ||
         (body.n !== undefined && body.n !== 1) ||
+        (body.modalities !== undefined &&
+          (!Array.isArray(body.modalities) ||
+            body.modalities.some((value) => value !== "text"))) ||
+        body.audio !== undefined ||
         body.messages?.some(
           (message) =>
-            Array.isArray(message.content) &&
-            message.content.some(
-              (part) => !["text", "reasoning"].includes(part.type),
-            ),
+            !message ||
+            typeof message !== "object" ||
+            (message.content != null &&
+              typeof message.content !== "string" &&
+              !Array.isArray(message.content)) ||
+            (Array.isArray(message.content) &&
+              message.content.some(
+                (part) =>
+                  !part ||
+                  !["text", "reasoning"].includes(part.type) ||
+                  typeof part.text !== "string",
+              )),
         )
       )
         return fail(403, "Unsupported evaluation model or modality");
-      const outputTokens = Math.min(
-        32768,
-        model.maxOutputTokens ||
-          body.max_tokens ||
-          body.max_completion_tokens ||
-          32768,
-      );
-      if (!Number.isInteger(outputTokens) || outputTokens < 1)
+      let outputTokens;
+      try {
+        outputTokens = evaluationOutputLimit(model, body);
+      } catch {
         return fail(400, "Invalid output limit");
-      // Reserve full model context at uncached price plus capped output, not a guessed prompt size.
-      const reservedUsd =
-        ((model.contextLength *
-          (model.reservedInputPerMillionUsd ?? model.inputPerMillionUsd) +
-          outputTokens * model.outputPerMillionUsd) /
-          1e6) *
-        1.01;
+      }
+      const reservation = evaluationReservation(model, outputTokens);
+      const { reservedUsd } = reservation;
+      const upstreamBody = JSON.stringify({
+        ...body,
+        max_tokens: outputTokens,
+        max_completion_tokens: undefined,
+        models: undefined,
+        route: undefined,
+        plugins: [],
+        provider: {
+          sort: "price",
+          max_price: {
+            prompt: model.inputPerMillionUsd,
+            completion: model.outputPerMillionUsd,
+          },
+          require_parameters: true,
+        },
+        usage: { include: true },
+        ...(body.stream ? { stream_options: { include_usage: true } } : {}),
+      });
+      const requestBytes = Buffer.byteLength(upstreamBody);
+      if (requestBytes > (model.maxInputBytes ?? 8 * 1024 * 1024))
+        return fail(413, "Evaluation request exceeds approved byte limit");
       if (
         control.blocked ||
         ledger.requests.length >= (ledger.maxRequests ?? Infinity) ||
@@ -156,8 +253,8 @@ export async function startEvaluationProxy({
         session: control.session,
         model: model.id,
         status: "in-progress",
-        reservedUsd,
-        maxOutputTokens: outputTokens,
+        ...reservation,
+        requestBytes,
       };
       ledger.requests.push(entry);
       await save();
@@ -175,24 +272,7 @@ export async function startEvaluationProxy({
             authorization: `Bearer ${apiKey}`,
             "content-type": "application/json",
           },
-          body: JSON.stringify({
-            ...body,
-            max_tokens: outputTokens,
-            max_completion_tokens: undefined,
-            models: undefined,
-            route: undefined,
-            plugins: [],
-            provider: {
-              sort: "price",
-              max_price: {
-                prompt: model.inputPerMillionUsd,
-                completion: model.outputPerMillionUsd,
-              },
-              require_parameters: true,
-            },
-            usage: { include: true },
-            ...(body.stream ? { stream_options: { include_usage: true } } : {}),
-          }),
+          body: upstreamBody,
         },
       );
       if (!upstream.ok) {

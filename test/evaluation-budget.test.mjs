@@ -4,6 +4,7 @@ import {
   budgetTotal,
   startEvaluationProxy,
   reconcileInterruptedEvaluation,
+  evaluationReservation,
 } from "../src/evaluation-budget.mjs";
 
 const model = {
@@ -208,10 +209,10 @@ test("missing billing metadata stops further requests with the full reservation 
   }
 });
 
-test("explicit campaign output allowance overrides a lower SDK default and is reserved", async () => {
+test("smaller request output ceiling is enforced and reserved instead of expanded", async () => {
   const h = await harness(
     async (_url, options) => {
-      assert.equal(JSON.parse(options.body).max_tokens, 32768);
+      assert.equal(JSON.parse(options.body).max_tokens, 16384);
       return new Response('{"usage":{"cost":0.01}}');
     },
     1,
@@ -219,8 +220,79 @@ test("explicit campaign output allowance overrides a lower SDK default and is re
   );
   try {
     await (await h.request({ max_tokens: 16384 })).text();
-    assert.equal(h.ledger.requests[0].maxOutputTokens, 32768);
-    assert.ok(h.ledger.requests[0].reservedUsd > 0.16);
+    assert.equal(h.ledger.requests[0].maxOutputTokens, 16384);
+    assert.equal(
+      h.ledger.requests[0].reservationMethod,
+      "full-model-context-v1",
+    );
+    assert.equal(
+      h.ledger.requests[0].inputReservationTokens,
+      model.contextLength,
+    );
+    assert.ok(h.ledger.requests[0].reservedUsd < 0.16);
+  } finally {
+    await h.proxy.close();
+  }
+});
+
+test("malformed limits and non-text requests cannot spend", async () => {
+  let calls = 0;
+  const h = await harness(async () => {
+    calls++;
+    return new Response('{"usage":{"cost":0}}');
+  });
+  try {
+    for (const max_tokens of [0, -1, 1.5, "100", null])
+      assert.equal((await h.request({ max_tokens })).status, 400);
+    assert.equal((await h.request({ max_completion_tokens: 0 })).status, 400);
+    assert.equal((await h.request({ messages: {} })).status, 400);
+    assert.equal((await h.request({ messages: [null] })).status, 403);
+    assert.equal((await h.request({ modalities: ["image"] })).status, 403);
+    assert.equal(calls, 0);
+    assert.equal(h.ledger.requests.length, 0);
+  } finally {
+    await h.proxy.close();
+  }
+  for (const limits of [
+    { contextLength: NaN },
+    { maxOutputTokens: 0 },
+    { reservedInputPerMillionUsd: -1 },
+    { maxInputBytes: 0 },
+  ]) {
+    assert.throws(
+      () => evaluationReservation({ ...model, ...limits }),
+      /Invalid/,
+    );
+  }
+});
+
+test("byte cap includes Unicode tools and proxy framing without claiming a token estimate", async () => {
+  let calls = 0;
+  const h = await harness(
+    async () => {
+      calls++;
+      return new Response('{"usage":{"cost":0}}');
+    },
+    1,
+    { maxInputBytes: 400 },
+  );
+  try {
+    assert.equal(
+      (
+        await h.request({
+          messages: [{ role: "user", content: "漢".repeat(200) }],
+          tools: [
+            {
+              type: "function",
+              function: { name: "read", description: "x".repeat(100) },
+            },
+          ],
+        })
+      ).status,
+      413,
+    );
+    assert.equal(calls, 0);
+    assert.equal(h.ledger.requests.length, 0);
   } finally {
     await h.proxy.close();
   }

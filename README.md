@@ -59,6 +59,8 @@ The separately approved [$5.08 source-grounding retest](evaluation/visual-retest
 
 The coordinator now requests source anchors, explicit infrastructure bindings and constraint-derived ER cardinalities, and distinguishes unread from unavailable evidence. This corrects generic instructions after that campaign; its results remain evidence for the earlier prompt. Offline tests verify the instructions and contracts, not improved model accuracy. Fresh paid validation and owner route approval remain required before adoption.
 
+Evaluation requests enforce the smaller request/campaign output ceiling and a UTF-8 byte limit on the complete forwarded request, including tools and proxy routing fields. Unsupported modalities and malformed limits fail before upstream calls. Input reservations still use the full model context at the highest configured input/cache-write rate: neither the SDK context setting nor a byte limit proves a tighter provider token bound. Request records identify that conservative fallback; no smaller input reservation is claimed or enabled.
+
 ### Phase 2 development (not activated)
 
 Trusted local visual configuration can opt into `"visualPhase": 2` for conditional sequence diagrams. Source interaction changes may request one `sequenceDiagram`, with source-symbol participants and file/line message anchors. The coordinator must distinguish awaited order from concurrent work and omit unverified runtime steps. Syntax safety is not semantic proof: invented participants or ordering fail the source-assessment gate even when Mermaid parses.
