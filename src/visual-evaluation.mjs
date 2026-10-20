@@ -161,12 +161,19 @@ export async function renderVisualReliabilityReport(
 ) {
   const sessions = ledger?.sessions ?? [];
   const requests = ledger?.requests ?? [];
+  const prefix = spec.sharedBudget ? "visual-corrected" : "visual-reliability";
   const lines = [
     "# Phase 1 visual reliability evaluation",
     "",
     `Campaign: ${spec.approval}. Status: ${ledger?.status ?? "approved, not run"}. Cap: $${spec.budgetUsd}, including paid failures, repairs and retained reservations. ${sessions.length}/${spec.maxSessions} slots recorded; ${requests.length}/${spec.maxRequests} requests. Accounted: $${budgetTotal(requests).toFixed(6)}. No paid replacements.`,
     "",
-    "[Results and request billing](visual-reliability-results.json) · [Source assessments](visual-reliability-assessments.json)",
+    `[Results and request billing](${prefix}-results.json) · [Source assessments](${prefix}-assessments.json)`,
+    ...(spec.sharedBudget
+      ? [
+          "",
+          `Shared approval: $${spec.sharedBudget.totalCapUsd} total. Frozen v1 debit: $${spec.sharedBudget.priorAccountedUsd}. Combined accounted: $${(spec.sharedBudget.priorAccountedUsd + budgetTotal(requests)).toFixed(6)}. The corrected allowance is not another $18.`,
+        ]
+      : []),
     "",
     `Planning estimate: $${spec.estimatedUsd}. ${spec.estimateMethod}`,
     "",

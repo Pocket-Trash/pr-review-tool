@@ -1,5 +1,38 @@
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+
+export function correctedCampaignBudget(parentText, spec) {
+  const parent = JSON.parse(parentText);
+  const shared = spec.sharedBudget;
+  const priorAccountedUsd = budgetTotal(parent.requests);
+  if (
+    shared?.totalCapUsd !== 18 ||
+    createHash("sha256").update(parentText).digest("hex") !==
+      shared.parentSha256 ||
+    parent.campaign !== shared.parentCampaign ||
+    !["completed", "stopped-at-guard"].includes(parent.status) ||
+    !parent.finishedAt ||
+    parent.requests.some((request) => !Number.isFinite(request.costUsd)) ||
+    parent.creditReconciliation?.deltaMatchesBilled !== true ||
+    parent.creditReconciliation?.outstandingReservations !== 0 ||
+    !Number.isFinite(shared.priorAccountedUsd) ||
+    Math.abs(priorAccountedUsd - shared.priorAccountedUsd) > 1e-9 ||
+    !Number.isFinite(spec.budgetUsd) ||
+    spec.budgetUsd <= 0 ||
+    spec.budgetUsd + priorAccountedUsd > shared.totalCapUsd + 1e-9
+  )
+    throw new Error(
+      "Corrected campaign requires the frozen settled parent and shared $18 cap",
+    );
+  return {
+    ...shared,
+    priorAccountedUsd,
+    remainingUsd: Math.min(
+      spec.budgetUsd,
+      shared.totalCapUsd - priorAccountedUsd,
+    ),
+  };
+}
 
 export function budgetTotal(requests) {
   return requests.reduce((total, request) => {

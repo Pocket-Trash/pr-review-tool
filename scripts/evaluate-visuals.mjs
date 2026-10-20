@@ -7,6 +7,7 @@ import {
   startEvaluationProxy,
   budgetTotal,
   reconcileInterruptedEvaluation,
+  correctedCampaignBudget,
 } from "../src/evaluation-budget.mjs";
 import { writeJsonAtomic } from "../src/evaluation.mjs";
 import { runRestrictedReview, VISUAL_SKILLS } from "../src/opencode.mjs";
@@ -19,27 +20,55 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const json = async (name) =>
   JSON.parse(await readFile(join(root, "evaluation", name), "utf8"));
 const retest = process.argv.includes("--retest");
-const reliability = process.argv.includes("--reliability");
+const corrected = process.argv.includes("--corrected");
+const reliability = process.argv.includes("--reliability") || corrected;
+if (corrected && process.argv.includes("--reliability"))
+  throw new TypeError("Select one distinct campaign");
 if (retest && reliability) throw new TypeError("Select one distinct campaign");
 const spec = {
   ...(await json("visual-fixtures.json")),
   ...(retest ? await json("visual-retest-spec.json") : {}),
-  ...(reliability ? await json("visual-reliability-spec.json") : {}),
+  ...(reliability
+    ? await json(
+        corrected
+          ? "visual-corrected-spec.json"
+          : "visual-reliability-spec.json",
+      )
+    : {}),
 };
-const approvedBudget = reliability ? 15 : retest ? 5.08 : 7.89;
+const sharedBudget = corrected
+  ? correctedCampaignBudget(
+      await readFile(
+        join(root, "evaluation/visual-reliability-results.json"),
+        "utf8",
+      ),
+      spec,
+    )
+  : undefined;
+const approvedBudget = corrected
+  ? sharedBudget.remainingUsd
+  : reliability
+    ? 15
+    : retest
+      ? 5.08
+      : 7.89;
 const approvedSessions = retest ? 9 : 27;
 const approvedRequests = approvedSessions * 16;
 const approvedRepetitions = retest ? 1 : 3;
-const approval = reliability
-  ? "owner-approved-15-visual-reliability-2026-10-20"
-  : retest
-    ? "owner-approved-5.08-visual-retest-2026-10-20"
-    : "owner-approved-7.89-visuals-2026-10-20";
-const resultsFile = reliability
-  ? "visual-reliability-results.json"
-  : retest
-    ? "visual-retest-results.json"
-    : "visual-results.json";
+const approval = corrected
+  ? "owner-approved-18-combined-visual-corrected-2026-10-20"
+  : reliability
+    ? "owner-approved-15-visual-reliability-2026-10-20"
+    : retest
+      ? "owner-approved-5.08-visual-retest-2026-10-20"
+      : "owner-approved-7.89-visuals-2026-10-20";
+const resultsFile = corrected
+  ? "visual-corrected-results.json"
+  : reliability
+    ? "visual-reliability-results.json"
+    : retest
+      ? "visual-retest-results.json"
+      : "visual-results.json";
 const matrix = await json("matrix.json");
 const ids = [
   "anthropic/claude-sonnet-5.5",
@@ -47,9 +76,11 @@ const ids = [
   "z-ai/glm-5.3",
 ];
 if (
-  process.env.EVALUATION_BUDGET_USD !== String(approvedBudget) ||
+  process.env.EVALUATION_BUDGET_USD !==
+    String(corrected ? 18 : approvedBudget) ||
   !process.env.OPENROUTER_API_KEY ||
-  spec.budgetUsd !== approvedBudget ||
+  !Number.isFinite(spec.budgetUsd) ||
+  Math.abs(spec.budgetUsd - approvedBudget) > 1e-9 ||
   spec.maxSessions !== approvedSessions ||
   spec.maxRequests !== approvedRequests ||
   spec.repetitions !== approvedRepetitions ||
@@ -62,7 +93,7 @@ if (
       spec.maxInputBytes !== 8388608))
 )
   throw new Error(
-    `Explicit new $${approvedBudget} visual-only approval and API key required`,
+    `Explicit new $${corrected ? 18 : approvedBudget} visual-only approval and API key required`,
   );
 if (
   reliability &&
@@ -155,6 +186,7 @@ try {
     task: "visuals",
     visualPhase: 1,
     budgetUsd: approvedBudget,
+    ...(corrected ? { sharedBudget } : {}),
     maxSessions: approvedSessions,
     maxRequests: approvedRequests,
     maxRequestsPerSession: 16,
@@ -179,6 +211,9 @@ try {
       existing.repetitions !== approvedRepetitions ||
       existing.maxRequestsPerSession !== 16 ||
       existing.status !== "in-progress" ||
+      (corrected &&
+        JSON.stringify(existing.sharedBudget) !==
+          JSON.stringify(sharedBudget)) ||
       JSON.stringify(existing.fixtures) !== JSON.stringify(matrix.fixtures) ||
       existing.models.map((model) => model.id).join() !== ids.join() ||
       budgetTotal(existing.requests) > approvedBudget ||
@@ -308,131 +343,130 @@ try {
     ledger,
     checkpoint,
   });
-  for (let repetition = 1; repetition <= approvedRepetitions; repetition++) {
-    for (const { fixture, requirements, context } of contexts) {
-      for (const model of models) {
-        if (
-          proxy.blocked ||
-          ledger.requests.length >= ledger.maxRequests ||
-          ledger.sessions.length >= ledger.maxSessions ||
-          budgetTotal(ledger.requests) >= ledger.budgetUsd
+  const slots = [];
+  for (let repetition = 1; repetition <= approvedRepetitions; repetition++)
+    for (const context of contexts)
+      for (const model of models) slots.push({ repetition, ...context, model });
+  // Expensive candidates run first so conservative full-context reserves retain headroom.
+  if (corrected)
+    slots.sort((a, b) => ids.indexOf(a.model.id) - ids.indexOf(b.model.id));
+  for (const { repetition, fixture, requirements, context, model } of slots) {
+    if (
+      proxy.blocked ||
+      ledger.requests.length >= ledger.maxRequests ||
+      ledger.sessions.length >= ledger.maxSessions ||
+      budgetTotal(ledger.requests) >= ledger.budgetUsd
+    )
+      break;
+    const id = `visuals:${model.id}:pr${fixture.pull}:${repetition}`;
+    if (ledger.sessions.some((session) => session.id === id)) continue;
+    const entry = {
+      id,
+      task: "visuals",
+      visualPhase: 1,
+      provider: "openrouter",
+      model: model.id,
+      pull: fixture.pull,
+      baseSha: fixture.baseSha,
+      headSha: fixture.headSha,
+      repetition,
+      status: "planned",
+      contextFormat: "plain-text-v1",
+      validatorFormat: "node-dom-v1",
+      outputFormat: "final-message-v1",
+      selectedSkills: [],
+      skillOverrides: [],
+      ...(reliability
+        ? {
+            pipelineFormats: VISUAL_RELIABILITY_FORMATS,
+            invocations: 0,
+            usageReports: 0,
+          }
+        : {}),
+    };
+    ledger.sessions.push(entry);
+    await checkpoint();
+    const sessionToken = proxy.authorizeSession(id);
+    const workspace = await mkdtemp(join(tmpdir(), "pr-visual-evaluation-"));
+    const started = Date.now();
+    try {
+      await writeFile(
+        join(workspace, "pull-request.json"),
+        JSON.stringify(context),
+      );
+      entry.review = await runRestrictedReview({
+        task: "visuals",
+        visualPhase: 1,
+        provider: "openrouter",
+        model: model.id,
+        apiKey: sessionToken,
+        openRouterBaseURL: proxy.baseURL,
+        openRouterModelLimits: {
+          context: model.contextLength,
+          output: model.maxOutputTokens,
+        },
+        workspace,
+        skills: VISUAL_SKILLS,
+        visualRequirements: requirements,
+        prompt: `Generate descriptive visual-only analysis for ${spec.repository} PR #${fixture.pull}. ${visualPrompt(requirements)}`,
+        allowSkillFallback: false,
+        maxTransientRetries: 0,
+        repairVisuals: reliability,
+        onVisualValidation: (report) => {
+          if (reliability) entry.visualValidation = report;
+        },
+        onInvocation: () => {
+          if (reliability) entry.invocations++;
+        },
+        onSkillsResolved: (skills) => {
+          entry.selectedSkills = skills;
+        },
+        onUsage: (usage) => {
+          if (reliability) entry.usageReports++;
+          if (!entry.usage) entry.usage = usage;
+          else
+            for (const [field, value] of Object.entries(usage)) {
+              if (
+                field === "estimatedCostUsd" &&
+                (value === null || entry.usage[field] === null)
+              )
+                entry.usage[field] = null;
+              else if (value !== null)
+                entry.usage[field] = (entry.usage[field] ?? 0) + value;
+            }
+        },
+        onEvidence: (report) => {
+          entry.evidence = report;
+        },
+      });
+      entry.review.coverageGaps.push(...context.omissions);
+      entry.status = "success";
+    } catch (error) {
+      if (
+        !["deferred-unstarted", "budget-limited", "request-limited"].includes(
+          entry.status,
         )
-          break;
-        const id = `visuals:${model.id}:pr${fixture.pull}:${repetition}`;
-        if (ledger.sessions.some((session) => session.id === id)) continue;
-        const entry = {
-          id,
-          task: "visuals",
-          visualPhase: 1,
-          provider: "openrouter",
-          model: model.id,
-          pull: fixture.pull,
-          baseSha: fixture.baseSha,
-          headSha: fixture.headSha,
-          repetition,
-          status: "planned",
-          contextFormat: "plain-text-v1",
-          validatorFormat: "node-dom-v1",
-          outputFormat: "final-message-v1",
-          selectedSkills: [],
-          skillOverrides: [],
-          ...(reliability
-            ? {
-                pipelineFormats: VISUAL_RELIABILITY_FORMATS,
-                invocations: 0,
-                usageReports: 0,
-              }
-            : {}),
-        };
-        ledger.sessions.push(entry);
-        await checkpoint();
-        const sessionToken = proxy.authorizeSession(id);
-        const workspace = await mkdtemp(
-          join(tmpdir(), "pr-visual-evaluation-"),
-        );
-        const started = Date.now();
-        try {
-          await writeFile(
-            join(workspace, "pull-request.json"),
-            JSON.stringify(context),
-          );
-          entry.review = await runRestrictedReview({
-            task: "visuals",
-            visualPhase: 1,
-            provider: "openrouter",
-            model: model.id,
-            apiKey: sessionToken,
-            openRouterBaseURL: proxy.baseURL,
-            openRouterModelLimits: {
-              context: model.contextLength,
-              output: model.maxOutputTokens,
-            },
-            workspace,
-            skills: VISUAL_SKILLS,
-            visualRequirements: requirements,
-            prompt: `Generate descriptive visual-only analysis for ${spec.repository} PR #${fixture.pull}. ${visualPrompt(requirements)}`,
-            allowSkillFallback: false,
-            maxTransientRetries: 0,
-            repairVisuals: reliability,
-            onVisualValidation: (report) => {
-              if (reliability) entry.visualValidation = report;
-            },
-            onInvocation: () => {
-              if (reliability) entry.invocations++;
-            },
-            onSkillsResolved: (skills) => {
-              entry.selectedSkills = skills;
-            },
-            onUsage: (usage) => {
-              if (reliability) entry.usageReports++;
-              if (!entry.usage) entry.usage = usage;
-              else
-                for (const [field, value] of Object.entries(usage)) {
-                  if (
-                    field === "estimatedCostUsd" &&
-                    (value === null || entry.usage[field] === null)
-                  )
-                    entry.usage[field] = null;
-                  else if (value !== null)
-                    entry.usage[field] = (entry.usage[field] ?? 0) + value;
-                }
-            },
-            onEvidence: (report) => {
-              entry.evidence = report;
-            },
-          });
-          entry.review.coverageGaps.push(...context.omissions);
-          entry.status = "success";
-        } catch (error) {
-          if (
-            ![
-              "deferred-unstarted",
-              "budget-limited",
-              "request-limited",
-            ].includes(entry.status)
-          )
-            entry.status = "error";
-          entry.error = error.message.slice(0, 1000);
-        } finally {
-          entry.latencyMs = Date.now() - started;
-          await proxy.finishSession(id);
-          await rm(workspace, { recursive: true, force: true });
-          await checkpoint();
-        }
-        const requests = ledger.requests.filter(
-          (request) => request.session === id,
-        );
-        console.log(
-          JSON.stringify({
-            id,
-            status: entry.status,
-            requests: requests.length,
-            accountedUsd: budgetTotal(ledger.requests),
-            ...(entry.error ? { error: entry.error } : {}),
-          }),
-        );
-      }
+      )
+        entry.status = "error";
+      entry.error = error.message.slice(0, 1000);
+    } finally {
+      entry.latencyMs = Date.now() - started;
+      await proxy.finishSession(id);
+      await rm(workspace, { recursive: true, force: true });
+      await checkpoint();
     }
+    const requests = ledger.requests.filter(
+      (request) => request.session === id,
+    );
+    console.log(
+      JSON.stringify({
+        id,
+        status: entry.status,
+        requests: requests.length,
+        accountedUsd: budgetTotal(ledger.requests),
+        ...(entry.error ? { error: entry.error } : {}),
+      }),
+    );
   }
   ledger.status =
     ledger.sessions.length === approvedSessions &&

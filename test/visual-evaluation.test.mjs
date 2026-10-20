@@ -54,6 +54,38 @@ const assessment = {
   notes: "Descriptive output matches the supplied source.",
 };
 
+test("corrected approval is a distinct full matrix within the shared cap", async () => {
+  const spec = await json("../evaluation/visual-corrected-spec.json");
+  assert.equal(spec.maxSessions, 27);
+  assert.equal(spec.maxRequests, 432);
+  assert.equal(spec.maxRequestsPerSession, 16);
+  assert.equal(spec.repetitions, 3);
+  assert.equal(spec.sharedBudget.totalCapUsd, 18);
+  assert.deepEqual(spec.pipelineFormats, VISUAL_RELIABILITY_FORMATS);
+  const child = spawnSync(
+    process.execPath,
+    ["scripts/evaluate-visuals.mjs", "--corrected"],
+    {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        OPENROUTER_API_KEY: "not-a-real-key",
+        EVALUATION_BUDGET_USD: "15",
+      },
+    },
+  );
+  assert.notEqual(child.status, 0);
+  assert.match(child.stderr, /Explicit new \$18 visual-only approval/);
+  const report = await renderVisualReliabilityReport(
+    undefined,
+    { ...(await json("../evaluation/visual-fixtures.json")), ...spec },
+    [],
+    { runs: {} },
+  );
+  assert.match(report, /visual-corrected-results.json/);
+  assert.match(report, /Shared approval: \$18 total/);
+});
+
 test("reliability campaign has its own $15 approval and refuses mismatched authorization offline", async () => {
   const spec = await json("../evaluation/visual-reliability-spec.json");
   assert.equal(spec.budgetUsd, 15);

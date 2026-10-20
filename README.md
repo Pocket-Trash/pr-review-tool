@@ -73,6 +73,8 @@ That frozen v1 campaign is now [closed](evaluation/visual-reliability-report.md)
 
 The corrected v2 runner rejects the frozen v1 campaign specification. Historical reports use that specification's pinned formats; any corrected paid matrix requires a separate versioned specification and ledger. The owner approved **$18 combined** across frozen v1 and corrected v2, leaving at most **$11.407086251** for corrected calls, failures, repairs and retained reservations.
 
+The [corrected matrix](evaluation/visual-corrected-spec.json) uses `EVALUATION_BUDGET_USD=18 npm run evaluate:visuals -- --corrected`. It verifies the frozen settled parent ledger's hash and debit before enforcing only the remaining allowance, checks funded credits, and runs Sonnet first for reservation headroom. Its $9.3600832932 estimate is $15.9529970422 combined, not a completion guarantee. Generate its separate offline report with `node scripts/render-visual-reliability-report.mjs --corrected`. Closed campaigns cannot be reopened, and results do not authorize adoption or activation.
+
 ### Phase 2 development (not activated)
 
 Trusted local visual configuration can opt into `"visualPhase": 2` for conditional sequence diagrams. Source interaction changes may request one `sequenceDiagram`, with source-symbol participants and file/line message anchors. The coordinator must distinguish awaited order from concurrent work and omit unverified runtime steps. Syntax safety is not semantic proof: invented participants or ordering fail the source-assessment gate even when Mermaid parses.

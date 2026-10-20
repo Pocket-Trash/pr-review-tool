@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import {
   budgetTotal,
   startEvaluationProxy,
   reconcileInterruptedEvaluation,
   evaluationReservation,
+  correctedCampaignBudget,
 } from "../src/evaluation-budget.mjs";
 
 const model = {
@@ -13,6 +16,55 @@ const model = {
   inputPerMillionUsd: 1,
   outputPerMillionUsd: 2,
 };
+
+test("corrected campaign debits the frozen settled parent from the shared $18 approval", async () => {
+  const text = await readFile(
+    new URL("../evaluation/visual-reliability-results.json", import.meta.url),
+    "utf8",
+  );
+  const spec = JSON.parse(
+    await readFile(
+      new URL("../evaluation/visual-corrected-spec.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const shared = correctedCampaignBudget(text, spec);
+  assert.ok(Math.abs(shared.remainingUsd - 11.407086251) < 1e-9);
+  assert.ok(shared.remainingUsd + shared.priorAccountedUsd <= 18);
+  for (const edit of [
+    (p) => (p.status = "in-progress"),
+    (p) => (p.requests[0].costUsd = null),
+    (p) => (p.creditReconciliation.deltaMatchesBilled = false),
+  ]) {
+    const parent = JSON.parse(text);
+    edit(parent);
+    const changed = JSON.stringify(parent);
+    const changedSpec = structuredClone(spec);
+    changedSpec.sharedBudget.parentSha256 = createHash("sha256")
+      .update(changed)
+      .digest("hex");
+    assert.throws(
+      () => correctedCampaignBudget(changed, changedSpec),
+      /frozen settled parent/,
+    );
+  }
+  assert.throws(
+    () => correctedCampaignBudget(text + " ", spec),
+    /frozen settled parent/,
+  );
+  assert.throws(
+    () => correctedCampaignBudget(text, { ...spec, budgetUsd: 18 }),
+    /shared \$18 cap/,
+  );
+  assert.throws(
+    () =>
+      correctedCampaignBudget(text, {
+        ...spec,
+        sharedBudget: { ...spec.sharedBudget, priorAccountedUsd: 0 },
+      }),
+    /shared \$18 cap/,
+  );
+});
 
 test("interrupted billing reconciles by generation receipt without replaying its session", async () => {
   const ledger = {
