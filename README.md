@@ -43,7 +43,11 @@ node src/fixture.mjs test/fixtures/config.visuals.json \
   test/fixtures/visuals.valid.json test/fixtures/run.valid.json
 ```
 
-Local visual execution requires a prepared `pull-request.json` containing the eligible `files` evidence. Automatic execution applies the existing generated-file exclusions and size limits first. Changes without eligible architecture or schema evidence skip inference and record zero usage. Invalid or unsafe Mermaid is omitted with a visible coverage gap.
+Local visual execution requires a prepared `pull-request.json` containing the eligible `files` evidence. Automatic execution applies the existing generated-file exclusions and size limits first. Changes without eligible architecture or schema evidence skip inference and record zero usage. Invalid or unsafe optional Mermaid is omitted with a visible coverage gap; missing required diagrams fail the visual lane rather than succeeding with a warning.
+
+Phase 1 uses a transient `visual-relationships-v1` catalogue parsed from supported frozen source declarations without executing repository code. Models select existing node/relationship IDs; the host renders Mermaid, PK markers and FK cardinalities. Unsupported/dynamic declarations and missing targets are explicitly omitted. Source-call expressions do not prove runtime infrastructure; freeform prose still requires source assessment. The public four-key visual output remains unchanged.
+
+`runRestrictedReview({repairVisuals:true})` permits one logical repair pass for missing required visual kinds, using the same model, frozen workspace, permissions and remaining original deadline. Successful diagrams/prose and source omissions are retained; replacements are revalidated. All requests use the same evaluation session capability and budget. Repair stays off by default in live entrypoints pending explicit activation. `visual-validation-v1` sidecars preserve structured diagnostics; incomplete automatic runs and publisher revalidation produce failure and replace stale visual lane content without touching the review lane.
 
 The reusable workflow defaults to Phase 1 visual analysis, from trusted `.github/pr-visuals.json` with `"task": "visuals"`. It handles non-draft opened/synchronize/ready-for-review events and the exact whitespace-normalized `!pockettrash visuals` command from write/maintain/admin collaborators. `!pockettrash review` cannot enter visual concurrency. The general review modules remain for historical evidence and the separately gated Phase 3 lane.
 

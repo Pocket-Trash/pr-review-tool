@@ -8,7 +8,7 @@ import {
   validateVisualPhase,
   validateCodeReview,
 } from "./review.mjs";
-import { sanitizeVisuals } from "./visuals.mjs";
+import { sanitizeVisuals, missingRequiredVisuals } from "./visuals.mjs";
 
 export const COMMENT_MARKER = "<!-- pockettrash:pr-review -->";
 export const CHECK_NAME = "Pocket Trash PR Review";
@@ -149,7 +149,28 @@ export async function preparePublication(artifact, fallback = {}) {
           ? validateCodeReview(artifact.review)
           : validateReview(artifact.review),
     );
-    const review = reviewOnly ? sanitized : await sanitizeVisuals(sanitized);
+    const review = reviewOnly
+      ? sanitized
+      : await sanitizeVisuals(
+          sanitized,
+          task === "visuals" ? artifact.visualRequirements : undefined,
+        );
+    if (
+      task === "visuals" &&
+      artifact.visualValidation &&
+      !artifact.visualRequirements
+    )
+      throw new TypeError(
+        "Visual validation requires trusted eligibility metadata",
+      );
+    if (
+      task === "visuals" &&
+      missingRequiredVisuals(review, artifact.visualRequirements).length
+    )
+      return {
+        conclusion: "failure",
+        body: `${marker}\n${stamp}${operationalBody("failure", "Required visual diagrams are missing after publication validation.", fallback.runUrl, task, fallback.reviewedSha, reviewOnly)}`,
+      };
     const run = validateRun(artifact.run);
     content = renderReview(config, review, {
       ...run,

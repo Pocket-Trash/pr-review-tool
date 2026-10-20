@@ -162,6 +162,38 @@ const publishOptions = {
   authenticatedAppSlug: "pockettrash",
 };
 
+test("missing required visuals fail publication and clear only stale visual lane content", async () => {
+  const mock = mockPublication();
+  const input = {
+    ...artifact,
+    visualRequirements: { architecture: true, schema: "none" },
+    visualValidation: { version: "visual-validation-v1", attempts: [] },
+    review: {
+      ...artifact.review,
+      diagrams: [
+        {
+          kind: "architecture",
+          title: "Unsafe",
+          mermaid: 'flowchart LR\n A --> B\n click A "https://example.com"',
+        },
+      ],
+    },
+  };
+  const publication = await publishReview({
+    ...publishOptions,
+    artifact: input,
+    fetch: mock.fetch,
+  });
+  assert.equal(publication.conclusion, "failure");
+  const writes = mock.calls.filter((call) => call.method !== "GET");
+  const comment = writes.find((call) =>
+    call.url.endsWith("/issues/comments/22"),
+  );
+  assert.match(comment.body.body, /Required visual diagrams are missing/);
+  assert.doesNotMatch(comment.body.body, /```mermaid|Old diagrams/);
+  assert.ok(!writes.some((call) => call.url.endsWith("/issues/comments/21")));
+});
+
 test("same-SHA visual reruns update only the visual App comment/check", async () => {
   for (const conclusion of ["success", "neutral", "failure"]) {
     const mock = mockPublication("100:1");

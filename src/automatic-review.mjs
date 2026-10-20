@@ -200,6 +200,8 @@ const skillSelection = selectRelevantSkills({
 baseRun.selectedSkills = skillSelection.selected;
 baseRun.skillOverrides = skillSelection.overrides;
 const workspace = await mkdtemp(join(tmpdir(), "pr-review-workspace-"));
+let visualValidation;
+let evidenceReport;
 try {
   const packageEvidenceBudget = Math.min(
     64 * 1024,
@@ -217,7 +219,6 @@ try {
   const effectiveUsage = { ...baseRun.usage };
   let invocationCount = 0;
   let usageReports = 0;
-  let evidenceReport;
   const review = await runRestrictedReview({
     task: context.config.task,
     reviewOnly: context.config.task === "review",
@@ -237,6 +238,9 @@ try {
     },
     onEvidence: (report) => {
       evidenceReport = report;
+    },
+    onVisualValidation: (report) => {
+      visualValidation = report;
     },
     onUsage: (usage) => {
       usageReports += 1;
@@ -292,6 +296,9 @@ try {
       task: context.config.task,
       review,
       evidence: evidenceReport,
+      visualRequirements:
+        context.config.task === "visuals" ? requestedVisuals : undefined,
+      visualValidation,
       run,
       selectedSkills: run.selectedSkills,
       omissions: prepared.omissions,
@@ -305,6 +312,25 @@ try {
   );
   if (process.env.GITHUB_OUTPUT)
     await appendFile(process.env.GITHUB_OUTPUT, "reviewed=true\n");
+} catch (error) {
+  await writeFile(
+    process.env.REVIEW_ARTIFACT_PATH,
+    buildArtifact({
+      conclusion: /timed out/i.test(error.message) ? "timed_out" : "failure",
+      config: context.config,
+      task: context.config.task,
+      visualRequirements:
+        context.config.task === "visuals" ? requestedVisuals : undefined,
+      visualValidation,
+      evidence: evidenceReport,
+      diagnostics: [
+        error.code === "VISUAL_REQUIRED_MISSING"
+          ? error.message
+          : "Analysis failed; inspect protected workflow logs.",
+      ],
+    }),
+  );
+  throw error;
 } finally {
   await rm(workspace, { recursive: true, force: true });
 }

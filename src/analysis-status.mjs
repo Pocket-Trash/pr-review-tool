@@ -7,6 +7,12 @@ if (!outcome || !errorPath || !artifactPath)
     "usage: node src/analysis-status.mjs <outcome> <error.log> <artifact.json>",
   );
 if (outcome === "success") process.exit(0);
+try {
+  const existing = JSON.parse(await readFile(artifactPath, "utf8"));
+  if (["failure", "timed_out"].includes(existing.conclusion)) process.exit(0);
+} catch (error) {
+  if (error.code !== "ENOENT" && !(error instanceof SyntaxError)) throw error;
+}
 let rawDetail = "";
 try {
   rawDetail = (await readFile(errorPath, "utf8")).trim().slice(-4_000);

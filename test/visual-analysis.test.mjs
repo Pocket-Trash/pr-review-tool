@@ -222,6 +222,7 @@ test("visual fallback stays in the visual lane and unsafe diagrams become visibl
       return response({
         ...visuals,
         diagrams: [
+          ...visuals.diagrams,
           {
             kind: "architecture",
             title: "Unsafe",
@@ -232,7 +233,7 @@ test("visual fallback stays in the visual lane and unsafe diagrams become visibl
     },
   });
   assert.equal(calls, 2);
-  assert.deepEqual(result.diagrams, []);
+  assert.deepEqual(result.diagrams, visuals.diagrams);
   assert.match(result.coverageGaps.join("\n"), /click directive/);
   assert.match(result.coverageGaps.join("\n"), /base visual coordinator/);
   assert.ok(!("findings" in result));

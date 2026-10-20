@@ -26,4 +26,22 @@ test("analysis failure artifacts never contain raw stderr", async () => {
   assert.deepEqual(artifact.diagnostics, [
     "Review analysis failed. Inspect the protected workflow logs for details.",
   ]);
+  const structured = {
+    ...artifact,
+    visualValidation: {
+      version: "visual-validation-v1",
+      attempts: [{ attempt: 0, missing: ["architecture"] }],
+    },
+  };
+  await writeFile(artifactPath, JSON.stringify(structured));
+  await execFileAsync(process.execPath, [
+    new URL("../src/analysis-status.mjs", import.meta.url).pathname,
+    "failure",
+    errorPath,
+    artifactPath,
+  ]);
+  assert.deepEqual(
+    JSON.parse(await readFile(artifactPath, "utf8")),
+    structured,
+  );
 });

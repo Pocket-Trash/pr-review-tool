@@ -233,6 +233,21 @@ export function visualSkipReason(requirements) {
     : null;
 }
 
+export function missingRequiredVisuals(review, requirements) {
+  const required = [
+    ...(requirements?.architecture ? ["architecture"] : []),
+    ...(requirements?.schema === "large" ? ["schema-domain"] : []),
+    ...(["small", "large"].includes(requirements?.schema) ? ["schema-er"] : []),
+    ...["sequence", "state", "dependency", "before-after"].filter(
+      (kind) =>
+        requirements?.[kind === "before-after" ? "beforeAfter" : kind] === true,
+    ),
+  ];
+  return required.filter(
+    (kind) => !review.diagrams.some((diagram) => diagram.kind === kind),
+  );
+}
+
 function permitted(kind, requirements) {
   if (!requirements) return true;
   if (kind === "architecture") return requirements.architecture;
@@ -263,12 +278,14 @@ export async function sanitizeVisuals(
   review,
   requirements,
   parse = (source) => mermaid.parse(source, { suppressErrors: true }),
+  diagnostics = [],
 ) {
   const diagrams = [];
   const valid = [];
   const coverageGaps = [...review.coverageGaps];
   for (const diagram of review.diagrams) {
     if (!permitted(diagram.kind, requirements)) {
+      diagnostics.push({ kind: diagram.kind, code: "ineligible" });
       coverageGaps.push(
         `Omitted ${diagram.title}: ${diagram.kind} was not eligible for this change.`,
       );
@@ -276,6 +293,7 @@ export async function sanitizeVisuals(
     }
     const reason = unsafeReason(diagram.mermaid);
     if (reason) {
+      diagnostics.push({ kind: diagram.kind, code: "unsafe", reason });
       coverageGaps.push(`Omitted ${diagram.title}: unsafe Mermaid ${reason}.`);
       continue;
     }
@@ -293,6 +311,7 @@ export async function sanitizeVisuals(
         throw new Error(`expected ${expected}`);
       valid.push(diagram);
     } catch {
+      diagnostics.push({ kind: diagram.kind, code: "syntax" });
       coverageGaps.push(`Omitted ${diagram.title}: invalid Mermaid syntax.`);
     }
   }
@@ -337,6 +356,9 @@ export async function sanitizeVisuals(
     coverageGaps.push(
       `Diagram cap or visual-scope limit reached; omitted ${valid.length - diagrams.length} diagram(s).`,
     );
+
+  for (const kind of missingRequiredVisuals({ diagrams }, requirements))
+    diagnostics.push({ kind, code: "missing-required" });
 
   if (
     requirements?.architecture &&
