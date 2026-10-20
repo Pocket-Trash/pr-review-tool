@@ -197,6 +197,31 @@ export function visualPrompt(requirements) {
     : "No architecture, infrastructure, or schema visual is requested; return no diagrams.";
 }
 
+export function preparedVisualRequirements(prepared, phase = 1) {
+  const scope = (prepared.eligibilityFiles ?? prepared.files).map((file) => ({
+    ...file,
+    ...prepared.files.find((available) => available.filename === file.filename),
+  }));
+  const requirements = visualRequirements(scope, phase);
+  const unknown =
+    phase === 2 &&
+    scope.some(
+      (file) =>
+        !file.patch &&
+        !nonSourcePattern.test(file.filename) &&
+        /\.(?:[cm]?[jt]sx?|py|go|rs|java|rb|json)$/.test(file.filename),
+    );
+  if (
+    prepared.conclusion !== "neutral" &&
+    ((!prepared.files.length && !visualSkipReason(requirements)) ||
+      (unknown && visualSkipReason(requirements)))
+  )
+    throw new Error(
+      "Eligible or unknown visual scope has no available evidence; analysis is incomplete, not a no-work skip.",
+    );
+  return requirements;
+}
+
 export function visualSkipReason(requirements) {
   return !requirements.architecture &&
     requirements.schema === "none" &&

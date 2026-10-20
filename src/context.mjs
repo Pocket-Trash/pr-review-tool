@@ -33,19 +33,38 @@ export async function prepareReviewContext(files, config, loadFile) {
   }
 
   const reviewable = [];
+  const evidence = [];
   for (const file of candidates) {
     if (!file.patch) {
       omissions.push(`${file.filename}: patch unavailable`);
+      evidence.push({
+        filename: file.filename,
+        status: "omitted",
+        reason: "patch unavailable",
+      });
       continue;
     }
     const loaded = await loadFile(file);
     if (loaded.available === false) {
       omissions.push(`${file.filename}: source content unavailable`);
+      evidence.push({
+        filename: file.filename,
+        status: "omitted",
+        reason: "source content unavailable",
+      });
       continue;
     }
-    if (loaded.size > config.limits.maxFileBytes)
+    if (loaded.size > config.limits.maxFileBytes) {
       omissions.push(`${file.filename}: file exceeds 512 KiB`);
-    else reviewable.push({ ...file, content: loaded.content });
+      evidence.push({
+        filename: file.filename,
+        status: "omitted",
+        reason: "file exceeds 512 KiB",
+      });
+    } else {
+      reviewable.push({ ...file, content: loaded.content });
+      evidence.push({ filename: file.filename, status: "supplied" });
+    }
   }
 
   if (reviewable.length > config.limits.maxFiles) {
@@ -80,5 +99,11 @@ export async function prepareReviewContext(files, config, loadFile) {
       omissions,
     };
   }
-  return { conclusion: "review", files: reviewable, omissions };
+  return {
+    conclusion: "review",
+    files: reviewable,
+    omissions,
+    eligibilityFiles: candidates,
+    evidence,
+  };
 }

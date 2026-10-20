@@ -331,7 +331,7 @@ test("local eligible visuals report actual skills and usage rather than fixture 
   }
 });
 
-test("automatic visuals skip excluded and unavailable evidence without loading packages or inference", async () => {
+test("automatic visuals distinguish trusted exclusions from unavailable eligible source without spending", async () => {
   const directory = await mkdtemp(join(tmpdir(), "automatic-visual-skip-"));
   try {
     const event = {
@@ -354,42 +354,58 @@ test("automatic visuals skip excluded and unavailable evidence without loading p
         else if (url.includes('/pulls/42')) body = { base: { sha: 'base-sha' }, head: { sha: 'head-sha' } };
         else if (url.includes('/compare/')) body = { files: [
           { filename: 'infra/generated/railway.json', additions: 1, deletions: 0, patch: '+{}' },
-          { filename: 'schema.ts', additions: 1, deletions: 0 }
+          { filename: process.env.FIXTURE_MISSING_FILE, additions: 1, deletions: 0 }
         ] };
         else throw new Error('Unexpected API or inference request: ' + url);
         return { ok: true, json: async () => body };
       };
     `;
-    const result = spawnSync(
-      process.execPath,
-      [
-        "--import",
-        `data:text/javascript,${encodeURIComponent(bootstrap)}`,
-        "src/automatic-review.mjs",
-      ],
-      {
-        encoding: "utf8",
-        env: {
-          PATH: process.env.PATH,
-          GITHUB_EVENT_PATH: eventPath,
-          GITHUB_TOKEN: "fixture-token",
-          GITHUB_RUN_ID: "fixture-visuals",
-          REVIEW_TASK: "visuals",
-          REVIEW_CONFIG_PATH: ".github/pr-review.json",
-          REVIEW_ARTIFACT_PATH: artifactPath,
+    for (const missingFile of ["schema.ts", "README.md"]) {
+      const result = spawnSync(
+        process.execPath,
+        [
+          "--import",
+          `data:text/javascript,${encodeURIComponent(bootstrap)}`,
+          "src/automatic-review.mjs",
+        ],
+        {
+          encoding: "utf8",
+          env: {
+            PATH: process.env.PATH,
+            GITHUB_EVENT_PATH: eventPath,
+            GITHUB_TOKEN: "fixture-token",
+            GITHUB_RUN_ID: "fixture-visuals",
+            REVIEW_TASK: "visuals",
+            REVIEW_CONFIG_PATH: ".github/pr-review.json",
+            REVIEW_ARTIFACT_PATH: artifactPath,
+            FIXTURE_MISSING_FILE: missingFile,
+          },
         },
-      },
-    );
-    assert.equal(result.status, 0, result.stderr);
-    const artifact = JSON.parse(await readFile(artifactPath, "utf8"));
-    assert.equal(artifact.task, "visuals");
-    assert.equal(artifact.review, null);
-    assert.equal(artifact.run.usage.modelCalls, 0);
-    assert.equal(artifact.run.usage.estimatedCostUsd, 0);
-    assert.deepEqual(artifact.selectedSkills, []);
-    assert.match(artifact.diagnostics.join("\n"), /inference was skipped/);
-    assert.match(artifact.omissions.join("\n"), /generated-file pattern/);
-    assert.match(artifact.omissions.join("\n"), /patch unavailable/);
+      );
+      assert.equal(
+        result.status,
+        missingFile === "schema.ts" ? 1 : 0,
+        result.stderr,
+      );
+      const artifact = JSON.parse(await readFile(artifactPath, "utf8"));
+      assert.equal(artifact.task, "visuals");
+      assert.equal(artifact.review, null);
+      assert.equal(artifact.run.usage.modelCalls, 0);
+      assert.equal(artifact.run.usage.estimatedCostUsd, 0);
+      assert.deepEqual(artifact.selectedSkills, []);
+      assert.equal(
+        artifact.conclusion,
+        missingFile === "schema.ts" ? "failure" : "neutral",
+      );
+      assert.match(
+        artifact.diagnostics.join("\n"),
+        missingFile === "schema.ts"
+          ? /incomplete, not a no-work skip/
+          : /inference was skipped/,
+      );
+      assert.match(artifact.omissions.join("\n"), /generated-file pattern/);
+      assert.match(artifact.omissions.join("\n"), /patch unavailable/);
+    }
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

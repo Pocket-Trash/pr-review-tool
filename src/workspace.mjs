@@ -12,6 +12,11 @@ export async function materializeReviewEvidence(workspace) {
     throw error;
   }
   await mkdir(join(workspace, "review-evidence"), { recursive: true });
+  const inventory = {
+    version: "frozen-evidence-v1",
+    files: [],
+    omissions: context.omissions ?? [],
+  };
   context.files = await Promise.all(
     context.files.map(
       async ({ patch, content, baseContent, ...file }, index) => {
@@ -25,10 +30,30 @@ export async function materializeReviewEvidence(workspace) {
           const path = `review-evidence/${index}-${kind}.txt`;
           await writeFile(join(workspace, path), text);
           references[`${kind}File`] = path;
+          const sha =
+            kind === "baseContent" || file.status === "removed"
+              ? context.identity?.baseSha
+              : context.identity?.headSha;
+          inventory.files.push({
+            filename: file.filename,
+            kind,
+            evidencePath: path,
+            sha: /^[0-9a-f]{40}$/.test(sha || "") ? sha : null,
+            lineCount:
+              text === ""
+                ? 0
+                : text.split("\n").length - (text.endsWith("\n") ? 1 : 0),
+          });
         }
         return { ...file, ...references };
       },
     ),
   );
+  context.evidenceInventory = inventory;
+  if (context.eligibilityFiles)
+    context.eligibilityFiles = context.eligibilityFiles.map(
+      ({ patch, content, baseContent, ...metadata }) => metadata,
+    );
   await writeFile(indexPath, `${JSON.stringify(context, null, 2)}\n`);
+  return inventory;
 }

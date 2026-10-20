@@ -4,7 +4,7 @@ import { runRestrictedReview } from "./opencode.mjs";
 import { filterSkillOverrides } from "./skills.mjs";
 import {
   visualPrompt,
-  visualRequirements,
+  preparedVisualRequirements,
   visualSkipReason,
 } from "./visuals.mjs";
 import {
@@ -29,7 +29,7 @@ const prepared =
     ? JSON.parse(await readFile(join(workspace, "pull-request.json"), "utf8"))
     : undefined;
 const requirements = prepared
-  ? visualRequirements(prepared.files, config.visualPhase)
+  ? preparedVisualRequirements(prepared, config.visualPhase)
   : undefined;
 const skipReason = requirements && visualSkipReason(requirements);
 run.usage = {

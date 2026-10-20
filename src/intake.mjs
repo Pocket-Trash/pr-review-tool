@@ -198,6 +198,7 @@ export function buildArtifact({
   selectedSkills,
   omissions,
   diagnostics,
+  evidence,
 }) {
   validateTask(task);
   const artifact = JSON.stringify(
@@ -210,6 +211,7 @@ export function buildArtifact({
       selectedSkills,
       omissions,
       diagnostics,
+      ...(evidence ? { evidence } : {}),
     },
     null,
     2,

@@ -21,6 +21,7 @@ import {
 } from "./review.mjs";
 import {
   visualPrompt,
+  preparedVisualRequirements,
   visualRequirements,
   visualSkipReason,
   visualBaseCandidates,
@@ -108,18 +109,32 @@ if (context.config.visualPhase === 2) {
       );
   }
 }
-const requestedVisuals = visualRequirements(
-  prepared.files,
-  context.config.visualPhase,
-);
+let requestedVisuals;
+let scopeFailure;
+if (context.config.task === "visuals") {
+  try {
+    requestedVisuals = preparedVisualRequirements(
+      prepared,
+      context.config.visualPhase,
+    );
+  } catch (error) {
+    scopeFailure = error.message;
+  }
+} else if (context.config.task !== "review") {
+  requestedVisuals = visualRequirements(
+    prepared.files,
+    context.config.visualPhase,
+  );
+}
 const skipReason =
-  prepared.conclusion === "neutral"
+  scopeFailure ??
+  (prepared.conclusion === "neutral"
     ? prepared.reason
     : context.config.task === "visuals"
       ? visualSkipReason(requestedVisuals)
       : context.config.task === "review" && prepared.files.length === 0
         ? "No reviewable files remain after trusted exclusions; inference was skipped."
-        : null;
+        : null);
 const baseRun = {
   reviewedSha: identity.headSha,
   runId: process.env.GITHUB_RUN_ID,
@@ -140,13 +155,13 @@ if (skipReason) {
   if (process.env.GITHUB_STEP_SUMMARY)
     await appendFile(
       process.env.GITHUB_STEP_SUMMARY,
-      `${context.config.task === "visuals" ? "PR Visuals" : "Review"} skipped: ${skipReason}\n`,
+      `${context.config.task === "visuals" ? "PR Visuals" : "Review"} ${scopeFailure ? "failed before inference" : "skipped"}: ${skipReason}\n`,
     );
   await writeFile(
     process.env.REVIEW_ARTIFACT_PATH,
     buildArtifact({
       task: context.config.task,
-      conclusion: "neutral",
+      conclusion: scopeFailure ? "failure" : "neutral",
       config: context.config,
       review: null,
       run: baseRun,
@@ -157,7 +172,7 @@ if (skipReason) {
   );
   if (process.env.GITHUB_OUTPUT)
     await appendFile(process.env.GITHUB_OUTPUT, "reviewed=true\n");
-  process.exit(0);
+  process.exit(scopeFailure ? 1 : 0);
 }
 const packageEvidence = (
   await Promise.all(
@@ -196,12 +211,13 @@ try {
   );
   await writeFile(
     join(workspace, "pull-request.json"),
-    `${JSON.stringify({ identity, pull: context.pull, files: prepared.files, packageEvidence: summarizePackageEvidence(packageEvidence, { maxBytes: packageEvidenceBudget }), omissions: prepared.omissions }, null, 2)}\n`,
+    `${JSON.stringify({ identity, pull: context.pull, files: prepared.files, eligibilityFiles: prepared.eligibilityFiles, packageEvidence: summarizePackageEvidence(packageEvidence, { maxBytes: packageEvidenceBudget }), omissions: prepared.omissions }, null, 2)}\n`,
   );
   let effectiveSkills = skillSelection.selected;
   const effectiveUsage = { ...baseRun.usage };
   let invocationCount = 0;
   let usageReports = 0;
+  let evidenceReport;
   const review = await runRestrictedReview({
     task: context.config.task,
     reviewOnly: context.config.task === "review",
@@ -218,6 +234,9 @@ try {
     visualRequirements: requestedVisuals,
     onSkillsResolved: (skills) => {
       effectiveSkills = skills;
+    },
+    onEvidence: (report) => {
+      evidenceReport = report;
     },
     onUsage: (usage) => {
       usageReports += 1;
@@ -272,6 +291,7 @@ try {
       config: context.config,
       task: context.config.task,
       review,
+      evidence: evidenceReport,
       run,
       selectedSkills: run.selectedSkills,
       omissions: prepared.omissions,

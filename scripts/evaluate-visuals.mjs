@@ -12,7 +12,7 @@ import { writeJsonAtomic } from "../src/evaluation.mjs";
 import { runRestrictedReview, VISUAL_SKILLS } from "../src/opencode.mjs";
 import { loadChangedFile } from "../src/intake.mjs";
 import { prepareReviewContext } from "../src/context.mjs";
-import { visualRequirements, visualPrompt } from "../src/visuals.mjs";
+import { preparedVisualRequirements, visualPrompt } from "../src/visuals.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const json = async (name) =>
@@ -219,7 +219,9 @@ try {
     );
     if (prepared.conclusion !== "review")
       throw new Error(`Fixture not reviewable: ${fixture.pull}`);
-    const requirements = visualRequirements(prepared.files);
+    const requirements = preparedVisualRequirements(prepared);
+    if (!prepared.files.length)
+      throw new Error("Frozen visual fixture has no available source");
     const expected = spec.fixtures.find((entry) => entry.pull === fixture.pull);
     if (
       requirements.architecture !== expected.architecture ||
@@ -239,6 +241,7 @@ try {
         },
         files: prepared.files,
         omissions: prepared.omissions,
+        eligibilityFiles: prepared.eligibilityFiles,
       },
     });
   }
@@ -312,6 +315,9 @@ try {
             },
             onUsage: (usage) => {
               entry.usage = usage;
+            },
+            onEvidence: (report) => {
+              entry.evidence = report;
             },
           });
           entry.review.coverageGaps.push(...context.omissions);
