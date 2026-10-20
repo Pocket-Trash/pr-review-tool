@@ -59,6 +59,8 @@ Sequence diagrams share the same PR Visuals comment and four-diagram cap; requir
 
 Phase 2 also supports one conditional `state` / `stateDiagram-v2` for changed source-defined states, transitions and guards. It must not invent initial/terminal states, retries or concurrency guarantees. Unverified paths are coverage gaps, not established transitions. State diagrams use the same cap and source-assessment gate; tests distinguish valid Mermaid from semantically unsupported state paths. No pull-request code is executed.
 
+Dependency maps use `dependency` / `flowchart`, scoped to changed imports and declared runtime/development/peer/optional dependencies. Automatic Phase 2 analysis reads affected manifests at the exact frozen base and head (including renamed paths) to distinguish dependency changes from metadata-only edits. Missing/oversized base manifests are disclosed rather than guessed. Base evidence is materialized as plain text; no resolver, package install, or PR code runs. Transitive edges, unresolved aliases, and live runtime relationships remain unverified unless supplied source establishes them.
+
 ## Dependency policy
 
 Third-party GitHub Actions must be pinned to full commit SHAs, and downloaded command-line tools must use exact versions. Pull-request content is untrusted data: the reusable reviewer must never execute it, load configuration from it, or expose credentials to it.

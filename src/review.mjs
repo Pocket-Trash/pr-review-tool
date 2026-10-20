@@ -1,6 +1,12 @@
 const providers = new Set(["cheaperinference", "openrouter"]);
 const severities = new Set(["critical", "high", "medium", "low"]);
 const diagramKinds = new Set(["architecture", "schema-domain", "schema-er"]);
+const phaseTwoKinds = ["sequence", "state", "dependency"];
+
+export function visualDiagramKinds(phase = 1) {
+  validateVisualPhase(phase);
+  return [...diagramKinds, ...(phase === 2 ? phaseTwoKinds : [])];
+}
 
 export function validateVisualPhase(phase = 1) {
   if (phase !== 1 && phase !== 2) fail("visualPhase", "1 or 2");
@@ -144,7 +150,7 @@ export function validateReview(input, visualPhase = 1) {
     ]);
     if (
       !diagramKinds.has(diagram.kind) &&
-      !(visualPhase === 2 && ["sequence", "state"].includes(diagram.kind))
+      !(visualPhase === 2 && phaseTwoKinds.includes(diagram.kind))
     )
       fail(`review.diagrams[${index}].kind`, "a supported diagram kind");
     string(diagram.title, `review.diagrams[${index}].title`);

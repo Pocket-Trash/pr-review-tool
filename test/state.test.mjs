@@ -99,7 +99,7 @@ test("state runner preserves the read-only visual contract", async () => {
     workspace: new URL("fixtures/workspace", import.meta.url).pathname,
     visualRequirements: requirements,
     execute: async (_command, args, options) => {
-      assert.match(args.at(-1), /sequence, or state/);
+      assert.match(args.at(-1), /kind is .*state/);
       assert.equal(
         JSON.parse(options.env.OPENCODE_CONFIG_CONTENT).permission["*"],
         "deny",

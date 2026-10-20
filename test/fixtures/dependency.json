@@ -1,0 +1,53 @@
+{
+  "files": [
+    {
+      "filename": "packages/service/package.json",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 1,
+      "patch": "-\"legacy\": \"1\"\n+\"@package/queue\": \"workspace:*\"\n+\"vitest\": \"3\"",
+      "baseContent": "{\"name\":\"@package/service\",\"dependencies\":{\"legacy\":\"1\"},\"peerDependencies\":{\"react\":\"19\"}}",
+      "content": "{\"name\":\"@package/service\",\"dependencies\":{\"@package/queue\":\"workspace:*\"},\"devDependencies\":{\"vitest\":\"3\"},\"peerDependencies\":{\"react\":\"19\"}}"
+    },
+    {
+      "filename": "packages/service/src/handler.ts",
+      "additions": 1,
+      "deletions": 0,
+      "patch": "+import { queue } from '@package/queue';",
+      "content": "import { queue } from '@package/queue';"
+    }
+  ],
+  "visuals": {
+    "overview": "The service declares a runtime queue dependency, development test runner and React peer dependency.",
+    "diagrams": [
+      {
+        "kind": "dependency",
+        "title": "Declared service dependencies",
+        "mermaid": "flowchart LR\n Service[Service package] -->|runtime package.json| Queue[Queue package]\n Service -->|development package.json| Vitest[Vitest]\n Service -->|peer package.json| React[React]"
+      }
+    ],
+    "changedAreas": [
+      {
+        "area": "Service",
+        "summary": "Replaces the legacy declared dependency with the queue package."
+      }
+    ],
+    "coverageGaps": [
+      "Transitive dependencies, alias resolution and live runtime loading were not inspected."
+    ]
+  },
+  "unsupported": {
+    "overview": "The service loads Vitest in production and directly owns a database package.",
+    "diagrams": [
+      {
+        "kind": "dependency",
+        "title": "Invented runtime dependency",
+        "mermaid": "flowchart LR\n Service -->|production| Vitest\n Service --> Database"
+      }
+    ],
+    "changedAreas": [
+      { "area": "Service", "summary": "Adds a production database dependency." }
+    ],
+    "coverageGaps": []
+  }
+}

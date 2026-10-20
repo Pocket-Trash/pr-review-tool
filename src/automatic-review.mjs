@@ -9,6 +9,7 @@ import {
   buildArtifact,
   collectInternalReviewContext,
   loadChangedFile,
+  loadBaseEvidence,
   loadRepositoryFile,
 } from "./intake.mjs";
 import { runRestrictedReview } from "./opencode.mjs";
@@ -76,6 +77,23 @@ const prepared = await prepareReviewContext(
   context.config,
   (file) => loadChangedFile(identity, file, process.env.GITHUB_TOKEN),
 );
+if (context.config.visualPhase === 2) {
+  for (const file of prepared.files.filter(({ filename }) =>
+    /(?:^|\/)package\.json$/.test(filename),
+  )) {
+    const evidence = await loadBaseEvidence(
+      identity,
+      file,
+      process.env.GITHUB_TOKEN,
+      context.config.limits.maxFileBytes,
+    );
+    if (evidence) Object.assign(file, evidence);
+    else
+      prepared.omissions.push(
+        `${file.filename}: frozen base manifest unavailable; removed dependency edges were not inferred.`,
+      );
+  }
+}
 const requestedVisuals = visualRequirements(
   prepared.files,
   context.config.visualPhase,

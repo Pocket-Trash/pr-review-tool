@@ -96,11 +96,21 @@ export async function loadRepositoryFile(
   token,
   fetch = globalThis.fetch,
   maxBytes = Infinity,
+  ref = identity.headSha,
 ) {
+  if (![identity.baseSha, identity.headSha].includes(ref))
+    throw new TypeError("repository evidence must use a frozen base/head ref");
+  if (
+    !filename ||
+    filename.startsWith("/") ||
+    filename.includes("\0") ||
+    filename.split("/").includes("..")
+  )
+    throw new TypeError("unsafe repository evidence path");
   const [owner, repository] = identity.repository.split("/");
   const path = filename.split("/").map(encodeURIComponent).join("%2F");
   const response = await fetch(
-    `${API}/repos/${owner}/${repository}/contents/${path}?ref=${encodeURIComponent(identity.headSha)}`,
+    `${API}/repos/${owner}/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`,
     {
       headers: {
         accept: "application/vnd.github+json",
@@ -121,6 +131,38 @@ export async function loadRepositoryFile(
     filename,
     content,
   };
+}
+
+export async function loadBaseEvidence(
+  identity,
+  file,
+  token,
+  maxBytes,
+  fetch = globalThis.fetch,
+) {
+  if (!Number.isInteger(maxBytes) || maxBytes < 1)
+    throw new TypeError("base evidence requires a positive file byte limit");
+  let baseContent;
+  if (file.status === "added") baseContent = "";
+  else if (file.status === "removed") baseContent = file.content;
+  else {
+    const base = await loadRepositoryFile(
+      identity,
+      file.previous_filename || file.filename,
+      token,
+      fetch,
+      maxBytes,
+      identity.baseSha,
+    );
+    if (!base) return null;
+    baseContent = base.content;
+  }
+  if (
+    typeof baseContent !== "string" ||
+    Buffer.byteLength(baseContent) > maxBytes
+  )
+    return null;
+  return { baseContent, baseSha: identity.baseSha, headSha: identity.headSha };
 }
 
 export async function assertCurrentHead(

@@ -13,16 +13,22 @@ export async function materializeReviewEvidence(workspace) {
   }
   await mkdir(join(workspace, "review-evidence"), { recursive: true });
   context.files = await Promise.all(
-    context.files.map(async ({ patch, content, ...file }, index) => {
-      const references = {};
-      for (const [kind, text] of Object.entries({ patch, content })) {
-        if (typeof text !== "string") continue;
-        const path = `review-evidence/${index}-${kind}.txt`;
-        await writeFile(join(workspace, path), text);
-        references[`${kind}File`] = path;
-      }
-      return { ...file, ...references };
-    }),
+    context.files.map(
+      async ({ patch, content, baseContent, ...file }, index) => {
+        const references = {};
+        for (const [kind, text] of Object.entries({
+          patch,
+          content,
+          baseContent,
+        })) {
+          if (typeof text !== "string") continue;
+          const path = `review-evidence/${index}-${kind}.txt`;
+          await writeFile(join(workspace, path), text);
+          references[`${kind}File`] = path;
+        }
+        return { ...file, ...references };
+      },
+    ),
   );
   await writeFile(indexPath, `${JSON.stringify(context, null, 2)}\n`);
 }

@@ -21,6 +21,34 @@ const schemaPattern =
 const nonSourcePattern =
   /(?:^|\/)(?:test|tests|fixtures?|docs?)(?:\/|\.)|\.(?:test|spec)\.[^/]+$/i;
 
+function dependencyChange(file) {
+  if (
+    !/(?:^|\/)package\.json$/.test(file.filename) ||
+    nonSourcePattern.test(file.filename)
+  )
+    return false;
+  try {
+    const head = file.status === "removed" ? {} : JSON.parse(file.content);
+    const base = file.baseContent === "" ? {} : JSON.parse(file.baseContent);
+    return [
+      "dependencies",
+      "devDependencies",
+      "peerDependencies",
+      "optionalDependencies",
+    ].some((group) => {
+      const names = new Set([
+        ...Object.keys(head[group] || {}),
+        ...Object.keys(base[group] || {}),
+      ]);
+      return [...names].some(
+        (name) => head[group]?.[name] !== base[group]?.[name],
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
 export function visualRequirements(files, visualPhase = 1) {
   validateVisualPhase(visualPhase);
   const architecture =
@@ -72,6 +100,13 @@ export function visualRequirements(files, visualPhase = 1) {
               line,
             ),
           ),
+          dependency:
+            files.some(dependencyChange) ||
+            changedSourceLines.some((line) =>
+              /\bimport(?:\s|\()|\bexport\b.*\bfrom\s|\brequire\s*\(/.test(
+                line,
+              ),
+            ),
         }
       : {}),
     architecture,
@@ -106,6 +141,10 @@ export function visualPrompt(requirements) {
     requests.push(
       "one focused state stateDiagram-v2 only for source-defined states, transitions and guards; label transitions with source file/line anchors, do not invent retries, terminal states or concurrency guarantees, and disclose inferred/unverified transitions in coverageGaps rather than drawing them as established facts",
     );
+  if (requirements.dependency)
+    requests.push(
+      "one focused dependency flowchart from declared dependencies/imports in frozen source; distinguish runtime, development, peer, optional and builtin edges and label their source manifest/import anchors; do not infer transitive edges or runtime resolution, execute a resolver, install packages, or invent package/service relationships; disclose unavailable base declarations and unresolved aliases in coverageGaps",
+    );
   const syntaxes = ["flowchart", "erDiagram"];
   if (requirements.sequence) syntaxes.push("sequenceDiagram");
   if (requirements.state) syntaxes.push("stateDiagram-v2");
@@ -120,7 +159,8 @@ export function visualSkipReason(requirements) {
   return !requirements.architecture &&
     requirements.schema === "none" &&
     !requirements.sequence &&
-    !requirements.state
+    !requirements.state &&
+    !requirements.dependency
     ? "No eligible architecture, domain, or ERD changes; inference was skipped."
     : null;
 }
@@ -132,6 +172,7 @@ function permitted(kind, requirements) {
   if (kind === "schema-er") return requirements.schema !== "none";
   if (kind === "sequence") return requirements.sequence === true;
   if (kind === "state") return requirements.state === true;
+  if (kind === "dependency") return requirements.dependency === true;
   return false;
 }
 
@@ -193,6 +234,7 @@ export async function sanitizeVisuals(
     "schema-er": requirements?.schema === "small" ? 1 : 2,
     sequence: 1,
     state: 1,
+    dependency: 1,
   };
   const priority = [];
   if (requirements?.architecture) priority.push("architecture");
@@ -204,6 +246,7 @@ export async function sanitizeVisuals(
     "schema-er",
     "sequence",
     "state",
+    "dependency",
   ])
     if (!priority.includes(kind)) priority.push(kind);
   for (const kind of priority) {
@@ -252,6 +295,13 @@ export async function sanitizeVisuals(
   if (requirements?.state && !diagrams.some(({ kind }) => kind === "state"))
     coverageGaps.push(
       "State change had no valid source-grounded state diagram.",
+    );
+  if (
+    requirements?.dependency &&
+    !diagrams.some(({ kind }) => kind === "dependency")
+  )
+    coverageGaps.push(
+      "Dependency change had no valid source-grounded dependency map.",
     );
   return { ...review, diagrams, coverageGaps: [...new Set(coverageGaps)] };
 }
