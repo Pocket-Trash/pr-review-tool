@@ -186,6 +186,55 @@ test("recorded reliability campaign preserves bounded slots, charges and source-
   }
 });
 
+test("facts evidence preserves all paid slots, raw gate failures and the separate cap", async () => {
+  const ledger = await json("../evaluation/visual-facts-results.json");
+  const spec = await json("../evaluation/visual-facts-spec.json");
+  const assessments = await json("../evaluation/visual-facts-assessments.json");
+  assert.equal(ledger.campaign, spec.approval);
+  assert.equal(ledger.runnerSha, "691a2c16d60fcd6394bbbd2f71ee2413940c817b");
+  assert.deepEqual(ledger.pipelineFormats, spec.pipelineFormats);
+  assert.equal(ledger.sessions.length, 27);
+  assert.equal(new Set(ledger.sessions.map((s) => s.id)).size, 27);
+  assert.equal(ledger.requests.length, 185);
+  assert.ok(
+    ledger.requests.reduce((s, r) => s + (r.costUsd ?? r.reservedUsd), 0) <= 10,
+  );
+  assert.ok(
+    ledger.requests.every(
+      (r) =>
+        r.status === "complete" &&
+        Number.isFinite(r.costUsd) &&
+        !r.boundExceeded,
+    ),
+  );
+  for (const row of ledger.sessions) {
+    assert.ok(ledger.requests.filter((r) => r.session === row.id).length <= 16);
+    assert.deepEqual(row.pipelineFormats, spec.pipelineFormats);
+    if (row.status === "success") {
+      assert.ok(assessments.runs[row.id]);
+      assert.equal(
+        new Set(row.review.coverageGaps).size,
+        row.review.coverageGaps.length - 1,
+      );
+    } else assert.equal(assessments.runs[row.id], undefined);
+    if (row.evidence)
+      assert.doesNotMatch(
+        JSON.stringify(row.evidence),
+        /"(?:content|patch|output|filePath)":/,
+      );
+  }
+  assert.equal(Object.keys(assessments.runs).length, 22);
+  assert.equal(ledger.creditReconciliation.deltaMatchesBilled, true);
+  assert.equal(ledger.creditReconciliation.outstandingReservations, 0);
+  const report = await renderVisualReliabilityReport(
+    ledger,
+    { ...(await json("../evaluation/visual-fixtures.json")), ...spec },
+    (await json("../evaluation/matrix.json")).fixtures,
+    assessments,
+  );
+  assert.doesNotMatch(report, /\| yes \| yes \|$/m);
+});
+
 test("corrected evidence preserves every paid slot and the cumulative cap", async () => {
   const ledger = await json("../evaluation/visual-corrected-results.json");
   const spec = await json("../evaluation/visual-corrected-spec.json");
