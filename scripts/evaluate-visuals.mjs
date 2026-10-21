@@ -11,7 +11,10 @@ import {
 } from "../src/evaluation-budget.mjs";
 import { writeJsonAtomic } from "../src/evaluation.mjs";
 import { runRestrictedReview, VISUAL_SKILLS } from "../src/opencode.mjs";
-import { loadChangedFile } from "../src/intake.mjs";
+import {
+  loadChangedFile,
+  prepareDeclarationBaseEvidence,
+} from "../src/intake.mjs";
 import { prepareReviewContext } from "../src/context.mjs";
 import { preparedVisualRequirements, visualPrompt } from "../src/visuals.mjs";
 import { VISUAL_RELIABILITY_FORMATS } from "../src/visual-validation.mjs";
@@ -298,8 +301,16 @@ try {
       headSha: fixture.headSha,
     };
     const files = comparison.files.map(
-      ({ filename, status, additions, deletions, patch }) => ({
+      ({
         filename,
+        previous_filename,
+        status,
+        additions,
+        deletions,
+        patch,
+      }) => ({
+        filename,
+        ...(previous_filename ? { previous_filename } : {}),
         status,
         additions,
         deletions,
@@ -307,10 +318,27 @@ try {
       }),
     );
     const prepared = await prepareReviewContext(files, matrix.context, (file) =>
-      loadChangedFile(identity, file, githubToken, fetch),
+      loadChangedFile(
+        {
+          ...identity,
+          baseSha: comparison.merge_base_commit?.sha ?? identity.baseSha,
+        },
+        file,
+        githubToken,
+        fetch,
+      ),
     );
     if (prepared.conclusion !== "review")
       throw new Error(`Fixture not reviewable: ${fixture.pull}`);
+    if (reliability)
+      await prepareDeclarationBaseEvidence(
+        prepared,
+        identity,
+        comparison.merge_base_commit?.sha,
+        githubToken,
+        matrix.context.limits.maxFileBytes,
+        fetch,
+      );
     const requirements = preparedVisualRequirements(prepared);
     if (!prepared.files.length)
       throw new Error("Frozen visual fixture has no available source");

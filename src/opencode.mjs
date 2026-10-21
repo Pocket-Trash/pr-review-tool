@@ -20,6 +20,7 @@ import {
 import { materializeReviewEvidence } from "./workspace.mjs";
 import { evidenceFromEvents, evidenceCoverage } from "./evidence.mjs";
 import { validateVisualAttempt, visualFailure } from "./visual-validation.mjs";
+import { visualFactContract, completeFactVisuals } from "./visual-facts.mjs";
 
 const OPENCODE_PACKAGE = "opencode-ai@1.19.3";
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
@@ -406,6 +407,10 @@ export async function runRestrictedReview({
     const evidence = await materializeReviewEvidence(isolatedWorkspace, {
       relationships: visualOnly && visualPhase === 1,
     });
+    if (visualOnly && visualPhase === 1 && !evidence?.relationships)
+      throw new Error(
+        "Phase 1 visuals require frozen base/head source identity",
+      );
     const allEvents = [];
     const relationshipCatalog = evidence?.relationships
       ? {
@@ -426,7 +431,9 @@ export async function runRestrictedReview({
     const invoke = async (activeSkills, repairPrompt = "") => {
       const contract =
         (visualOnly
-          ? visualContract(visualPhase, Boolean(evidence?.relationships))
+          ? evidence?.relationships?.facts
+            ? visualFactContract
+            : visualContract(visualPhase, Boolean(evidence?.relationships))
           : reviewOnly
             ? CODE_REVIEW_CONTRACT
             : resultFormat?.instructions) ||
@@ -539,6 +546,30 @@ export async function runRestrictedReview({
     const complete = async (activeSkills) => {
       const initial = await invoke(activeSkills);
       if (!visualOnly) return initial.review;
+      if (evidence?.relationships?.facts) {
+        const result = await completeFactVisuals(initial, {
+          catalog: evidence.relationships,
+          requirements: visualRequirements,
+          phase: visualPhase,
+          repairVisuals,
+          invoke: (prompt) => {
+            repairAttempted = true;
+            return invoke(activeSkills, prompt);
+          },
+          report: validationReport,
+        });
+        result.review.coverageGaps = [
+          ...(result.evidenceReport
+            ? evidenceCoverage(result.evidenceReport)
+            : []),
+          ...result.review.coverageGaps,
+          ...evidence.omissions,
+          ...evidence.relationships.omissions.map(
+            (g) => `Runner relationship limitation: ${g}`,
+          ),
+        ];
+        return result.review;
+      }
       const source = initial.value;
       validateVisualAnalysis({ ...source, diagrams: [] }, visualPhase);
       if (initial.evidenceReport?.files.length)

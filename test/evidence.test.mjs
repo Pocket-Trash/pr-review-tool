@@ -147,7 +147,7 @@ test("eligible unavailable schema cannot become neutral no-work, but trusted exc
   );
 });
 
-test("visual invocation publishes runner coverage and attributes model omissions separately", async () => {
+test("visual invocation publishes runner coverage without model-authored availability claims", async () => {
   const directory = await mkdtemp(join(tmpdir(), "coverage-run-"));
   let report;
   try {
@@ -196,7 +196,7 @@ test("visual invocation publishes runner coverage and attributes model omissions
               type: "text",
               part: {
                 text: JSON.stringify({
-                  overview: "Declared infrastructure.",
+                  factIds: [],
                   diagrams: [
                     {
                       kind: "architecture",
@@ -205,8 +205,6 @@ test("visual invocation publishes runner coverage and attributes model omissions
                       relationshipIds: [edge.id],
                     },
                   ],
-                  changedAreas: [],
-                  coverageGaps: ["Workflow source was truncated."],
                 }),
               },
             },
@@ -227,11 +225,7 @@ test("visual invocation publishes runner coverage and attributes model omissions
       ),
     );
     assert.ok(
-      result.coverageGaps.some((gap) =>
-        /^Model-reported analytical limitation \(unverified\): Workflow source was truncated/.test(
-          gap,
-        ),
-      ),
+      !result.coverageGaps.some((gap) => gap.startsWith("Model-reported")),
     );
     assert.equal(
       Object.keys(result).sort().join(),
@@ -299,7 +293,7 @@ test("canonical workspace paths confirm reads through a temporary-directory alia
               type: "text",
               part: {
                 text: JSON.stringify({
-                  overview: "Declared call.",
+                  factIds: [],
                   diagrams: [
                     {
                       kind: "architecture",
@@ -308,8 +302,6 @@ test("canonical workspace paths confirm reads through a temporary-directory alia
                       relationshipIds: [edge.id],
                     },
                   ],
-                  changedAreas: [],
-                  coverageGaps: [],
                 }),
               },
             },

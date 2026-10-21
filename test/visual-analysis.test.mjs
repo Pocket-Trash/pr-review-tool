@@ -110,10 +110,11 @@ test("visual skill selection excludes reviewers even when explicitly configured"
   assert.ok(!selected.selected.includes("ponytail-review"));
 });
 
-test("visual execution uses the dedicated contract and only the chosen provider credential", async () => {
+test("Phase 2 execution preserves its dedicated contract and only the chosen provider credential", async () => {
   for (const provider of ["cheaperinference", "openrouter"]) {
     const result = await runRestrictedReview({
       task: "visuals",
+      visualPhase: 2,
       apiKey: "fixture-key",
       provider,
       model: "fixture-model",
@@ -169,6 +170,7 @@ test("visual execution uses the dedicated contract and only the chosen provider 
 test("visual runner rejects review results and cannot override its contract", async () => {
   const options = {
     task: "visuals",
+    visualPhase: 2,
     apiKey: "fixture-key",
     model: "fixture-model",
     workspace,
@@ -206,6 +208,7 @@ test("visual fallback stays in the visual lane and unsafe diagrams become visibl
   let calls = 0;
   const result = await runRestrictedReview({
     task: "visuals",
+    visualPhase: 2,
     apiKey: "fixture-key",
     model: "fixture-model",
     workspace,
@@ -278,13 +281,14 @@ test("local eligible visuals report actual skills and usage rather than fixture 
     await writeFile(
       join(directory, "pull-request.json"),
       JSON.stringify({
+        identity: { headSha: "a".repeat(40), baseSha: "b".repeat(40) },
         files: [
           {
-            filename: "railway.json",
-            additions: 1,
+            filename: "packages/queue/queue.ts",
+            additions: 50,
             deletions: 0,
             patch: "+{}",
-            content: "{}",
+            content: 'const queue=service("queue");',
           },
         ],
         omissions: ["generated/schema.ts: excluded"],
@@ -295,7 +299,22 @@ test("local eligible visuals report actual skills and usage rather than fixture 
         type: "step_finish",
         part: { tokens: { input: 50, output: 10 }, cost: 0.001 },
       },
-      { type: "text", part: { text: JSON.stringify(visuals) } },
+      {
+        type: "text",
+        part: {
+          text: JSON.stringify({
+            factIds: ["f0"],
+            diagrams: [
+              {
+                kind: "architecture",
+                title: "Ignored",
+                nodeIds: ["n0", "n1"],
+                relationshipIds: ["r0"],
+              },
+            ],
+          }),
+        },
+      },
     ]
       .map((event) => JSON.stringify(event))
       .join("\n");

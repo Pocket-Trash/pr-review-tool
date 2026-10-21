@@ -3,11 +3,11 @@ import { renderEvidenceVisuals } from "./relationships.mjs";
 import { sanitizeVisuals, missingRequiredVisuals } from "./visuals.mjs";
 
 export const VISUAL_RELIABILITY_FORMATS = Object.freeze({
-  runner: "phase1-reliability-v2",
-  prompt: "host-graph-selection-v2",
+  runner: "phase1-facts-v3",
+  prompt: "host-fact-selection-v3",
   evidence: "frozen-evidence-v1",
   relationships: "visual-relationships-v1",
-  repair: "single-pass-narrative-v2",
+  repair: "single-pass-facts-v3",
   budget: "session-capability-full-context-v1",
 });
 

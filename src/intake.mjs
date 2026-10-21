@@ -69,12 +69,50 @@ export async function collectInternalReviewContext(
   );
   return {
     config,
+    comparisonBaseSha: /^[0-9a-f]{40}$/.test(
+      comparison.merge_base_commit?.sha ?? "",
+    )
+      ? comparison.merge_base_commit.sha
+      : undefined,
     pull: { title: pull.title, body: pull.body, author: pull.user?.login },
     files: comparison.files ?? [],
     omissions: (comparison.files ?? [])
       .filter((file) => !file.patch)
       .map((file) => `${file.filename}: patch unavailable`),
   };
+}
+
+export async function prepareDeclarationBaseEvidence(
+  prepared,
+  identity,
+  comparisonBaseSha,
+  token,
+  maxBytes,
+  fetch = globalThis.fetch,
+) {
+  for (const file of prepared.files) {
+    if (
+      !/\.[cm]?[jt]sx?$/.test(file.filename) ||
+      /(?:^|\/)(?:docs?|tests?|fixtures?)(?:\/|\.)|\.(?:test|spec)\./.test(
+        file.filename,
+      )
+    )
+      continue;
+    const evidence = /^[0-9a-f]{40}$/.test(comparisonBaseSha ?? "")
+      ? await loadBaseEvidence(
+          { ...identity, baseSha: comparisonBaseSha },
+          file,
+          token,
+          maxBytes,
+          fetch,
+        )
+      : null;
+    if (evidence) Object.assign(file, evidence);
+    else
+      prepared.omissions.push(
+        `${file.filename}: comparison-baseline source unavailable; declaration change status is uncertain.`,
+      );
+  }
 }
 
 export async function loadChangedFile(

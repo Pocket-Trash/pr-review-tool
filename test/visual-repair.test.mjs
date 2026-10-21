@@ -35,6 +35,7 @@ const output = (review) => ({
 });
 const options = {
   task: "visuals",
+  visualPhase: 2,
   apiKey: "fixture",
   model: "fixture",
   provider: "openrouter",
@@ -62,13 +63,14 @@ test("repair rechecks runner-owned relationship IDs before rendering", async () 
       let validation;
       const run = runRestrictedReview({
         ...options,
+        visualPhase: 1,
         workspace,
         onVisualValidation: (report) => {
           validation = report;
         },
         execute: async (_command, _args, settings) => {
           calls++;
-          if (calls === 1) return output(value([]));
+          if (calls === 1) return output({ factIds: [], diagrams: [] });
           const catalog = JSON.parse(
             await readFile(
               join(settings.cwd, "review-relationships.json"),
@@ -76,16 +78,17 @@ test("repair rechecks runner-owned relationship IDs before rendering", async () 
             ),
           );
           const edge = catalog.relationships[0];
-          return output(
-            value([
+          return output({
+            factIds: [],
+            diagrams: [
               {
                 kind: "architecture",
                 title: "Declared call",
                 nodeIds: [edge.from, edge.to],
                 relationshipIds: [invent ? "invented" : edge.id],
               },
-            ]),
-          );
+            ],
+          });
         },
       });
       if (invent) {

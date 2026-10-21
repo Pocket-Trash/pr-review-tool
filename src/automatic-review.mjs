@@ -10,6 +10,7 @@ import {
   collectInternalReviewContext,
   loadChangedFile,
   loadBaseEvidence,
+  prepareDeclarationBaseEvidence,
   loadRepositoryFile,
 } from "./intake.mjs";
 import { runRestrictedReview } from "./opencode.mjs";
@@ -92,8 +93,25 @@ if (task && validateTask(context.config.task) !== validateTask(task))
 const prepared = await prepareReviewContext(
   context.files,
   context.config,
-  (file) => loadChangedFile(identity, file, process.env.GITHUB_TOKEN),
+  (file) =>
+    loadChangedFile(
+      context.config.task === "visuals" &&
+        context.config.visualPhase !== 2 &&
+        context.comparisonBaseSha
+        ? { ...identity, baseSha: context.comparisonBaseSha }
+        : identity,
+      file,
+      process.env.GITHUB_TOKEN,
+    ),
 );
+if (context.config.task === "visuals" && context.config.visualPhase !== 2)
+  await prepareDeclarationBaseEvidence(
+    prepared,
+    identity,
+    context.comparisonBaseSha,
+    process.env.GITHUB_TOKEN,
+    context.config.limits.maxFileBytes,
+  );
 if (context.config.visualPhase === 2) {
   for (const file of visualBaseCandidates(prepared.files)) {
     const evidence = await loadBaseEvidence(

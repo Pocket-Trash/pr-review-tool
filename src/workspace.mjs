@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildRelationshipCatalog } from "./relationships.mjs";
+import { buildVisualFacts } from "./visual-facts.mjs";
 
 // JSON-escaped multiline strings become one long line, which OpenCode truncates.
 export async function materializeReviewEvidence(
@@ -20,6 +21,12 @@ export async function materializeReviewEvidence(
     ? buildRelationshipCatalog(context)
     : undefined;
   if (relationshipCatalog) {
+    relationshipCatalog.facts = buildVisualFacts(context, relationshipCatalog);
+    while (
+      Buffer.byteLength(JSON.stringify(relationshipCatalog)) > 255 * 1024 &&
+      relationshipCatalog.facts.length
+    )
+      relationshipCatalog.facts.pop();
     context.relationshipCatalogFile = "review-relationships.json";
     context.relationshipFormat = relationshipCatalog.version;
     await writeFile(
@@ -47,7 +54,7 @@ export async function materializeReviewEvidence(
           references[`${kind}File`] = path;
           const sha =
             kind === "baseContent" || file.status === "removed"
-              ? context.identity?.baseSha
+              ? (file.baseSha ?? context.identity?.baseSha)
               : context.identity?.headSha;
           inventory.files.push({
             filename: file.filename,

@@ -140,7 +140,7 @@ export function buildRelationshipCatalog(context) {
         ...file,
         sha:
           file.status === "removed"
-            ? context.identity.baseSha
+            ? (file.baseSha ?? context.identity.baseSha)
             : context.identity.headSha,
         ast,
         imports: new Map(),

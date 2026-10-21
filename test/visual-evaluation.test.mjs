@@ -61,7 +61,11 @@ test("corrected approval is a distinct full matrix within the shared cap", async
   assert.equal(spec.maxRequestsPerSession, 16);
   assert.equal(spec.repetitions, 3);
   assert.equal(spec.sharedBudget.totalCapUsd, 18);
-  assert.deepEqual(spec.pipelineFormats, VISUAL_RELIABILITY_FORMATS);
+  assert.equal(spec.pipelineFormats.runner, "phase1-reliability-v2");
+  assert.notEqual(
+    spec.pipelineFormats.runner,
+    VISUAL_RELIABILITY_FORMATS.runner,
+  );
   const child = spawnSync(
     process.execPath,
     ["scripts/evaluate-visuals.mjs", "--corrected"],
