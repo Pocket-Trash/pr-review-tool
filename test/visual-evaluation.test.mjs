@@ -13,6 +13,7 @@ import {
   renderVisualReliabilityReport,
 } from "../src/visual-evaluation.mjs";
 import { VISUAL_RELIABILITY_FORMATS } from "../src/visual-validation.mjs";
+import { mergeCoverageGaps } from "../src/evidence.mjs";
 import { visualRequirements } from "../src/visuals.mjs";
 
 const json = async (path) =>
@@ -233,6 +234,73 @@ test("facts evidence preserves all paid slots, raw gate failures and the separat
     assessments,
   );
   assert.doesNotMatch(report, /\| yes \| yes \|$/m);
+});
+
+test("offline coverage replay removes only duplicates without rescoring the paid ledger", async () => {
+  const path = new URL(
+    "../evaluation/visual-facts-results.json",
+    import.meta.url,
+  );
+  const original = await readFile(path, "utf8");
+  assert.equal(
+    createHash("sha256").update(original).digest("hex"),
+    "3065125940acc6a48b876a803c9392aef6e6da809efc9e9ad4f9353091124c07",
+  );
+  const ledger = JSON.parse(original);
+  const spec = await json("../evaluation/visual-facts-spec.json");
+  const base = await json("../evaluation/visual-fixtures.json");
+  const matrix = await json("../evaluation/matrix.json");
+  const assessments = await json("../evaluation/visual-facts-assessments.json");
+  const counts = {};
+  for (const row of ledger.sessions) {
+    const scope = {
+      ...base.fixtures.find((f) => f.pull === row.pull),
+      ...matrix.fixtures.find((f) => f.pull === row.pull),
+      reliability: true,
+      pipelineFormats: spec.pipelineFormats,
+    };
+    const charged = { ...row, billingStatus: "complete" };
+    const raw = await evaluateVisualTrial(
+      charged,
+      scope,
+      assessments.runs[row.id],
+    );
+    assert.equal(raw.passes, false);
+    if (row.status !== "success") continue;
+    assert.equal(raw.syntax, false);
+    const replay = {
+      ...charged,
+      review: {
+        ...row.review,
+        coverageGaps: mergeCoverageGaps(row.review.coverageGaps),
+      },
+    };
+    assert.deepEqual(replay.review.diagrams, row.review.diagrams);
+    assert.equal(replay.review.overview, row.review.overview);
+    assert.deepEqual(replay.review.changedAreas, row.review.changedAreas);
+    assert.equal(
+      replay.review.coverageGaps.length,
+      row.review.coverageGaps.length - 1,
+    );
+    assert.deepEqual(
+      new Set(replay.review.coverageGaps),
+      new Set(row.review.coverageGaps),
+    );
+    const checked = await evaluateVisualTrial(
+      replay,
+      scope,
+      assessments.runs[row.id],
+    );
+    assert.equal(checked.syntax, true);
+    assert.equal(checked.passes, true);
+    counts[row.model] = (counts[row.model] ?? 0) + 1;
+  }
+  assert.deepEqual(counts, {
+    "anthropic/claude-sonnet-5.5": 9,
+    "moonshotai/kimi-k2.5": 6,
+    "z-ai/glm-5.3": 7,
+  });
+  assert.equal(await readFile(path, "utf8"), original);
 });
 
 test("corrected evidence preserves every paid slot and the cumulative cap", async () => {

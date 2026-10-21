@@ -12,7 +12,11 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runRestrictedReview } from "../src/opencode.mjs";
-import { evidenceFromEvents, evidenceCoverage } from "../src/evidence.mjs";
+import {
+  evidenceFromEvents,
+  evidenceCoverage,
+  mergeCoverageGaps,
+} from "../src/evidence.mjs";
 import { prepareReviewContext } from "../src/context.mjs";
 import { preparedVisualRequirements } from "../src/visuals.mjs";
 
@@ -155,7 +159,10 @@ test("visual invocation publishes runner coverage without model-authored availab
       join(directory, "pull-request.json"),
       JSON.stringify({
         identity: { headSha: "a".repeat(40), baseSha: "b".repeat(40) },
-        omissions: [],
+        omissions: [
+          "lockfile: trusted generated-file pattern",
+          "snapshot: trusted generated-file pattern",
+        ],
         files: [
           {
             filename: "railway.ts",
@@ -225,6 +232,23 @@ test("visual invocation publishes runner coverage without model-authored availab
     assert.ok(
       !result.coverageGaps.some((gap) => gap.startsWith("Model-reported")),
     );
+    for (const omission of [
+      "lockfile: trusted generated-file pattern",
+      "snapshot: trusted generated-file pattern",
+    ])
+      assert.equal(
+        result.coverageGaps.filter((gap) => gap === omission).length,
+        1,
+      );
+    assert.equal(new Set(result.coverageGaps).size, result.coverageGaps.length);
+    const merged = mergeCoverageGaps(result.coverageGaps, [
+      "lockfile: trusted generated-file pattern",
+      "additional caller omission",
+    ]);
+    assert.deepEqual(merged, [
+      ...result.coverageGaps,
+      "additional caller omission",
+    ]);
     assert.equal(
       Object.keys(result).sort().join(),
       "changedAreas,coverageGaps,diagrams,overview",

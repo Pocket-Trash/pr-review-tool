@@ -81,6 +81,8 @@ The corrected matrix is [closed](evaluation/visual-corrected-report.md): all 27 
 
 The owner separately approved **$10** for the [evidence-backed prose campaign](evaluation/visual-facts-spec.json). After committing and offline-validating the exact runner, `EVALUATION_BUDGET_USD=10 npm run evaluate:visuals -- --facts` runs the same 27-slot matrix within 432 requests / 16 per slot including repair. All failures and retained reservations count; no replacements or automatic model adoption. The $9.3600832932 estimate is not a completion guarantee. Generate its separate offline report with `node scripts/render-visual-reliability-report.mjs --facts`. Earlier approvals and ledgers stay closed; this is not leftover authority from the shared $18 campaign.
 
+That campaign is now **closed**, billing $2.981265592. Read the [raw outcome](evaluation/visual-facts-outcome.md) before interpreting its zero strict passes: all 22 usable outputs passed bounded source assessments but repeated a host omission. The [separate offline replay](evaluation/visual-facts-offline-replay.md) checks the caller-merge fix without changing the paid evidence or spending on replacement trials. Neither result authorizes adoption or activation.
+
 ### Phase 2 development (not activated)
 
 Trusted local visual configuration can opt into `"visualPhase": 2` for conditional sequence diagrams. Source interaction changes may request one `sequenceDiagram`, with source-symbol participants and file/line message anchors. The coordinator must distinguish awaited order from concurrent work and omit unverified runtime steps. Syntax safety is not semantic proof: invented participants or ordering fail the source-assessment gate even when Mermaid parses.

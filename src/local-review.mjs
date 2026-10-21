@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { runRestrictedReview } from "./opencode.mjs";
 import { filterSkillOverrides } from "./skills.mjs";
+import { mergeCoverageGaps } from "./evidence.mjs";
 import {
   visualPrompt,
   preparedVisualRequirements,
@@ -102,7 +103,10 @@ run.skillOverrides = filterSkillOverrides(
   run.skillOverrides,
   run.selectedSkills,
 );
-review.coverageGaps.push(...(prepared?.omissions ?? []));
+review.coverageGaps = mergeCoverageGaps(
+  review.coverageGaps,
+  prepared?.omissions ?? [],
+);
 if (usageReports < invocations) run.usage.estimatedCostUsd = null;
 if (run.usage.estimatedCostUsd === null)
   review.coverageGaps.push(

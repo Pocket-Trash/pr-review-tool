@@ -16,6 +16,7 @@ import {
   prepareDeclarationBaseEvidence,
 } from "../src/intake.mjs";
 import { prepareReviewContext } from "../src/context.mjs";
+import { mergeCoverageGaps } from "../src/evidence.mjs";
 import { preparedVisualRequirements, visualPrompt } from "../src/visuals.mjs";
 import { VISUAL_RELIABILITY_FORMATS } from "../src/visual-validation.mjs";
 
@@ -481,7 +482,10 @@ try {
           entry.evidence = report;
         },
       });
-      entry.review.coverageGaps.push(...context.omissions);
+      entry.review.coverageGaps = mergeCoverageGaps(
+        entry.review.coverageGaps,
+        context.omissions,
+      );
       entry.status = "success";
     } catch (error) {
       if (

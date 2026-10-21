@@ -1,5 +1,7 @@
 import { resolve } from "node:path";
 
+export const mergeCoverageGaps = (...groups) => [...new Set(groups.flat())];
+
 const mergeRanges = (ranges) => {
   const merged = [];
   for (const range of ranges.sort((a, b) => a[0] - b[0])) {

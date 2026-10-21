@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveReviewEvent } from "./events.mjs";
 import { prepareReviewContext } from "./context.mjs";
+import { mergeCoverageGaps } from "./evidence.mjs";
 import {
   assertCurrentHead,
   buildArtifact,
@@ -280,9 +281,10 @@ try {
     },
   });
   await assertCurrentHead(identity, process.env.GITHUB_TOKEN);
-  review.coverageGaps.push(
-    ...prepared.omissions,
-    ...skillSelection.coverageGaps,
+  review.coverageGaps = mergeCoverageGaps(
+    review.coverageGaps,
+    prepared.omissions,
+    skillSelection.coverageGaps,
   );
   if (usageReports < invocationCount) effectiveUsage.estimatedCostUsd = null;
   if (effectiveUsage.estimatedCostUsd === null)
