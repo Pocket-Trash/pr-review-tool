@@ -161,7 +161,12 @@ export async function renderVisualReliabilityReport(
 ) {
   const sessions = ledger?.sessions ?? [];
   const requests = ledger?.requests ?? [];
-  const prefix = spec.sharedBudget ? "visual-corrected" : "visual-reliability";
+  const prefix =
+    spec.approval === "owner-approved-10-visual-facts-2026-10-21"
+      ? "visual-facts"
+      : spec.sharedBudget
+        ? "visual-corrected"
+        : "visual-reliability";
   const lines = [
     "# Phase 1 visual reliability evaluation",
     "",

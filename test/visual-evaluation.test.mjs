@@ -54,6 +54,38 @@ const assessment = {
   notes: "Descriptive output matches the supplied source.",
 };
 
+test("facts campaign requires its separate $10 approval and current pipeline before inference", async () => {
+  const spec = await json("../evaluation/visual-facts-spec.json");
+  assert.equal(spec.budgetUsd, 10);
+  assert.equal(spec.maxSessions, 27);
+  assert.equal(spec.maxRequests, 432);
+  assert.equal(spec.maxRequestsPerSession, 16);
+  assert.ok(spec.estimatedUsd <= 10);
+  assert.deepEqual(spec.pipelineFormats, VISUAL_RELIABILITY_FORMATS);
+  const child = spawnSync(
+    process.execPath,
+    ["scripts/evaluate-visuals.mjs", "--facts"],
+    {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        OPENROUTER_API_KEY: "not-a-real-key",
+        EVALUATION_BUDGET_USD: "18",
+      },
+    },
+  );
+  assert.notEqual(child.status, 0);
+  assert.match(child.stderr, /Explicit new \$10 visual-only approval/);
+  const report = await renderVisualReliabilityReport(
+    undefined,
+    { ...(await json("../evaluation/visual-fixtures.json")), ...spec },
+    [],
+    { runs: {} },
+  );
+  assert.match(report, /visual-facts-results.json/);
+  assert.doesNotMatch(report, /Shared approval/);
+});
+
 test("corrected approval is a distinct full matrix within the shared cap", async () => {
   const spec = await json("../evaluation/visual-corrected-spec.json");
   assert.equal(spec.maxSessions, 27);

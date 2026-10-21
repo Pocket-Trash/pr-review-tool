@@ -24,18 +24,25 @@ const json = async (name) =>
   JSON.parse(await readFile(join(root, "evaluation", name), "utf8"));
 const retest = process.argv.includes("--retest");
 const corrected = process.argv.includes("--corrected");
-const reliability = process.argv.includes("--reliability") || corrected;
-if (corrected && process.argv.includes("--reliability"))
+const facts = process.argv.includes("--facts");
+const reliability =
+  process.argv.includes("--reliability") || corrected || facts;
+if (
+  [retest, corrected, facts, process.argv.includes("--reliability")].filter(
+    Boolean,
+  ).length > 1
+)
   throw new TypeError("Select one distinct campaign");
-if (retest && reliability) throw new TypeError("Select one distinct campaign");
 const spec = {
   ...(await json("visual-fixtures.json")),
   ...(retest ? await json("visual-retest-spec.json") : {}),
   ...(reliability
     ? await json(
-        corrected
-          ? "visual-corrected-spec.json"
-          : "visual-reliability-spec.json",
+        facts
+          ? "visual-facts-spec.json"
+          : corrected
+            ? "visual-corrected-spec.json"
+            : "visual-reliability-spec.json",
       )
     : {}),
 };
@@ -48,30 +55,36 @@ const sharedBudget = corrected
       spec,
     )
   : undefined;
-const approvedBudget = corrected
-  ? sharedBudget.remainingUsd
-  : reliability
-    ? 15
-    : retest
-      ? 5.08
-      : 7.89;
+const approvedBudget = facts
+  ? 10
+  : corrected
+    ? sharedBudget.remainingUsd
+    : reliability
+      ? 15
+      : retest
+        ? 5.08
+        : 7.89;
 const approvedSessions = retest ? 9 : 27;
 const approvedRequests = approvedSessions * 16;
 const approvedRepetitions = retest ? 1 : 3;
-const approval = corrected
-  ? "owner-approved-18-combined-visual-corrected-2026-10-20"
-  : reliability
-    ? "owner-approved-15-visual-reliability-2026-10-20"
-    : retest
-      ? "owner-approved-5.08-visual-retest-2026-10-20"
-      : "owner-approved-7.89-visuals-2026-10-20";
-const resultsFile = corrected
-  ? "visual-corrected-results.json"
-  : reliability
-    ? "visual-reliability-results.json"
-    : retest
-      ? "visual-retest-results.json"
-      : "visual-results.json";
+const approval = facts
+  ? "owner-approved-10-visual-facts-2026-10-21"
+  : corrected
+    ? "owner-approved-18-combined-visual-corrected-2026-10-20"
+    : reliability
+      ? "owner-approved-15-visual-reliability-2026-10-20"
+      : retest
+        ? "owner-approved-5.08-visual-retest-2026-10-20"
+        : "owner-approved-7.89-visuals-2026-10-20";
+const resultsFile = facts
+  ? "visual-facts-results.json"
+  : corrected
+    ? "visual-corrected-results.json"
+    : reliability
+      ? "visual-reliability-results.json"
+      : retest
+        ? "visual-retest-results.json"
+        : "visual-results.json";
 const matrix = await json("matrix.json");
 const ids = [
   "anthropic/claude-sonnet-5.5",
@@ -90,6 +103,7 @@ if (
   spec.approval !== approval ||
   (reliability &&
     (spec.repairVisuals !== true ||
+      !Number.isFinite(spec.estimatedUsd) ||
       spec.estimatedUsd > approvedBudget ||
       spec.maxRequestsPerSession !== 16 ||
       spec.maxOutputTokens !== 32768 ||
@@ -376,7 +390,7 @@ try {
     for (const context of contexts)
       for (const model of models) slots.push({ repetition, ...context, model });
   // Expensive candidates run first so conservative full-context reserves retain headroom.
-  if (corrected)
+  if (corrected || facts)
     slots.sort((a, b) => ids.indexOf(a.model.id) - ids.indexOf(b.model.id));
   for (const { repetition, fixture, requirements, context, model } of slots) {
     if (

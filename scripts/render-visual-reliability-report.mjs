@@ -4,7 +4,13 @@ import { join } from "node:path";
 import { renderVisualReliabilityReport } from "../src/visual-evaluation.mjs";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const corrected = process.argv.includes("--corrected");
-const prefix = corrected ? "visual-corrected" : "visual-reliability";
+const facts = process.argv.includes("--facts");
+if (facts && corrected) throw new TypeError("Select one distinct campaign");
+const prefix = facts
+  ? "visual-facts"
+  : corrected
+    ? "visual-corrected"
+    : "visual-reliability";
 const json = async (name) =>
   JSON.parse(await readFile(join(root, "evaluation", name), "utf8"));
 const [base, spec, matrix, assessments] = await Promise.all([

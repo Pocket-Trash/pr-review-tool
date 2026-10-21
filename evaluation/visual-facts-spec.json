@@ -1,0 +1,22 @@
+{
+  "approval": "owner-approved-10-visual-facts-2026-10-21",
+  "budgetUsd": 10,
+  "maxSessions": 27,
+  "maxRequests": 432,
+  "repetitions": 3,
+  "maxRequestsPerSession": 16,
+  "maxInputBytes": 8388608,
+  "maxOutputTokens": 32768,
+  "repairVisuals": true,
+  "pipelineFormats": {
+    "runner": "phase1-facts-v3",
+    "prompt": "host-relationship-facts-v3",
+    "evidence": "frozen-evidence-v1",
+    "relationships": "visual-relationships-v1",
+    "repair": "single-pass-facts-v3",
+    "budget": "session-capability-full-context-v1"
+  },
+  "estimatedUsd": 9.3600832932,
+  "estimateMethod": "Highest billed prior reliability session per exact model/fixture, times three repetitions and 1.2 contingency. Catalog prices verified unchanged before launch. Smaller candidate sets and host-owned prose are not assumed to guarantee a lower cost. Full-context reservations can stop a slot before nominal cap. All failures, repairs and retained reservations count; no replacements.",
+  "purpose": "New $10 approval, separate from all closed historical campaigns. Evaluate evidence-backed Phase 1 prose/citations/change status and relationship-only bounded selection using exact OpenRouter Sonnet 5.5, Kimi K2.5 and GLM-5.3, same frozen three PRs and three repetitions, Sonnet first. Narrower supported-source summaries do not prove runtime behavior. No model substitution, route adoption, live activation, merge or production deployment."
+}
