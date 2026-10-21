@@ -83,8 +83,6 @@ test("repair rechecks runner-owned relationship IDs before rendering", async () 
             diagrams: [
               {
                 kind: "architecture",
-                title: "Declared call",
-                nodeIds: [edge.from, edge.to],
                 relationshipIds: [invent ? "invented" : edge.id],
               },
             ],
@@ -98,7 +96,7 @@ test("repair rechecks runner-owned relationship IDs before rendering", async () 
         );
         assert.equal(
           validation.attempts.at(-1).diagnostics[0].reason,
-          "Diagram contains unmatched relationship evidence",
+          "Invalid evidence diagram selection",
         );
       } else {
         const result = await run;

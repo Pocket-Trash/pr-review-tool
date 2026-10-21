@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { buildRelationshipCatalog } from "./relationships.mjs";
-import { buildVisualFacts } from "./visual-facts.mjs";
+import { buildVisualFacts, focusVisualCandidates } from "./visual-facts.mjs";
 
 // JSON-escaped multiline strings become one long line, which OpenCode truncates.
 export async function materializeReviewEvidence(
@@ -17,11 +17,12 @@ export async function materializeReviewEvidence(
     throw error;
   }
   await mkdir(join(workspace, "review-evidence"), { recursive: true });
-  const relationshipCatalog = relationships
+  let relationshipCatalog = relationships
     ? buildRelationshipCatalog(context)
     : undefined;
   if (relationshipCatalog) {
     relationshipCatalog.facts = buildVisualFacts(context, relationshipCatalog);
+    relationshipCatalog = focusVisualCandidates(relationshipCatalog);
     while (
       Buffer.byteLength(JSON.stringify(relationshipCatalog)) > 255 * 1024 &&
       relationshipCatalog.facts.length

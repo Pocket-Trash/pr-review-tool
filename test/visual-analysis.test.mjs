@@ -307,8 +307,6 @@ test("local eligible visuals report actual skills and usage rather than fixture 
             diagrams: [
               {
                 kind: "architecture",
-                title: "Ignored",
-                nodeIds: ["n0", "n1"],
                 relationshipIds: ["r0"],
               },
             ],

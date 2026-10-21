@@ -5,7 +5,9 @@ import {
   buildVisualFacts,
   validateFactSelection,
   completeFactVisuals,
+  focusVisualCandidates,
 } from "../src/visual-facts.mjs";
+import { readFile } from "node:fs/promises";
 import { prepareDeclarationBaseEvidence } from "../src/intake.mjs";
 import { runRestrictedReview } from "../src/opencode.mjs";
 import { fileURLToPath } from "node:url";
@@ -29,12 +31,13 @@ const file = (content, baseContent) => ({
 });
 const diagram = (catalog, kind = "architecture") => ({
   kind,
-  title: "Invented exclusivity, lifecycle or missing source",
-  nodeIds: catalog.nodes
-    .filter((n) =>
-      kind === "architecture" ? n.kind === "code" : n.kind === "entity",
-    )
-    .map((n) => n.id),
+  ...(kind === "schema-er"
+    ? {
+        entityIds: catalog.nodes
+          .filter((n) => n.kind === "entity")
+          .map((n) => n.id),
+      }
+    : {}),
   relationshipIds: catalog.relationships
     .filter((e) =>
       kind === "architecture"
@@ -52,12 +55,8 @@ test("frozen declaration facts distinguish new, text-modified, unchanged and unc
     ),
   ]);
   assert.deepEqual(
-    catalog.facts.map((f) => [f.symbol, f.status]),
-    [
-      ["old", "unchanged"],
-      ["changed", "modified"],
-      ["added", "added"],
-    ],
+    Object.fromEntries(catalog.facts.map((f) => [f.symbol, f.status])),
+    { old: "unchanged", changed: "modified", added: "added" },
   );
   for (const fact of catalog.facts)
     assert.equal(fact.source.sha, identity.headSha);
@@ -284,4 +283,196 @@ test("before evidence uses the frozen comparison merge-base and rename path, not
     },
   );
   assert.match(missing.omissions[0], /change status is uncertain/);
+});
+
+test("relationship-only selection derives both endpoints and rejects unknown/duplicate/wrong-kind IDs", async () => {
+  const source =
+    "import {pgTable,bigint} from 'drizzle-orm/pg-core';\nconst parent=pgTable('parent',{id:bigint('id').primaryKey()});\nconst child=pgTable('child',{id:bigint('id').primaryKey(),parentId:bigint('parent_id').references(()=>parent.id)});";
+  const catalog = fixture([file(source, source)]),
+    fk = catalog.relationships.find((e) => e.kind === "foreign-key");
+  const normalized = validateFactSelection(
+    {
+      factIds: [],
+      diagrams: [{ kind: "schema-er", relationshipIds: [fk.id] }],
+    },
+    catalog,
+  );
+  assert.deepEqual(
+    new Set(normalized.diagrams[0].nodeIds),
+    new Set([fk.from, fk.to]),
+  );
+  for (const bad of [
+    { kind: "schema-domain", relationshipIds: ["made-up"] },
+    { kind: "schema-domain", relationshipIds: [fk.id, fk.id] },
+    { kind: "architecture", relationshipIds: [fk.id] },
+    { kind: "schema-domain", relationshipIds: [] },
+    { kind: "schema-er", relationshipIds: [], entityIds: ["missing"] },
+    { kind: "schema-er", relationshipIds: [fk.id], nodeIds: [fk.from] },
+    {
+      kind: "schema-er",
+      relationshipIds: [fk.id],
+      title: "Mandatory nullable relationship",
+    },
+  ]) {
+    await assert.rejects(
+      completeFactVisuals(
+        { value: { factIds: [], diagrams: [bad] } },
+        {
+          catalog,
+          requirements: { architecture: false, schema: "large" },
+          phase: 1,
+          repairVisuals: false,
+          report: () => {},
+        },
+      ),
+      (e) => e.code === "VISUAL_REQUIRED_MISSING",
+    );
+  }
+  const isolated = validateFactSelection(
+    {
+      factIds: [],
+      diagrams: [
+        { kind: "schema-er", relationshipIds: [], entityIds: [fk.from] },
+      ],
+    },
+    catalog,
+  );
+  assert.deepEqual(isolated.diagrams[0].nodeIds, [fk.from]);
+});
+
+test("derived selection enforces endpoint and edge ceilings before Mermaid rendering", () => {
+  const nodes = Array.from({ length: 66 }, (_, i) => ({
+    id: `n${i}`,
+    kind: "code",
+  }));
+  const relationships = Array.from({ length: 65 }, (_, i) => ({
+    id: `r${i}`,
+    kind: "source-call",
+    from: "n0",
+    to: `n${i + 1}`,
+  }));
+  const catalog = { nodes, relationships, facts: [] };
+  for (const count of [32, 65]) {
+    const selected = validateFactSelection(
+      {
+        factIds: [],
+        diagrams: [
+          {
+            kind: "architecture",
+            relationshipIds: relationships.slice(0, count).map((e) => e.id),
+          },
+        ],
+      },
+      catalog,
+    );
+    assert.equal(selected.diagrams[0].nodeIds.length, 0);
+  }
+  const bounded = validateFactSelection(
+    {
+      factIds: [],
+      diagrams: [
+        {
+          kind: "architecture",
+          relationshipIds: relationships.slice(0, 31).map((e) => e.id),
+        },
+      ],
+    },
+    catalog,
+  );
+  assert.equal(bounded.diagrams[0].nodeIds.length, 32);
+});
+
+test("change-focused candidates prioritize changed owners, retain isolated ER context and disclose exclusions", () => {
+  const source = Array.from(
+    { length: 100 },
+    (_, i) => `function old${i}(){return call${i}();}`,
+  ).join("\n");
+  const catalog = fixture([
+    file(source + "\nfunction fresh(){return newCall();}", source),
+  ]);
+  const original = JSON.stringify(catalog),
+    focused = focusVisualCandidates(catalog);
+  const fresh = catalog.facts.find((f) => f.symbol === "fresh");
+  assert.ok(focused.nodes.some((n) => n.id === fresh.nodeId));
+  assert.ok(focused.relationships.some((e) => e.from === fresh.nodeId));
+  assert.ok(focused.nodes.filter((n) => n.kind === "code").length <= 64);
+  assert.ok(
+    focused.relationships.filter((e) => e.kind === "source-call").length <= 64,
+  );
+  assert.match(
+    focused.omissions.at(-1),
+    /supplied source files remain available/,
+  );
+  assert.ok(Buffer.byteLength(JSON.stringify(focused)) < 255 * 1024);
+  assert.equal(JSON.stringify(catalog), original);
+  const schema = fixture([
+    file(
+      "import {pgTable,bigint} from 'drizzle-orm/pg-core'; const isolated=pgTable('isolated',{id:bigint('id').primaryKey()});",
+      "",
+    ),
+  ]);
+  assert.ok(
+    focusVisualCandidates(schema).nodes.some((n) => n.kind === "entity"),
+  );
+});
+
+test("all recorded false prose claims are rejected by the fact-only protocol offline", async () => {
+  const assessments = JSON.parse(
+    await readFile(
+      new URL(
+        "../evaluation/visual-corrected-assessments.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  const catalog = fixture([file("const retained=1;", "const retained=1;")]);
+  let count = 0;
+  for (const assessment of Object.values(assessments.runs))
+    for (const claim of assessment.falseVisualClaims) {
+      count++;
+      assert.throws(
+        () =>
+          validateFactSelection(
+            { factIds: [], diagrams: [], overview: claim },
+            catalog,
+          ),
+        /Invalid visual fact/,
+      );
+      assert.throws(
+        () =>
+          validateFactSelection(
+            { factIds: [], diagrams: [], coverageGaps: [claim] },
+            catalog,
+          ),
+        /Invalid visual fact/,
+      );
+    }
+  assert.ok(count >= 15);
+});
+
+test("candidate byte trimming keeps references closed and records scope loss", () => {
+  const nodes = Array.from({ length: 100 }, (_, i) => ({
+    id: `n${i}`,
+    kind: "code",
+    label: "x".repeat(8000),
+  }));
+  const relationships = nodes.slice(1).map((n, i) => ({
+    id: `r${i}`,
+    kind: "source-call",
+    from: "n0",
+    to: n.id,
+  }));
+  const focused = focusVisualCandidates({
+    nodes,
+    relationships,
+    facts: [],
+    omissions: [],
+  });
+  assert.ok(Buffer.byteLength(JSON.stringify(focused)) < 255 * 1024);
+  const ids = new Set(focused.nodes.map((n) => n.id));
+  assert.ok(
+    focused.relationships.every((e) => ids.has(e.from) && ids.has(e.to)),
+  );
+  assert.match(focused.omissions[0], /candidate set omitted/);
 });

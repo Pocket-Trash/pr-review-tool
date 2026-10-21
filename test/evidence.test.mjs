@@ -200,8 +200,6 @@ test("visual invocation publishes runner coverage without model-authored availab
                   diagrams: [
                     {
                       kind: "architecture",
-                      title: "Declared source calls",
-                      nodeIds: [edge.from, edge.to],
                       relationshipIds: [edge.id],
                     },
                   ],
@@ -297,8 +295,6 @@ test("canonical workspace paths confirm reads through a temporary-directory alia
                   diagrams: [
                     {
                       kind: "architecture",
-                      title: "Declared",
-                      nodeIds: [edge.from, edge.to],
                       relationshipIds: [edge.id],
                     },
                   ],

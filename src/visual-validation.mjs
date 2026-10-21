@@ -4,7 +4,7 @@ import { sanitizeVisuals, missingRequiredVisuals } from "./visuals.mjs";
 
 export const VISUAL_RELIABILITY_FORMATS = Object.freeze({
   runner: "phase1-facts-v3",
-  prompt: "host-fact-selection-v3",
+  prompt: "host-relationship-facts-v3",
   evidence: "frozen-evidence-v1",
   relationships: "visual-relationships-v1",
   repair: "single-pass-facts-v3",
