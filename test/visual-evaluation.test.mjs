@@ -150,6 +150,56 @@ test("recorded reliability campaign preserves bounded slots, charges and source-
   }
 });
 
+test("corrected evidence preserves every paid slot and the cumulative cap", async () => {
+  const ledger = await json("../evaluation/visual-corrected-results.json");
+  const spec = await json("../evaluation/visual-corrected-spec.json");
+  const assessments = await json(
+    "../evaluation/visual-corrected-assessments.json",
+  );
+  const parentText = await readFile(
+    new URL("../evaluation/visual-reliability-results.json", import.meta.url),
+    "utf8",
+  );
+  assert.equal(
+    createHash("sha256").update(parentText).digest("hex"),
+    spec.sharedBudget.parentSha256,
+  );
+  assert.equal(ledger.campaign, spec.approval);
+  assert.equal(ledger.runnerSha, "0ca81f533dc7e978eb456e9612b1de7ed16ade4c");
+  assert.deepEqual(ledger.pipelineFormats, spec.pipelineFormats);
+  assert.equal(ledger.sessions.length, 27);
+  assert.equal(new Set(ledger.sessions.map((s) => s.id)).size, 27);
+  assert.ok(ledger.requests.length <= 432);
+  const cost = ledger.requests.reduce(
+    (s, r) => s + (r.costUsd ?? r.reservedUsd),
+    0,
+  );
+  assert.ok(cost <= ledger.budgetUsd);
+  assert.ok(cost + ledger.sharedBudget.priorAccountedUsd <= 18);
+  assert.ok(
+    ledger.requests.every(
+      (r) =>
+        r.status === "complete" &&
+        Number.isFinite(r.costUsd) &&
+        !r.boundExceeded,
+    ),
+  );
+  for (const row of ledger.sessions) {
+    assert.ok(ledger.requests.filter((r) => r.session === row.id).length <= 16);
+    assert.deepEqual(row.pipelineFormats, spec.pipelineFormats);
+    if (row.status === "success") assert.ok(assessments.runs[row.id]);
+    else assert.equal(assessments.runs[row.id], undefined);
+    if (row.evidence)
+      assert.doesNotMatch(
+        JSON.stringify(row.evidence),
+        /"(?:content|patch|output|filePath)":/,
+      );
+  }
+  assert.equal(Object.keys(assessments.runs).length, 18);
+  assert.equal(ledger.creditReconciliation.deltaMatchesBilled, true);
+  assert.equal(ledger.creditReconciliation.outstandingReservations, 0);
+});
+
 test("reliability gates require current host evidence and complete invocation telemetry", async () => {
   const valid = {
     ...row,
