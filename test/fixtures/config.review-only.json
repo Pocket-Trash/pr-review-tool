@@ -1,0 +1,14 @@
+{
+  "task": "review",
+  "provider": "cheaperinference",
+  "model": "fixture-model",
+  "skills": ["review-coordinator", "i-have-adhd", "stop-slop"],
+  "prompt": "Review supplied source for concrete correctness, security, data and test issues.",
+  "generatedFiles": ["**/generated/**"],
+  "limits": {
+    "maxFiles": 100,
+    "maxBytes": 1048576,
+    "maxChangedLines": 20000,
+    "maxFileBytes": 524288
+  }
+}

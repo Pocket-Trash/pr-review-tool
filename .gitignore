@@ -1,2 +1,15 @@
 node_modules/
 review.md
+.agents/
+.opencode/
+skills/install-status.json
+skills-lock.json
+skills/clerk-tanstack-patterns/
+skills/ponytail-review/
+skills/postgresql-code-review/
+skills/tanstack-*/
+skills/i-have-adhd/agents/
+skills/stop-slop/CHANGELOG.md
+skills/stop-slop/LICENSE
+skills/stop-slop/README.md
+skills/stop-slop/references/

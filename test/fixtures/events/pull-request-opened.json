@@ -1,0 +1,10 @@
+{
+  "action": "opened",
+  "repository": { "full_name": "Pocket-Trash/example" },
+  "pull_request": {
+    "number": 42,
+    "draft": false,
+    "base": { "sha": "base-sha" },
+    "head": { "sha": "head-sha", "repo": { "fork": false } }
+  }
+}

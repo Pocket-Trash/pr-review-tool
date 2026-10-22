@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { renderReview } from "../src/review.mjs";
+import { renderReview, validateProductionRoute } from "../src/review.mjs";
 
 const fixture = (name) => new URL(`fixtures/${name}`, import.meta.url);
 const json = async (name) => JSON.parse(await readFile(fixture(name), "utf8"));
@@ -57,4 +57,44 @@ test("renderer rejects malformed model results", async () => {
       ),
     /review\.findings\[0\] must be free of unknown fields|review\.findings\[0\]\.severity/,
   );
+});
+
+test("renderer records trusted manual skill overrides", async () => {
+  const output = renderReview(
+    await json("config.valid.json"),
+    await json("review.valid.json"),
+    {
+      ...(await json("run.valid.json")),
+      skillOverrides: ["tanstack-router: trusted selection"],
+    },
+  );
+  assert.match(output, /Skill overrides: tanstack-router: trusted selection/);
+});
+
+test("production routing remains CheaperInference-only before owner decision", async () => {
+  const config = await json("config.valid.json");
+  assert.equal(validateProductionRoute(config), config);
+  assert.throws(
+    () => validateProductionRoute({ ...config, provider: "openrouter" }),
+    /until the production routing decision is recorded/,
+  );
+});
+
+test("owner-approved Phase 1 route is exact and cannot fail over", async () => {
+  const config = await json("config.visuals-approved.json");
+  assert.equal(validateProductionRoute(config), config);
+  for (const change of [
+    { provider: "cheaperinference" },
+    { model: "z-ai/glm-5.3" },
+    { model: "anthropic/claude-sonnet-5.5:other" },
+  ])
+    assert.throws(
+      () => validateProductionRoute({ ...config, ...change }),
+      /owner-approved Phase 1 route/,
+    );
+  for (const change of [{ visualPhase: 2 }, { task: "review" }])
+    assert.throws(
+      () => validateProductionRoute({ ...config, ...change }),
+      /until the production routing decision/,
+    );
 });
