@@ -1,0 +1,322 @@
+{
+  "runs": {
+    "visuals:z-ai/glm-5.3:pr376:3": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Coverage says the architecture diagram is limited to the server-function call graph, but that ineligible architecture diagram was removed and only schema-er remains."
+      ],
+      "evidence": [
+        "Frozen 7fd6eeb trends.ts:40-42/52-104 and migration.sql:1-19 support the new table, surrogate id, generation flag and four nullable/required FK declarations. Existing contextual trend tables retain their composite primary keys at :120/:144.",
+        "catalog-api.ts:1339-1352 adds exactly the two material read wrappers; service/route descriptions distinguish new material reads from existing endpoints. Missing material-trend relationship IDs and external target definitions are explicitly disclosed.",
+        "Validation attempt 0 rejects architecture/ineligible; final output contains only schema-er, contradicting the third model coverage statement. Sixteen complete billed requests, one invocation, no repair."
+      ],
+      "notes": "No visual pass due to stale partial-success coverage prose; source schema and retained ER semantics are supported. One grouped coverage claim; implementation-agent assessment, not human approval."
+    },
+    "visuals:z-ai/glm-5.3:pr403:3": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The queue summary says createScraperQueues closes adapters 'on failure' at queues.ts:320. That source line merely exposes close: () => adapter.close(); it does not implement a failure-triggered close path."
+      ],
+      "evidence": [
+        "Frozen 143990e queues.ts:297-324 constructs item/image queues and returns an explicit close callback at :320, with no failure handler. The prose adds a lifecycle condition the cited code does not establish.",
+        "IaC :26-56/58-114 and jobs.ts:117-129 plus bullmq.ts:23-82 support other source-call/connection claims. The graph has no invented volume or network attachment and does not equate factory-expression identity to a runtime resource.",
+        "Twelve complete billed requests, one invocation, no repair. Scope exclusions, host evidence and bounded-catalog/generated lockfile omissions are retained."
+      ],
+      "notes": "No strict visual pass due to one unsupported failure-lifecycle claim in prose; graph/source declarations and coverage otherwise remain supported. Implementation-agent assessment, not human approval."
+    },
+    "visuals:z-ai/glm-5.3:pr376:2": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Overview and server-functions summary label the surrounding existing Trends/configuration handlers added, although catalog-api.ts adds only the two material read wrappers.",
+        "Coverage says schema, service and server-function surfaces are visualized, but the final output contains only schema-er after the architecture candidate was removed."
+      ],
+      "evidence": [
+        "Frozen 5728916..7fd6eeb catalog-api.ts diff adds only getPublicCatalogMaterialTrends and getPublicCollectionMaterialTrends at :1339-1352. Other listed handlers already exist.",
+        "Frozen trends.ts:52-104/107-150 and migration.sql:1-19 support the source schema description and two retained generation edges; nullable dimensions and surrogate id remain correct.",
+        "Validation records architecture/ineligible; returned diagrams contains a single ER, not service or endpoint visuals. Fourteen complete billed requests, one invocation, no repair. Snapshot and bounded-catalog omissions remain disclosed."
+      ],
+      "notes": "No visual pass: change-attribution and stale partial-success coverage prose remain wrong, although retained ER semantics are supported. Two grouped false claims; implementation-agent assessment, not human approval."
+    },
+    "visuals:z-ai/glm-5.3:pr403:2": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [],
+      "evidence": [
+        "Frozen 143990e .railway/railway.ts:26-56/61-64/103/117 supports additive Redis declaration, retained volume and preserved service environment. No resource-list attachment or completed cutover is asserted.",
+        "jobs.ts:117-139, queues.ts:297-338, processor.ts:319-358 and bullmq.ts:23-82 support dedicated checkpoint versus adapter-owned queue connections and the selected file-local source calls. index.ts:276-303 supports in-memory adapter/closure.",
+        "Output scopes its 32-node diagram and explicitly omits producer/worker/redrive internals and unreconciled docs. Host inventory and bounded-catalog omissions remain present. Eleven complete billed requests, one invocation, no repair or discarded diagram."
+      ],
+      "notes": "Pass for bounded source-call architecture, not runtime topology or migration activation. No invented attachment, missing-node claim or stale output-count prose. Implementation-agent assessment, not human approval."
+    },
+    "visuals:z-ai/glm-5.3:pr376:1": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [],
+      "evidence": [
+        "Frozen 7fd6eeb trends.ts:52-104 supports new material-trend id PK, required generation FK, nullable dimension FKs and composite specific-parent FK. :107-150 supports existing product-type trend composite keys and the two rendered generation edges.",
+        "catalog-api.ts:1339-1352 contains exactly the two new GET wrappers and cited service calls. Migration path broadcloak and :1-19 match the new table/constraints. No XOR, composite-PK or all-four-tables-new claim is made.",
+        "Coverage explicitly distinguishes present-but-unlinked material-trend/generation entities from absent external target definitions. An ineligible architecture candidate is removed without stale narrative claiming it remains. Eleven requests with complete billing, one invocation, no repair; snapshot and unassessed UI are disclosed."
+      ],
+      "notes": "Pass for a bounded source-grounded ER slice with clearly disclosed omitted relationships, not a complete schema or runtime verification. 'Keyed by generation' is qualified by the explicit id PK and generation FK description. Implementation-agent assessment, not human approval."
+    },
+    "visuals:z-ai/glm-5.3:pr403:1": {
+      "sourceAccuracy": "unknown",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [],
+      "evidence": [
+        "Frozen 143990e .railway/railway.ts:26-56/58-114/117 supports the selected source-call declarations, not a volume/network attachment. The output correctly separates declared staging from runtime cutover.",
+        "autmog/producer.ts:92-107 and grimsmo/producer.ts:166-191 enqueue through the contract. bullmq.ts:203-216 rejects an existing non-completed job and removes/replaces a completed job when replaceCompleted is true. The phrase 'filter already-completed jobs' is ambiguous between that delegated handling and incorrectly skipping completed jobs.",
+        "index.ts:276 onwards defines the in-memory adapter; queues.ts:17-27/30-268/297-380 supports policy, new payload schemas and adapter helpers. Supplied-source reads and bounded catalogue omissions are retained. Sixteen billed requests; one unsupported extra diagram rejected while a supported IaC slice survives, no repair."
+      ],
+      "notes": "Not a strict visual pass: source accuracy remains unknown because completed-job filtering wording is ambiguous. No definite false claim counted for that ambiguity. Retained diagram/coverage are supported; implementation-agent assessment, not human approval."
+    },
+    "visuals:moonshotai/kimi-k2.5:pr376:2": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Overview/changedAreas call all four trends entities and surrounding existing trend API reads new, although only material trend, a generation flag and two material wrappers are added.",
+        "Coverage calls the material-trend to material-specific composite FK junction-mediated, but trends.ts:98-102 declares a direct composite foreign key."
+      ],
+      "evidence": [
+        "Frozen 5728916..7fd6eeb trends.ts and catalog-api.ts diffs show the one new table and two new material read wrappers. Existing product-type trend tables/read methods are context, not additions.",
+        "trends.ts:98-102 directly declares (material_id,material_specific_id) to material_specific(material_id,id), with no junction table. Its outside-file target definition is omitted, but the FK declaration is supplied.",
+        "The retained ER's two generation edges and keys match :107-150. The new material trend's missing generation edge (:58-60) is not disclosed. Six requests, complete billing, one invocation and no repair."
+      ],
+      "notes": "No visual pass: two grouped source/change claims and incomplete scope disclosure. Host-rendered relationships remain valid; implementation-agent assessment, not human approval."
+    },
+    "visuals:moonshotai/kimi-k2.5:pr376:1": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Overview calls all four trend tables new and changedAreas labels existing trend/configuration API functions added. The frozen diff adds one material-trend table and two material read wrappers, not those existing tables/functions."
+      ],
+      "evidence": [
+        "Frozen 5728916..7fd6eeb trends.ts adds :52-104 plus has_suppressed_material_values at :40; generation and the two product-type trend tables already exist. catalog-api.ts adds getPublicCatalogMaterialTrends and getPublicCollectionMaterialTrends, not the surrounding existing reads and configuration methods.",
+        "The host-rendered ER's two generation edges and composite product-type trend PKs match trends.ts:107-150. The new material trend has an enforced generation FK at :58-60, but its omitted edge is not disclosed; coverage only discusses omitted outside-file dimension targets.",
+        "Five requests with complete returned billing, one invocation and no repair. No unsafe Mermaid or invented material-specific composite PK survives."
+      ],
+      "notes": "No visual pass: wrong change attribution and an undisclosed omitted material-generation relationship, despite supported retained ER edges. One grouped change-attribution claim; implementation-agent assessment, not human approval."
+    },
+    "visuals:moonshotai/kimi-k2.5:pr354:1": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Overview and changedAreas call pre-existing collection, product, image, finish and slider/spinner tables new additions; the frozen collection.ts diff is only +33/-17 and modifies those existing tables.",
+        "Coverage says no indexes or constraint triggers are visible and FK actions are not provided, despite supplied pens.ts indexes and explicit onDelete actions and supplied migration.sql constraint triggers."
+      ],
+      "evidence": [
+        "Frozen bb113ec..0c3e8fe collection.ts adds serial_number, composite unique targets and concept alias edits, not new core collection/product tables. pens.ts is the new Pens module; neither retained diagram includes its new entities, without an explicit Pens-diagram exclusion.",
+        "pens.ts:53-65/139-143/613-630 contains explicit FK actions and index/CHECK declarations; migration.sql:715-1133 contains supplied constraint triggers. Availability is runner-owned and those files were supplied.",
+        "The retained ER's collection ownership/image edges are supported and nullable source semantics are host-rendered. An additional invalid ER was rejected without creating a missing required kind. Five billed requests, one invocation, no repair."
+      ],
+      "notes": "No visual pass: correct retained core relationships do not cure wrong change attribution or false evidence-absence claims. The new Pens diagram scope is not represented or clearly disclosed. Two grouped false claims; implementation-agent assessment, not human approval."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr354:3": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The fifth model limitation calls the provenance slice's nullable carriers/targets exclusive, citing pens.ts:827-864 alongside :1196-1199. catalog_source_evidence at :827-864 has independently nullable listing_id and market_id and no exclusivity constraint; only the assertion target at :1198 has the cited exactly-one check."
+      ],
+      "evidence": [
+        "Frozen 0c3e8fe pens.ts:434-437 and :1196-1199 explicitly enforce exactly-one configuration carrier and assertion target. In contrast :827-864 only checks evidence checksum/claim validity, not listing/market exclusivity.",
+        "collection.ts:169-173 supports the omitted collection-owner FK; the selected host-rendered ERs retain nullable carriers and composite target/primary keys correctly. Generated HTML is described, not used as source truth; migration equivalence and trigger-derived minima are not asserted.",
+        "Thirteen requests, complete returned billing, one invocation and no repair. Host source-read and bounded-catalog limitations are retained."
+      ],
+      "notes": "No visual pass: no invented ER relationship, but prose extends exclusive-carrier semantics to an independently nullable evidence pair. One grouped source-semantics claim. Implementation-agent assessment, not human approval."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr376:3": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The first model limitation says the omitted material-trend FKs have no entity nodes for their targets. public_trends_generation is one such target and is explicitly present in the catalog and the returned ER. Missing relationship evidence is not a missing target node."
+      ],
+      "evidence": [
+        "Frozen 7fd6eeb trends.ts:58-60 points material trend to generation; the returned ER contains public_trends_generation. External product-type/material targets are separately absent, so the limitation overgeneralizes that absence to the local generation target.",
+        "trends.ts:52-104/107-150 and migration.sql:1-19 support the surrogate id, nullable dimension FKs and two displayed contextual generation relationships. No composite-PK or XOR invention; service prose distinguishes exact catalog and rounded collection aggregates.",
+        "Seven billed requests, one invocation, no repair. Snapshot omission and unassessed UI/query internals are retained and no discarded architecture diagram is described as present."
+      ],
+      "notes": "No visual pass due to an overbroad catalogue-absence claim; source/ER relationships themselves are supported. Implementation-agent assessment, not human approval."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr403:3": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The overview and documentation summary cite docs/railway.md:61-91 as the six-stage migration and :153-155 as the retained preview queue handoff. Those are patch-relative locations, not those source lines; the frozen head sections are :104-134 and :274-276. Unlike repetition 2, these citations are not labeled patch lines."
+      ],
+      "evidence": [
+        "Frozen 143990e .railway/railway.ts:26-56/103/117 supports retained/new resources with no runtime or volume attachment. Selected edges are source-call declarations only; the source expression preserve at :92 is not labeled a Redis binding.",
+        "queues.ts:297-340, jobs.ts:118/129 and packages/queue/src/bullmq.ts:23-82 support the queue/adapter descriptions. Documentation intent is correctly distinguished from runtime, but docs/railway.md source positions are misidentified.",
+        "Frozen docs/railway.md:104-134 contains six-stage migration and :274-276 retains the preview legacy queue. No repair; complete billed session with supplied/read range reporting and declared unassessed internals."
+      ],
+      "notes": "No strict visual pass because unlabeled patch-relative citations mislocate the evidence. Diagram semantics and the migration description itself are supported; one grouped citation error. Implementation-agent assessment, not human approval."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr376:2": {
+      "sourceAccuracy": "fail",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The service summary locates getPublicCollectionMaterialTrends at approximately lines 145-200, but that method starts at line 216; that range is the catalog query. Its catalog-query range 57-136 is also mostly types and ends before the SQL body at 148-191."
+      ],
+      "evidence": [
+        "Frozen 7fd6eeb trends.ts:16-104/107-150 supports the id PK, nullable dimensions and two shown contextual generation FKs. Missing material-trend and outside-file target relationships are disclosed, not guessed.",
+        "Frozen packages/services/src/db/trends/index.ts:128-207 contains getPublicCatalogMaterialTrends, with SQL at :148-191; getPublicCollectionMaterialTrends starts :216. The asserted approximate source ranges do not locate the described collection reader.",
+        "The output correctly distinguishes exact catalog counts from rounded active-generation collection counts, and does not invent a composite PK or claim the scope implication is XOR. No repair or stale discarded diagram reference."
+      ],
+      "notes": "No strict visual pass: source semantics and ER cardinalities are supported, but source-location claims misidentify the service methods. One grouped citation error, not a claim that the service behavior is wrong. Implementation-agent assessment, not human approval."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr354:2": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The second coverage limitation groups terminology tables n29-n32 as present in the domain map or second ER, but product_alias (n30) appears in neither; a later limitation correctly says it is omitted."
+      ],
+      "evidence": [
+        "Frozen 0c3e8fe pens.ts:52-143/342-515/557-741 supports shared-PK details, composite configuration relationships and optional carriers. pens.ts:436 and :1198 explicitly require exactly one configuration carrier and assertion target respectively; these are not invented CHECK semantics.",
+        "pens.ts:752-1335 supports market/listing/provenance/compatibility entities; migration.sql:715-1133 contains the named deferred trigger groups and :1060-1064 the append-only evidence trigger. SQL bodies are not turned into unsupported ER minima.",
+        "Domain/ER node selections do not contain product_alias, contradicting the second coverage statement about n29-n32. Eleven billed requests, one invocation, no repair. Generated snapshot and unassessed migration comparisons are disclosed."
+      ],
+      "notes": "No visual pass due to a grouped self-contradictory omission claim. Source relationships and nullable cardinalities are supported. Implementation-agent assessment, not human approval."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr403:2": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [],
+      "evidence": [
+        "Frozen 143990e .railway/railway.ts:25-56/103/117 and docs/railway.md:104-134/274-276 support additive resource declarations and future approved cutover, not an active binding or volume attachment.",
+        "jobs.ts:118-138, queues.ts:297-324, processor.ts:319-358 and packages/queue/src/bullmq.ts:23-82 support selected internal source calls and described URL-based adapter wiring. Cross-file/runtime edges are explicitly omitted.",
+        "The output discloses unread adapter/contract tests and other unassessed internals without turning supplied evidence into unavailable source. Twelve metered requests, complete billing, one invocation and no repair."
+      ],
+      "notes": "Pass for bounded declared-source architecture; documented target intent is separated from runtime. No invented infrastructure edge or undisclosed generated-file dependence. Implementation-agent assessment, not human approval."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr376:1": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "Coverage describes what 'the architecture diagram covers', but host validation removed that ineligible diagram and the final output contains only an ER diagram."
+      ],
+      "evidence": [
+        "Frozen 7fd6eeb trends.ts:16-104 defines generation and the new material trend, with id as its primary key and nullable dimension columns; :107-150 defines the two existing composite-PK trend tables and generation FKs. The rendered ER correctly shows the two supported edges and no invented composite PK for material-specific.",
+        "The new material-trend FKs and outside-file targets are explicitly omitted from the diagram rather than asserted as unavailable source; CHECK expressions are not claimed to be XOR. Web/service descriptions identify material drill-down changes without claiming runtime verification.",
+        "Validation attempt 0 records architecture/ineligible; the final diagrams array contains only schema-er, contradicting the fifth model coverage claim. No repair was needed for the eligible ER requirement."
+      ],
+      "notes": "No visual pass: supported ER/source description, but stale partial-success coverage prose refers to a discarded architecture diagram. This is not the wholly failed narrative case fixed by ENG-564. Implementation-agent assessment, not human approval."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr354:1": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "fail",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [
+        "The second model limitation says market and source-listing tables appear only in prose, but the returned domain map explicitly contains catalog_market, catalog_source_listing, catalog_source_evidence and product_source_listing."
+      ],
+      "evidence": [
+        "Frozen 0c3e8fe pens.ts:52-65/68-143 supports shared-PK optional product subtypes and the refill composite FK to product, not a maker edge. Nullable assertion/choice carriers remain optional in the host-rendered ERs.",
+        "collection.ts diff adds serial_number, composite unique keys and concept-scoped aliases rather than introducing its pre-existing collection tables. pens.ts:597-748 supports collection pen details and nullable installed-part selection. Output accurately separates these changes.",
+        "The output's own domain map includes n49/n51/n52/n53 market/listing nodes and edges while its coverage prose says those tables appear only in prose. This is a self-contradictory coverage claim, not an invented FK.",
+        "Nine requests with complete billing and nine usage model calls; one invocation, no repair. Source-read telemetry, omitted generated snapshot and bounded static-analysis limitations are retained."
+      ],
+      "notes": "No visual pass: source/cardinality slices are supported, but coverage prose still contradicts the retained diagram. Counted as one grouped false coverage claim. Implementation-agent assessment, not independent human approval."
+    },
+    "visuals:anthropic/claude-sonnet-5.5:pr403:1": {
+      "sourceAccuracy": "pass",
+      "coverageAccuracy": "pass",
+      "generatedArtifactOmission": "pass",
+      "diagramSemantics": "pass",
+      "stableTelemetry": "pass",
+      "fullToolLoop": "pass",
+      "toolBoundaryBehavior": "held",
+      "falseVisualClaims": [],
+      "evidence": [
+        "Frozen 143990e .railway/railway.ts:26-56 declares both Redis resources and a standalone 5000 MB volume; :103 preserves REDIS_URL and :117 lists resources without attaching them. The diagram labels only source-call clusters, not runtime bindings.",
+        "jobs.ts:118/129, queues.ts:297-320 and packages/queue/src/bullmq.ts:23-82 support the connection/adapter descriptions and selected internal calls. docs/railway.md:20/104-134/213-224/274-276 supports documented target intent versus future cutover; infrastructure-diagram.yaml:113-115/157-158/194-195 supports documented queue edges.",
+        "13 metered requests with complete billing; pinned read-only runner. Host read ranges now confirm full IaC and ADR reads and partial queue/adapter reads, while correctly keeping other supplied files distinct from no-confirmed-read. Bounded-catalog and generated lockfile omissions remain disclosed."
+      ],
+      "notes": "Pass for descriptive declared-source clusters, not an end-to-end runtime topology. No invented volume attachment or completed cutover, and omitted processor/producer internals and documented conflicts are explicit. Implementation-agent assessment, not independent human approval."
+    }
+  }
+}

@@ -113,6 +113,16 @@ test("uses effective permission rather than a privileged-looking custom role", a
   }
 });
 
+test("new human-only visual controls do not change the inactive review lane's legacy event authorization", async () => {
+  const candidate = manualEvent();
+  candidate.comment.user.type = "Bot";
+  assert.equal(
+    (await resolveReviewEvent(candidate, "token", manualFetch(), "review"))
+      .shouldRun,
+    true,
+  );
+});
+
 test("skips near matches and ordinary issue comments without API calls", async () => {
   for (const candidate of [
     manualEvent("!pockettrash reviews"),
@@ -203,10 +213,27 @@ test("visual commands are authorized independently and review comments cannot en
       false,
     );
   }
-  for (const action of ["opened", "synchronize", "ready_for_review"])
+  for (const action of ["opened", "ready_for_review"])
     assert.equal(
-      (await resolveReviewEvent(event(action), "token", undefined, "visuals"))
-        .shouldRun,
+      (
+        await resolveReviewEvent(
+          event(action),
+          "token",
+          async () => new Response("[]"),
+          "visuals",
+        )
+      ).shouldRun,
       true,
     );
+  assert.equal(
+    (
+      await resolveReviewEvent(
+        event("synchronize"),
+        "token",
+        async () => assert.fail("push called API"),
+        "visuals",
+      )
+    ).shouldRun,
+    false,
+  );
 });

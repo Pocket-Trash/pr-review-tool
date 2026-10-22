@@ -10,6 +10,7 @@ import {
   preparePublication,
   publishReview,
 } from "../src/publication.mjs";
+import { VISUAL_RERUN_FOOTER } from "../src/comment-controls.mjs";
 
 const fixture = async (name) =>
   JSON.parse(
@@ -50,6 +51,7 @@ test("visual publication sanitizes prose and diagrams without adding review find
     /## Findings|<script>|click A|pockettrash:pr-review/,
   );
   assert.equal(publication.body.split(VISUAL_COMMENT_MARKER).length, 2);
+  assert.ok(publication.body.endsWith(VISUAL_RERUN_FOOTER));
 });
 
 test("visual publication rejects cross-lane identity, findings, and wrong SHA", async () => {
@@ -82,6 +84,7 @@ test("neutral/failure/timeout/cancelled visual states remove diagrams and identi
       options,
     );
     assert.equal(publication.conclusion, conclusion);
+    assert.ok(publication.body.endsWith(VISUAL_RERUN_FOOTER));
     assert.match(publication.body, /No diagram was published/);
     assert.match(
       publication.body,
@@ -109,6 +112,20 @@ test("visual marker lookup cannot select the review comment or a spoofed App", (
     ),
     owned,
   );
+});
+
+test("visual validation and size failures retain the unchecked rerun control within the comment cap", async () => {
+  const missing = structuredClone(artifact);
+  missing.visualRequirements = { architecture: true, schema: "none" };
+  missing.review.diagrams = [];
+  const oversized = structuredClone(artifact);
+  oversized.review.overview = "x".repeat(60_000);
+  for (const input of [missing, oversized]) {
+    const output = await preparePublication(input, options);
+    assert.equal(output.conclusion, "failure");
+    assert.ok(output.body.endsWith(VISUAL_RERUN_FOOTER));
+    assert.ok(output.body.length <= 60_000);
+  }
 });
 
 function mockPublication(previousRun = "99:1") {

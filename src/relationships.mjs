@@ -17,6 +17,8 @@ const name = (node) =>
     : node?.type === "StringLiteral"
       ? node.value
       : undefined;
+const literalName = (node) =>
+  node?.type === "StringLiteral" ? node.value : undefined;
 const member = (node) =>
   node?.type === "MemberExpression" &&
   !node.computed &&
@@ -24,10 +26,16 @@ const member = (node) =>
     ? [name(node.object), node.property.name]
     : undefined;
 const properties = (node) =>
-  node?.type === "ObjectExpression"
-    ? node.properties.filter(
-        (property) => property.type === "ObjectProperty" && !property.computed,
-      )
+  node?.type === "ObjectExpression" &&
+  node.properties.every(
+    (property) =>
+      property.type === "ObjectProperty" &&
+      !property.computed &&
+      name(property.key),
+  ) &&
+  new Set(node.properties.map((property) => name(property.key))).size ===
+    node.properties.length
+    ? node.properties
     : [];
 const property = (node, key) =>
   properties(node).find((item) => name(item.key) === key)?.value;
@@ -132,7 +140,7 @@ export function buildRelationshipCatalog(context) {
         ...file,
         sha:
           file.status === "removed"
-            ? context.identity.baseSha
+            ? (file.baseSha ?? context.identity.baseSha)
             : context.identity.headSha,
         ast,
         imports: new Map(),
@@ -198,7 +206,6 @@ export function buildRelationshipCatalog(context) {
           "$defaultFn",
           "$onUpdate",
           "$onUpdateFn",
-          "array",
         ].includes(method)
       )
         return undefined;
@@ -231,7 +238,7 @@ export function buildRelationshipCatalog(context) {
         "jsonb",
       ].includes(primitive.imported)
     ) {
-      const physical = name(node.arguments[0]);
+      const physical = literalName(node.arguments[0]);
       if (!identifier.test(physical ?? "")) return undefined;
       return {
         name: physical,
@@ -319,7 +326,7 @@ export function buildRelationshipCatalog(context) {
         !core(env, name(init.callee), "pgTable")
       )
         continue;
-      const tableName = name(init.arguments[0]);
+      const tableName = literalName(init.arguments[0]);
       if (
         !identifier.test(tableName ?? "") ||
         init.arguments[1]?.type !== "ObjectExpression"
@@ -432,7 +439,7 @@ export function buildRelationshipCatalog(context) {
             });
         } else if (core(env, root.method, "check"))
           catalog.omissions.push(
-            `${env.filename}:${root.node.loc.start.line}: CHECK constraints (including exclusive targets) are not represented by per-FK ER cardinalities.`,
+            `${env.filename}:${root.node.loc.start.line}: CHECK constraints are not represented by per-FK ER cardinalities; their source expressions require separate assessment.`,
           );
         else if (!core(env, root.method, "index"))
           table.uncertainConstraints = true;
@@ -471,13 +478,12 @@ export function buildRelationshipCatalog(context) {
         if (
           !target ||
           table.uncertainConstraints ||
-          target.uncertainConstraints ||
           sourceCols.some((col) => !col) ||
           targetCols.some((col) => !col) ||
           !target.uniqueKeys.some((keys) => sameSet(keys, fk.targetColumns))
         ) {
           catalog.omissions.push(
-            `${env.filename}:${fk.source.startLine}: FK target/source declarations or referenced uniqueness unavailable; relationship omitted.`,
+            `${env.filename}:${fk.source.startLine}: FK evidence is unsupported or incomplete (constraints, targets or referenced uniqueness); relationship omitted, not proof of unavailable source.`,
           );
           continue;
         }
@@ -598,6 +604,7 @@ export function renderEvidenceVisuals(value, catalog) {
       diagram.nodeIds.length > 32 ||
       new Set(diagram.nodeIds).size !== diagram.nodeIds.length ||
       !Array.isArray(diagram.relationshipIds) ||
+      (diagram.kind !== "schema-er" && diagram.relationshipIds.length === 0) ||
       diagram.relationshipIds.length > 64 ||
       new Set(diagram.relationshipIds).size !== diagram.relationshipIds.length
     )

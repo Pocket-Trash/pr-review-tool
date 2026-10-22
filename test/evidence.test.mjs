@@ -1,10 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  realpath,
+  symlink,
+  readFile,
+  writeFile,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runRestrictedReview } from "../src/opencode.mjs";
-import { evidenceFromEvents, evidenceCoverage } from "../src/evidence.mjs";
+import {
+  evidenceFromEvents,
+  evidenceCoverage,
+  mergeCoverageGaps,
+} from "../src/evidence.mjs";
 import { prepareReviewContext } from "../src/context.mjs";
 import { preparedVisualRequirements } from "../src/visuals.mjs";
 
@@ -139,7 +151,7 @@ test("eligible unavailable schema cannot become neutral no-work, but trusted exc
   );
 });
 
-test("visual invocation publishes runner coverage and attributes model omissions separately", async () => {
+test("visual invocation publishes runner coverage without model-authored availability claims", async () => {
   const directory = await mkdtemp(join(tmpdir(), "coverage-run-"));
   let report;
   try {
@@ -147,7 +159,10 @@ test("visual invocation publishes runner coverage and attributes model omissions
       join(directory, "pull-request.json"),
       JSON.stringify({
         identity: { headSha: "a".repeat(40), baseSha: "b".repeat(40) },
-        omissions: [],
+        omissions: [
+          "lockfile: trusted generated-file pattern",
+          "snapshot: trusted generated-file pattern",
+        ],
         files: [
           {
             filename: "railway.ts",
@@ -188,17 +203,13 @@ test("visual invocation publishes runner coverage and attributes model omissions
               type: "text",
               part: {
                 text: JSON.stringify({
-                  overview: "Declared infrastructure.",
+                  factIds: [],
                   diagrams: [
                     {
                       kind: "architecture",
-                      title: "Declared source calls",
-                      nodeIds: [edge.from, edge.to],
                       relationshipIds: [edge.id],
                     },
                   ],
-                  changedAreas: [],
-                  coverageGaps: ["Workflow source was truncated."],
                 }),
               },
             },
@@ -219,12 +230,25 @@ test("visual invocation publishes runner coverage and attributes model omissions
       ),
     );
     assert.ok(
-      result.coverageGaps.some((gap) =>
-        /^Model-reported analytical limitation \(unverified\): Workflow source was truncated/.test(
-          gap,
-        ),
-      ),
+      !result.coverageGaps.some((gap) => gap.startsWith("Model-reported")),
     );
+    for (const omission of [
+      "lockfile: trusted generated-file pattern",
+      "snapshot: trusted generated-file pattern",
+    ])
+      assert.equal(
+        result.coverageGaps.filter((gap) => gap === omission).length,
+        1,
+      );
+    assert.equal(new Set(result.coverageGaps).size, result.coverageGaps.length);
+    const merged = mergeCoverageGaps(result.coverageGaps, [
+      "lockfile: trusted generated-file pattern",
+      "additional caller omission",
+    ]);
+    assert.deepEqual(merged, [
+      ...result.coverageGaps,
+      "additional caller omission",
+    ]);
     assert.equal(
       Object.keys(result).sort().join(),
       "changedAreas,coverageGaps,diagrams,overview",
@@ -234,6 +258,85 @@ test("visual invocation publishes runner coverage and attributes model omissions
       /one\\ntwo|state|output|filePath/,
     );
   } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("canonical workspace paths confirm reads through a temporary-directory alias", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "coverage-alias-"));
+  const originalTemp = process.env.TMPDIR;
+  let report;
+  try {
+    await mkdir(join(directory, "real"));
+    await mkdir(join(directory, "prepared"));
+    await symlink(join(directory, "real"), join(directory, "alias"), "dir");
+    await writeFile(
+      join(directory, "prepared/pull-request.json"),
+      JSON.stringify({
+        identity: { headSha: "a".repeat(40), baseSha: "b".repeat(40) },
+        files: [
+          {
+            filename: "railway.ts",
+            content: 'const queue=service("queue");\nconst active=queue;\n',
+          },
+        ],
+      }),
+    );
+    process.env.TMPDIR = join(directory, "alias");
+    await runRestrictedReview({
+      task: "visuals",
+      provider: "openrouter",
+      model: "fixture",
+      apiKey: "fixture",
+      workspace: join(directory, "prepared"),
+      visualRequirements: { architecture: true, schema: "none" },
+      onEvidence: (value) => {
+        report = value;
+      },
+      execute: async (_command, _args, options) => {
+        assert.equal(options.cwd, await realpath(options.cwd));
+        const catalog = JSON.parse(
+          await readFile(
+            join(options.cwd, "review-relationships.json"),
+            "utf8",
+          ),
+        );
+        const edge = catalog.relationships[0];
+        return {
+          stdout: [
+            read("confirmed", "1: const queue = service();", {
+              input: {
+                filePath: await realpath(
+                  join(options.cwd, "review-evidence/0-content.txt"),
+                ),
+              },
+            }),
+            {
+              type: "text",
+              part: {
+                text: JSON.stringify({
+                  factIds: [],
+                  diagrams: [
+                    {
+                      kind: "architecture",
+                      relationshipIds: [edge.id],
+                    },
+                  ],
+                }),
+              },
+            },
+          ]
+            .map((event) => JSON.stringify(event))
+            .join("\n"),
+        };
+      },
+    });
+    const file = report.files.find((file) => file.kind === "content");
+    assert.deepEqual(file.returnedRanges, [[1, 1]]);
+    assert.equal(file.readState, "partial-returned");
+  } finally {
+    if (originalTemp === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = originalTemp;
     await rm(directory, { recursive: true, force: true });
   }
 });

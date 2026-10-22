@@ -57,6 +57,7 @@ env:
   REVIEW_TASK: ${{ inputs.task }}
   REVIEW_VISUAL_PHASE: "1"
   REVIEW_CODE_ENABLED: "false"
+  REVIEW_APP_SLUG: ${{ inputs.app-slug }}
 
 jobs:
   authorize:

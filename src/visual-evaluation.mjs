@@ -6,6 +6,8 @@ import {
   validateVisualPhase,
 } from "./review.mjs";
 import { sanitizeVisuals } from "./visuals.mjs";
+import { VISUAL_RELIABILITY_FORMATS } from "./visual-validation.mjs";
+import { budgetTotal } from "./evaluation-budget.mjs";
 
 const gates = [
   "sourceAccuracy",
@@ -51,10 +53,34 @@ async function syntaxPasses(visuals, requirements) {
 }
 
 export async function evaluateVisualTrial(row, requirements, assessment) {
+  const expectedFormats =
+    requirements.pipelineFormats ?? VISUAL_RELIABILITY_FORMATS;
   const visualPhase = validateVisualPhase(requirements.visualPhase);
   if (row.status !== "success" || !row.review)
     return { status: "failed", passes: false, assessed: false };
   if (row.task !== "visuals" || !usesCorrectedRunner(row))
+    return { status: "ineligible", passes: false, assessed: false };
+  if (
+    requirements.reliability &&
+    (Object.keys(VISUAL_RELIABILITY_FORMATS).some(
+      (key) =>
+        typeof expectedFormats[key] !== "string" ||
+        !expectedFormats[key] ||
+        row.pipelineFormats?.[key] !== expectedFormats[key],
+    ) ||
+      row.evidence?.version !== VISUAL_RELIABILITY_FORMATS.evidence ||
+      row.visualValidation?.version !== "visual-validation-v1" ||
+      row.visualValidation?.relationshipCatalog?.version !==
+        VISUAL_RELIABILITY_FORMATS.relationships ||
+      !/^[0-9a-f]{64}$/.test(
+        row.visualValidation?.relationshipCatalog?.sha256 ?? "",
+      ) ||
+      ![1, 2].includes(row.visualValidation?.attempts?.length) ||
+      row.visualValidation.attempts.at(-1).missing?.length !== 0 ||
+      !Number.isSafeInteger(row.invocations) ||
+      row.invocations < 1 ||
+      row.usageReports !== row.invocations)
+  )
     return { status: "ineligible", passes: false, assessed: false };
   if (visualPhase === 2 && row.visualPhase !== 2)
     return { status: "ineligible", passes: false, assessed: false };
@@ -125,4 +151,162 @@ export async function inspectHistoricalVisuals(
     priorDiagramGate: priorAssessment?.diagramQuality ?? "unassessed",
     diagramCount: diagrams.length,
   };
+}
+
+export async function renderVisualReliabilityReport(
+  ledger,
+  spec,
+  fixtures,
+  assessments,
+) {
+  const sessions = ledger?.sessions ?? [];
+  const requests = ledger?.requests ?? [];
+  const prefix =
+    spec.approval === "owner-approved-10-visual-facts-2026-10-21"
+      ? "visual-facts"
+      : spec.sharedBudget
+        ? "visual-corrected"
+        : "visual-reliability";
+  const lines = [
+    "# Phase 1 visual reliability evaluation",
+    "",
+    `Campaign: ${spec.approval}. Status: ${ledger?.status ?? "approved, not run"}. Cap: $${spec.budgetUsd}, including paid failures, repairs and retained reservations. ${sessions.length}/${spec.maxSessions} slots recorded; ${requests.length}/${spec.maxRequests} requests. Accounted: $${budgetTotal(requests).toFixed(6)}. No paid replacements.`,
+    "",
+    `[Results and request billing](${prefix}-results.json) · [Source assessments](${prefix}-assessments.json)`,
+    ...(spec.sharedBudget
+      ? [
+          "",
+          `Shared approval: $${spec.sharedBudget.totalCapUsd} total. Frozen v1 debit: $${spec.sharedBudget.priorAccountedUsd}. Combined accounted: $${(spec.sharedBudget.priorAccountedUsd + budgetTotal(requests)).toFixed(6)}. The corrected allowance is not another $18.`,
+        ]
+      : []),
+    "",
+    `Planning estimate: $${spec.estimatedUsd}. ${spec.estimateMethod}`,
+    "",
+    "Structured completion is not source accuracy. A visual pass requires source, diagram, coverage, omissions, telemetry, billing and denied-tool assessments. Unassessed/unavailable output is never a zero-defect score. Runner coverage confirms supplied/read ranges, not comprehension. Source-call edges do not prove runtime infrastructure. Each candidate needs all nine frozen trials to pass; route approval and live activation remain separate.",
+    "",
+    "<!-- prettier-ignore -->",
+    "| Session | Execution | Structured | Repaired | Source / diagram / coverage | Assessed | Visual pass |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
+  ];
+  const evaluated = [];
+  for (const row of sessions) {
+    const fixture = fixtures.find((f) => f.pull === row.pull);
+    const scope = spec.fixtures.find((f) => f.pull === row.pull);
+    if (!fixture || !scope)
+      throw new TypeError("Unknown frozen reliability fixture");
+    const charges = requests.filter((r) => r.session === row.id);
+    const complete =
+      charges.length > 0 &&
+      charges.every(
+        (r) =>
+          r.status === "complete" &&
+          Number.isFinite(r.costUsd) &&
+          r.costUsd >= 0 &&
+          !r.boundExceeded,
+      );
+    const assessment = assessments.runs[row.id];
+    const result = await evaluateVisualTrial(
+      {
+        ...row,
+        billingStatus: complete ? "complete" : "unconfirmed",
+        usage: row.usage && {
+          ...row.usage,
+          estimatedCostUsd: complete
+            ? charges.reduce((sum, r) => sum + r.costUsd, 0)
+            : null,
+        },
+      },
+      {
+        ...scope,
+        ...fixture,
+        reliability: true,
+        pipelineFormats: spec.pipelineFormats,
+      },
+      assessment,
+    );
+    evaluated.push({ row, result });
+    lines.push(
+      `| ${row.id} | ${row.status} | ${row.status === "success" ? "yes" : "no"} | ${row.status === "success" && row.visualValidation?.attempts?.length === 2 ? "yes" : "no"} | ${assessment ? [assessment.sourceAccuracy, assessment.diagramSemantics, assessment.coverageAccuracy].join(" / ") : "unassessed"} | ${result.assessed ? "yes" : "no"} | ${result.assessed ? (result.passes ? "yes" : "no") : "N/A"} |`,
+    );
+  }
+  if (!sessions.length)
+    lines.push("| No sessions | unstarted | no | no | unassessed | no | N/A |");
+  lines.push(
+    "",
+    "## Candidate outcome inventory",
+    "",
+    "Unstarted includes slots without a forwarded request and slots not yet recorded. Budget-limited is a locally ended active session; request-limited is separate. Unavailable includes other failed/interrupted output. Repairs do not replace paid slots. Unknown billing stops the campaign, not just one model.",
+    "",
+    "<!-- prettier-ignore -->",
+    "| Model | Structured / planned | Repaired | Budget-limited | Request-limited | Unstarted | Unavailable | Unassessed structured | Visual passes |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+  );
+  const models = ledger?.models?.map((m) => m.id) ?? [
+    "anthropic/claude-sonnet-5.5",
+    "moonshotai/kimi-k2.5",
+    "z-ai/glm-5.3",
+  ];
+  for (const model of models) {
+    const rows = evaluated.filter(({ row }) => row.model === model);
+    const started = rows.filter(({ row }) =>
+      requests.some(
+        (r) => r.session === row.id && r.status !== "not-forwarded",
+      ),
+    );
+    const planned = spec.repetitions * spec.fixtures.length;
+    const structured = rows.filter(({ row }) => row.status === "success");
+    const count = (status) =>
+      started.filter(({ row }) => row.status === status).length;
+    lines.push(
+      `| ${model} | ${structured.length} / ${planned} | ${structured.filter(({ row }) => row.visualValidation?.attempts?.length === 2).length} | ${count("budget-limited")} | ${count("request-limited")} | ${planned - started.length} | ${started.filter(({ row }) => !["success", "budget-limited", "request-limited"].includes(row.status)).length} | ${structured.filter(({ result }) => !result.assessed).length} | ${rows.some(({ result }) => result.assessed) ? rows.filter(({ result }) => result.passes).length : "N/A"} |`,
+    );
+  }
+  lines.push(
+    "",
+    "## Source assessments",
+    "",
+    "These are implementation-agent assessments, not independent human approvals. Successful but unassessed sessions do not pass. See the separate source-free request ledger for returned billing and retained reservations.",
+    "",
+  );
+  for (const { row, result } of evaluated) {
+    const assessment = assessments.runs[row.id];
+    lines.push(`### ${row.id}`, "", `Result: ${result.status}.`, "");
+    if (assessment)
+      lines.push(
+        assessment.notes,
+        "",
+        ...assessment.falseVisualClaims.map(
+          (c) => `- False visual claim: ${c}`,
+        ),
+        ...assessment.evidence.map((e) => `- Source evidence: ${e}`),
+        "",
+      );
+    else
+      lines.push(
+        row.status === "success"
+          ? "Source assessment pending; not a visual pass."
+          : "No usable output; no accuracy score assigned.",
+        "",
+      );
+  }
+  if (ledger?.creditReconciliation)
+    lines.push(
+      "## Credit reconciliation",
+      "",
+      JSON.stringify(ledger.creditReconciliation),
+      "",
+    );
+  lines.push(
+    "## Frozen evidence and versions",
+    "",
+    `Runner SHA: ${ledger?.runnerSha ?? "not run"}. Pipeline formats: ${JSON.stringify(ledger?.pipelineFormats ?? VISUAL_RELIABILITY_FORMATS)}.`,
+    "",
+    ...fixtures.map(
+      (f) => `- PR #${f.pull}: base ${f.baseSha}; head ${f.headSha}.`,
+    ),
+    "",
+    "All historical campaigns remain closed and unchanged. This offline report does not execute inference, select a model, authorize replacements or enable production.",
+    "",
+  );
+  return lines.join("\n");
 }

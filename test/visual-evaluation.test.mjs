@@ -10,7 +10,10 @@ import {
   evaluateVisualTrial,
   inspectHistoricalVisuals,
   validateVisualAssessment,
+  renderVisualReliabilityReport,
 } from "../src/visual-evaluation.mjs";
+import { VISUAL_RELIABILITY_FORMATS } from "../src/visual-validation.mjs";
+import { mergeCoverageGaps } from "../src/evidence.mjs";
 import { visualRequirements } from "../src/visuals.mjs";
 
 const json = async (path) =>
@@ -51,6 +54,462 @@ const assessment = {
   evidence: ["Frozen fixture: retained active queue and staged shared queue."],
   notes: "Descriptive output matches the supplied source.",
 };
+
+test("facts campaign requires its separate $10 approval and current pipeline before inference", async () => {
+  const spec = await json("../evaluation/visual-facts-spec.json");
+  assert.equal(spec.budgetUsd, 10);
+  assert.equal(spec.maxSessions, 27);
+  assert.equal(spec.maxRequests, 432);
+  assert.equal(spec.maxRequestsPerSession, 16);
+  assert.ok(spec.estimatedUsd <= 10);
+  assert.deepEqual(spec.pipelineFormats, VISUAL_RELIABILITY_FORMATS);
+  const child = spawnSync(
+    process.execPath,
+    ["scripts/evaluate-visuals.mjs", "--facts"],
+    {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        OPENROUTER_API_KEY: "not-a-real-key",
+        EVALUATION_BUDGET_USD: "18",
+      },
+    },
+  );
+  assert.notEqual(child.status, 0);
+  assert.match(child.stderr, /Explicit new \$10 visual-only approval/);
+  const report = await renderVisualReliabilityReport(
+    undefined,
+    { ...(await json("../evaluation/visual-fixtures.json")), ...spec },
+    [],
+    { runs: {} },
+  );
+  assert.match(report, /visual-facts-results.json/);
+  assert.doesNotMatch(report, /Shared approval/);
+});
+
+test("corrected approval is a distinct full matrix within the shared cap", async () => {
+  const spec = await json("../evaluation/visual-corrected-spec.json");
+  assert.equal(spec.maxSessions, 27);
+  assert.equal(spec.maxRequests, 432);
+  assert.equal(spec.maxRequestsPerSession, 16);
+  assert.equal(spec.repetitions, 3);
+  assert.equal(spec.sharedBudget.totalCapUsd, 18);
+  assert.equal(spec.pipelineFormats.runner, "phase1-reliability-v2");
+  assert.notEqual(
+    spec.pipelineFormats.runner,
+    VISUAL_RELIABILITY_FORMATS.runner,
+  );
+  const child = spawnSync(
+    process.execPath,
+    ["scripts/evaluate-visuals.mjs", "--corrected"],
+    {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        OPENROUTER_API_KEY: "not-a-real-key",
+        EVALUATION_BUDGET_USD: "15",
+      },
+    },
+  );
+  assert.notEqual(child.status, 0);
+  assert.match(child.stderr, /Explicit new \$18 visual-only approval/);
+  const report = await renderVisualReliabilityReport(
+    undefined,
+    { ...(await json("../evaluation/visual-fixtures.json")), ...spec },
+    [],
+    { runs: {} },
+  );
+  assert.match(report, /visual-corrected-results.json/);
+  assert.match(report, /Shared approval: \$18 total/);
+});
+
+test("reliability campaign has its own $15 approval and refuses mismatched authorization offline", async () => {
+  const spec = await json("../evaluation/visual-reliability-spec.json");
+  assert.equal(spec.budgetUsd, 15);
+  assert.equal(spec.repetitions, 3);
+  assert.equal(spec.maxSessions, 27);
+  assert.equal(spec.maxRequests, 432);
+  assert.ok(spec.estimatedUsd <= 15);
+  assert.equal(spec.repairVisuals, true);
+  const child = spawnSync(
+    process.execPath,
+    ["scripts/evaluate-visuals.mjs", "--reliability"],
+    {
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        OPENROUTER_API_KEY: "not-a-real-key",
+        EVALUATION_BUDGET_USD: "5.08",
+      },
+    },
+  );
+  assert.notEqual(child.status, 0);
+  assert.match(child.stderr, /Explicit new \$15 visual-only approval/);
+});
+
+test("recorded reliability campaign preserves bounded slots, charges and source-free evidence", async () => {
+  const ledger = await json("../evaluation/visual-reliability-results.json");
+  assert.equal(
+    ledger.campaign,
+    "owner-approved-15-visual-reliability-2026-10-20",
+  );
+  assert.equal(ledger.budgetUsd, 15);
+  assert.equal(ledger.maxSessions, 27);
+  assert.equal(ledger.maxRequests, 432);
+  assert.ok(ledger.sessions.length <= 27);
+  assert.ok(ledger.requests.length <= 432);
+  assert.equal(
+    new Set(ledger.sessions.map((row) => row.id)).size,
+    ledger.sessions.length,
+  );
+  assert.ok(
+    ledger.requests.reduce((sum, r) => sum + (r.costUsd ?? r.reservedUsd), 0) <=
+      15,
+  );
+  for (const row of ledger.sessions) {
+    assert.ok(ledger.requests.filter((r) => r.session === row.id).length <= 16);
+    if (row.review)
+      assert.equal(
+        Object.keys(row.review).sort().join(),
+        "changedAreas,coverageGaps,diagrams,overview",
+      );
+    if (row.evidence)
+      assert.doesNotMatch(
+        JSON.stringify(row.evidence),
+        /"(?:content|patch|output|filePath)":/,
+      );
+  }
+  for (const request of ledger.requests) {
+    assert.ok(ledger.sessions.some((row) => row.id === request.session));
+    assert.ok(request.maxOutputTokens <= 32768);
+    assert.ok(request.requestBytes <= 8388608);
+    assert.equal(request.reservationMethod, "full-model-context-v1");
+  }
+});
+
+test("facts evidence preserves all paid slots, raw gate failures and the separate cap", async () => {
+  const ledger = await json("../evaluation/visual-facts-results.json");
+  const spec = await json("../evaluation/visual-facts-spec.json");
+  const assessments = await json("../evaluation/visual-facts-assessments.json");
+  assert.equal(ledger.campaign, spec.approval);
+  assert.equal(ledger.runnerSha, "691a2c16d60fcd6394bbbd2f71ee2413940c817b");
+  assert.deepEqual(ledger.pipelineFormats, spec.pipelineFormats);
+  assert.equal(ledger.sessions.length, 27);
+  assert.equal(new Set(ledger.sessions.map((s) => s.id)).size, 27);
+  assert.equal(ledger.requests.length, 185);
+  assert.ok(
+    ledger.requests.reduce((s, r) => s + (r.costUsd ?? r.reservedUsd), 0) <= 10,
+  );
+  assert.ok(
+    ledger.requests.every(
+      (r) =>
+        r.status === "complete" &&
+        Number.isFinite(r.costUsd) &&
+        !r.boundExceeded,
+    ),
+  );
+  for (const row of ledger.sessions) {
+    assert.ok(ledger.requests.filter((r) => r.session === row.id).length <= 16);
+    assert.deepEqual(row.pipelineFormats, spec.pipelineFormats);
+    if (row.status === "success") {
+      assert.ok(assessments.runs[row.id]);
+      assert.equal(
+        new Set(row.review.coverageGaps).size,
+        row.review.coverageGaps.length - 1,
+      );
+    } else assert.equal(assessments.runs[row.id], undefined);
+    if (row.evidence)
+      assert.doesNotMatch(
+        JSON.stringify(row.evidence),
+        /"(?:content|patch|output|filePath)":/,
+      );
+  }
+  assert.equal(Object.keys(assessments.runs).length, 22);
+  assert.equal(ledger.creditReconciliation.deltaMatchesBilled, true);
+  assert.equal(ledger.creditReconciliation.outstandingReservations, 0);
+  const report = await renderVisualReliabilityReport(
+    ledger,
+    { ...(await json("../evaluation/visual-fixtures.json")), ...spec },
+    (await json("../evaluation/matrix.json")).fixtures,
+    assessments,
+  );
+  assert.doesNotMatch(report, /\| yes \| yes \|$/m);
+});
+
+test("offline coverage replay removes only duplicates without rescoring the paid ledger", async () => {
+  const path = new URL(
+    "../evaluation/visual-facts-results.json",
+    import.meta.url,
+  );
+  const original = await readFile(path, "utf8");
+  assert.equal(
+    createHash("sha256").update(original).digest("hex"),
+    "3065125940acc6a48b876a803c9392aef6e6da809efc9e9ad4f9353091124c07",
+  );
+  const ledger = JSON.parse(original);
+  const spec = await json("../evaluation/visual-facts-spec.json");
+  const base = await json("../evaluation/visual-fixtures.json");
+  const matrix = await json("../evaluation/matrix.json");
+  const assessments = await json("../evaluation/visual-facts-assessments.json");
+  const counts = {};
+  for (const row of ledger.sessions) {
+    const scope = {
+      ...base.fixtures.find((f) => f.pull === row.pull),
+      ...matrix.fixtures.find((f) => f.pull === row.pull),
+      reliability: true,
+      pipelineFormats: spec.pipelineFormats,
+    };
+    const charged = { ...row, billingStatus: "complete" };
+    const raw = await evaluateVisualTrial(
+      charged,
+      scope,
+      assessments.runs[row.id],
+    );
+    assert.equal(raw.passes, false);
+    if (row.status !== "success") continue;
+    assert.equal(raw.syntax, false);
+    const replay = {
+      ...charged,
+      review: {
+        ...row.review,
+        coverageGaps: mergeCoverageGaps(row.review.coverageGaps),
+      },
+    };
+    assert.deepEqual(replay.review.diagrams, row.review.diagrams);
+    assert.equal(replay.review.overview, row.review.overview);
+    assert.deepEqual(replay.review.changedAreas, row.review.changedAreas);
+    assert.equal(
+      replay.review.coverageGaps.length,
+      row.review.coverageGaps.length - 1,
+    );
+    assert.deepEqual(
+      new Set(replay.review.coverageGaps),
+      new Set(row.review.coverageGaps),
+    );
+    const checked = await evaluateVisualTrial(
+      replay,
+      scope,
+      assessments.runs[row.id],
+    );
+    assert.equal(checked.syntax, true);
+    assert.equal(checked.passes, true);
+    counts[row.model] = (counts[row.model] ?? 0) + 1;
+  }
+  assert.deepEqual(counts, {
+    "anthropic/claude-sonnet-5.5": 9,
+    "moonshotai/kimi-k2.5": 6,
+    "z-ai/glm-5.3": 7,
+  });
+  assert.equal(await readFile(path, "utf8"), original);
+});
+
+test("corrected evidence preserves every paid slot and the cumulative cap", async () => {
+  const ledger = await json("../evaluation/visual-corrected-results.json");
+  const spec = await json("../evaluation/visual-corrected-spec.json");
+  const assessments = await json(
+    "../evaluation/visual-corrected-assessments.json",
+  );
+  const parentText = await readFile(
+    new URL("../evaluation/visual-reliability-results.json", import.meta.url),
+    "utf8",
+  );
+  assert.equal(
+    createHash("sha256").update(parentText).digest("hex"),
+    spec.sharedBudget.parentSha256,
+  );
+  assert.equal(ledger.campaign, spec.approval);
+  assert.equal(ledger.runnerSha, "0ca81f533dc7e978eb456e9612b1de7ed16ade4c");
+  assert.deepEqual(ledger.pipelineFormats, spec.pipelineFormats);
+  assert.equal(ledger.sessions.length, 27);
+  assert.equal(new Set(ledger.sessions.map((s) => s.id)).size, 27);
+  assert.ok(ledger.requests.length <= 432);
+  const cost = ledger.requests.reduce(
+    (s, r) => s + (r.costUsd ?? r.reservedUsd),
+    0,
+  );
+  assert.ok(cost <= ledger.budgetUsd);
+  assert.ok(cost + ledger.sharedBudget.priorAccountedUsd <= 18);
+  assert.ok(
+    ledger.requests.every(
+      (r) =>
+        r.status === "complete" &&
+        Number.isFinite(r.costUsd) &&
+        !r.boundExceeded,
+    ),
+  );
+  for (const row of ledger.sessions) {
+    assert.ok(ledger.requests.filter((r) => r.session === row.id).length <= 16);
+    assert.deepEqual(row.pipelineFormats, spec.pipelineFormats);
+    if (row.status === "success") assert.ok(assessments.runs[row.id]);
+    else assert.equal(assessments.runs[row.id], undefined);
+    if (row.evidence)
+      assert.doesNotMatch(
+        JSON.stringify(row.evidence),
+        /"(?:content|patch|output|filePath)":/,
+      );
+  }
+  assert.equal(Object.keys(assessments.runs).length, 18);
+  assert.equal(ledger.creditReconciliation.deltaMatchesBilled, true);
+  assert.equal(ledger.creditReconciliation.outstandingReservations, 0);
+});
+
+test("reliability gates require current host evidence and complete invocation telemetry", async () => {
+  const valid = {
+    ...row,
+    pipelineFormats: VISUAL_RELIABILITY_FORMATS,
+    evidence: { version: "frozen-evidence-v1" },
+    visualValidation: {
+      version: "visual-validation-v1",
+      relationshipCatalog: {
+        version: "visual-relationships-v1",
+        sha256: "c".repeat(64),
+      },
+      attempts: [{ attempt: 0, missing: [] }],
+    },
+    invocations: 1,
+    usageReports: 1,
+  };
+  assert.equal(
+    (
+      await evaluateVisualTrial(
+        valid,
+        { ...requirements, reliability: true },
+        assessment,
+      )
+    ).passes,
+    true,
+  );
+  for (const change of [
+    { pipelineFormats: undefined },
+    { evidence: undefined },
+    { visualValidation: undefined },
+    { invocations: undefined, usageReports: undefined },
+    { invocations: 2, usageReports: 1 },
+  ])
+    assert.equal(
+      (
+        await evaluateVisualTrial(
+          { ...valid, ...change },
+          { ...requirements, reliability: true },
+          assessment,
+        )
+      ).status,
+      "ineligible",
+    );
+});
+
+test("frozen v1 assessments stay tied to their campaign after a v2 runner change", async () => {
+  const formats = {
+    ...VISUAL_RELIABILITY_FORMATS,
+    runner: "phase1-reliability-v1",
+    prompt: "host-graph-selection-v1",
+    repair: "single-pass-v1",
+  };
+  const valid = {
+    ...row,
+    pipelineFormats: formats,
+    evidence: { version: "frozen-evidence-v1" },
+    visualValidation: {
+      version: "visual-validation-v1",
+      relationshipCatalog: {
+        version: "visual-relationships-v1",
+        sha256: "c".repeat(64),
+      },
+      attempts: [{ attempt: 0, missing: [] }],
+    },
+    invocations: 1,
+    usageReports: 1,
+  };
+  assert.equal(
+    (
+      await evaluateVisualTrial(
+        valid,
+        { ...requirements, reliability: true },
+        assessment,
+      )
+    ).status,
+    "ineligible",
+  );
+  assert.equal(
+    (
+      await evaluateVisualTrial(
+        valid,
+        { ...requirements, reliability: true, pipelineFormats: formats },
+        assessment,
+      )
+    ).passes,
+    true,
+  );
+});
+
+test("reliability report separates unassessed structured output, repairs, budget limits and unstarted slots", async () => {
+  const base = await json("../evaluation/visual-fixtures.json");
+  const spec = {
+    ...base,
+    ...(await json("../evaluation/visual-reliability-spec.json")),
+  };
+  const models = [{ id: "anthropic/claude-sonnet-5.5" }];
+  const sessions = [
+    {
+      ...row,
+      id: "complete",
+      model: models[0].id,
+      pull: 403,
+      visualValidation: { attempts: [{}, {}] },
+    },
+    { id: "limited", model: models[0].id, pull: 403, status: "budget-limited" },
+    {
+      id: "deferred",
+      model: models[0].id,
+      pull: 403,
+      status: "deferred-unstarted",
+    },
+  ];
+  const requests = [
+    { session: "complete", status: "complete", costUsd: 0.1 },
+    { session: "limited", status: "complete", costUsd: 0.1 },
+  ];
+  const fixtures = [
+    { pull: 403, baseSha: requirements.baseSha, headSha: requirements.headSha },
+  ];
+  const report = await renderVisualReliabilityReport(
+    { models, sessions, requests },
+    spec,
+    fixtures,
+    { runs: {} },
+  );
+  assert.match(
+    report,
+    /complete \| success \| yes \| yes \| unassessed \| no \| N\/A/,
+  );
+  assert.match(
+    report,
+    /claude-sonnet-5\.5 \| 1 \/ 9 \| 1 \| 1 \| 0 \| 7 \| 0 \| 1 \| N\/A/,
+  );
+  assert.match(report, /Source assessment pending; not a visual pass/);
+});
+
+test("reliability report is deterministic and offline", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "reliability-report-"));
+  try {
+    const output = join(directory, "report.md");
+    const child = spawnSync(
+      process.execPath,
+      ["scripts/render-visual-reliability-report.mjs", output],
+      { encoding: "utf8", env: { PATH: process.env.PATH } },
+    );
+    assert.equal(child.status, 0, child.stderr);
+    assert.equal(
+      await readFile(output, "utf8"),
+      await readFile(
+        new URL("../evaluation/visual-reliability-report.md", import.meta.url),
+        "utf8",
+      ),
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test("paid visual runner refuses missing campaign approval before touching the ledger", async () => {
   const child = spawnSync(process.execPath, ["scripts/evaluate-visuals.mjs"], {

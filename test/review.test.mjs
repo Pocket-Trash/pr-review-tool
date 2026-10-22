@@ -79,3 +79,22 @@ test("production routing remains CheaperInference-only before owner decision", a
     /until the production routing decision is recorded/,
   );
 });
+
+test("owner-approved Phase 1 route is exact and cannot fail over", async () => {
+  const config = await json("config.visuals-approved.json");
+  assert.equal(validateProductionRoute(config), config);
+  for (const change of [
+    { provider: "cheaperinference" },
+    { model: "z-ai/glm-5.3" },
+    { model: "anthropic/claude-sonnet-5.5:other" },
+  ])
+    assert.throws(
+      () => validateProductionRoute({ ...config, ...change }),
+      /owner-approved Phase 1 route/,
+    );
+  for (const change of [{ visualPhase: 2 }, { task: "review" }])
+    assert.throws(
+      () => validateProductionRoute({ ...config, ...change }),
+      /until the production routing decision/,
+    );
+});

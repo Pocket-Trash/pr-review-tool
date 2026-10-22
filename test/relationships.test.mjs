@@ -133,7 +133,7 @@ test("missing FK target, dynamic declarations and text claiming a schema stay un
   );
   assert.ok(
     catalog.omissions.some((gap) =>
-      gap.includes("unavailable; relationship omitted"),
+      gap.includes("relationship omitted, not proof of unavailable source"),
     ),
   );
   assert.ok(catalog.omissions.some((gap) => gap.includes("dynamic table")));
@@ -188,5 +188,107 @@ test("unknown overrides and dynamic uniqueness cannot prove cardinalities", () =
   );
   assert.ok(
     catalog.omissions.some((gap) => gap.includes("dynamic constraints")),
+  );
+});
+
+test("relationship evidence is bounded and never contains executable source text", () => {
+  const catalog = build(
+    Array.from(
+      { length: 1500 },
+      (_, i) => `const item${i}=service("node${i}");`,
+    ).join("\n"),
+    "queue.ts",
+  );
+  assert.ok(catalog.nodes.length <= 512);
+  assert.ok(Buffer.byteLength(JSON.stringify(catalog)) <= 256 * 1024);
+  assert.ok(
+    catalog.omissions.some((gap) =>
+      gap.includes("Bounded relationship catalogue omitted"),
+    ),
+  );
+  assert.doesNotMatch(JSON.stringify(catalog), /const item|service\(/);
+});
+
+test("dynamic or overridden constraint options cannot authorize PK markers", () => {
+  for (const options of [
+    "columns:[t.id],...unknown",
+    "...unknown,columns:[t.id]",
+    "columns:[t.id],[computed]:[t.id]",
+    "columns:[t.id],columns:[t.other]",
+  ]) {
+    const catalog = build(
+      `import {pgTable,bigint,primaryKey} from "drizzle-orm/pg-core";const table=pgTable("ambiguous",{id:bigint("id"),other:bigint("other")},t=>[primaryKey({${options}})]);`,
+    );
+    assert.ok(
+      catalog.nodes
+        .filter((node) => node.kind === "entity")
+        .every((node) => node.columns.every((col) => !col.primary)),
+    );
+  }
+  for (const declaration of [
+    'pgTable(tableName,{id:bigint("id")})',
+    'pgTable("table",{id:bigint(columnName)})',
+    'pgTable("table",{id:bigint("id").primaryKey().array()})',
+  ]) {
+    const catalog = build(
+      `import {pgTable,bigint} from "drizzle-orm/pg-core";const table=${declaration};`,
+    );
+    assert.equal(
+      catalog.nodes.filter((node) => node.kind === "entity").length,
+      0,
+    );
+  }
+});
+
+test("an unsupported extra target index cannot erase a proven primary key", () => {
+  const catalog =
+    build(`import {pgTable,bigint,uniqueIndex} from "drizzle-orm/pg-core";
+    const parent=pgTable("parent",{id:bigint("id").primaryKey()},t=>[uniqueIndex("partial").on(t.id).where(condition)]);
+    const child=pgTable("child",{id:bigint("id").primaryKey(),parentId:bigint("parent_id").notNull().references(()=>parent.id)});`);
+  const edges = catalog.relationships.filter(
+    (edge) => edge.kind === "foreign-key",
+  );
+  assert.equal(edges.length, 1);
+  assert.equal(edges[0].optional, false);
+});
+
+test("required flowcharts cannot turn a node-only selection into a relationship diagram", () => {
+  const catalog = build();
+  assert.throws(
+    () =>
+      renderEvidenceVisuals(
+        {
+          diagrams: [
+            diagram(catalog, { kind: "schema-domain", relationshipIds: [] }),
+          ],
+        },
+        catalog,
+      ),
+    /Invalid evidence diagram selection/,
+  );
+  assert.equal(
+    renderEvidenceVisuals(
+      { diagrams: [diagram(catalog, { relationshipIds: [] })] },
+      catalog,
+    ).diagrams.length,
+    1,
+  );
+  const calls = build('const queue=service("queue");', "queue.ts");
+  assert.throws(
+    () =>
+      renderEvidenceVisuals(
+        {
+          diagrams: [
+            {
+              kind: "architecture",
+              title: "No edges",
+              nodeIds: calls.nodes.map((n) => n.id),
+              relationshipIds: [],
+            },
+          ],
+        },
+        calls,
+      ),
+    /Invalid evidence diagram selection/,
   );
 });

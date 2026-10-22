@@ -15,7 +15,7 @@ import { visualRequirements, visualSkipReason } from "../src/visuals.mjs";
 
 const json = async (path) =>
   JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
-const config = await json("./fixtures/config.visuals.json");
+const config = await json("./fixtures/config.visuals-approved.json");
 const visuals = await json("./fixtures/visuals.valid.json");
 const run = await json("./fixtures/run.valid.json");
 const workspace = new URL("./fixtures/workspace", import.meta.url).pathname;
@@ -110,10 +110,11 @@ test("visual skill selection excludes reviewers even when explicitly configured"
   assert.ok(!selected.selected.includes("ponytail-review"));
 });
 
-test("visual execution uses the dedicated contract and only the chosen provider credential", async () => {
+test("Phase 2 execution preserves its dedicated contract and only the chosen provider credential", async () => {
   for (const provider of ["cheaperinference", "openrouter"]) {
     const result = await runRestrictedReview({
       task: "visuals",
+      visualPhase: 2,
       apiKey: "fixture-key",
       provider,
       model: "fixture-model",
@@ -169,6 +170,7 @@ test("visual execution uses the dedicated contract and only the chosen provider 
 test("visual runner rejects review results and cannot override its contract", async () => {
   const options = {
     task: "visuals",
+    visualPhase: 2,
     apiKey: "fixture-key",
     model: "fixture-model",
     workspace,
@@ -206,6 +208,7 @@ test("visual fallback stays in the visual lane and unsafe diagrams become visibl
   let calls = 0;
   const result = await runRestrictedReview({
     task: "visuals",
+    visualPhase: 2,
     apiKey: "fixture-key",
     model: "fixture-model",
     workspace,
@@ -256,7 +259,7 @@ test("local ineligible visuals skip inference without credentials and zero old u
       process.execPath,
       [
         "src/local-review.mjs",
-        "test/fixtures/config.visuals.json",
+        "test/fixtures/config.visuals-approved.json",
         directory,
         "test/fixtures/run.valid.json",
       ],
@@ -278,13 +281,14 @@ test("local eligible visuals report actual skills and usage rather than fixture 
     await writeFile(
       join(directory, "pull-request.json"),
       JSON.stringify({
+        identity: { headSha: "a".repeat(40), baseSha: "b".repeat(40) },
         files: [
           {
-            filename: "railway.json",
-            additions: 1,
+            filename: "packages/queue/queue.ts",
+            additions: 50,
             deletions: 0,
             patch: "+{}",
-            content: "{}",
+            content: 'const queue=service("queue");',
           },
         ],
         omissions: ["generated/schema.ts: excluded"],
@@ -295,7 +299,20 @@ test("local eligible visuals report actual skills and usage rather than fixture 
         type: "step_finish",
         part: { tokens: { input: 50, output: 10 }, cost: 0.001 },
       },
-      { type: "text", part: { text: JSON.stringify(visuals) } },
+      {
+        type: "text",
+        part: {
+          text: JSON.stringify({
+            factIds: ["f0"],
+            diagrams: [
+              {
+                kind: "architecture",
+                relationshipIds: ["r0"],
+              },
+            ],
+          }),
+        },
+      },
     ]
       .map((event) => JSON.stringify(event))
       .join("\n");
@@ -308,7 +325,7 @@ test("local eligible visuals report actual skills and usage rather than fixture 
       process.execPath,
       [
         "src/local-review.mjs",
-        "test/fixtures/config.visuals.json",
+        "test/fixtures/config.visuals-approved.json",
         directory,
         "test/fixtures/run.valid.json",
       ],
@@ -316,7 +333,7 @@ test("local eligible visuals report actual skills and usage rather than fixture 
         encoding: "utf8",
         env: {
           PATH: `${directory}:${process.env.PATH}`,
-          CHEAPER_INFERENCE_API_KEY: "fixture-key",
+          OPENROUTER_API_KEY: "fixture-key",
         },
       },
     );
@@ -336,7 +353,7 @@ test("automatic visuals distinguish trusted exclusions from unavailable eligible
   const directory = await mkdtemp(join(tmpdir(), "automatic-visual-skip-"));
   try {
     const event = {
-      action: "synchronize",
+      action: "opened",
       repository: { full_name: "Pocket-Trash/example" },
       pull_request: {
         number: 42,
@@ -351,6 +368,7 @@ test("automatic visuals distinguish trusted exclusions from unavailable eligible
       const config = ${JSON.stringify(config)};
       globalThis.fetch = async (url) => {
         let body;
+        if (url.includes('/comments?')) return new Response('[]');
         if (url.includes('/contents/.github%2Fpr-review.json')) body = { encoding: 'base64', content: Buffer.from(JSON.stringify(config)).toString('base64') };
         else if (url.includes('/pulls/42')) body = { base: { sha: 'base-sha' }, head: { sha: 'head-sha' } };
         else if (url.includes('/compare/')) body = { files: [

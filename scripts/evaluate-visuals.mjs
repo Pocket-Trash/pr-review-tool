@@ -7,31 +7,85 @@ import {
   startEvaluationProxy,
   budgetTotal,
   reconcileInterruptedEvaluation,
+  correctedCampaignBudget,
 } from "../src/evaluation-budget.mjs";
 import { writeJsonAtomic } from "../src/evaluation.mjs";
 import { runRestrictedReview, VISUAL_SKILLS } from "../src/opencode.mjs";
-import { loadChangedFile } from "../src/intake.mjs";
+import {
+  loadChangedFile,
+  prepareDeclarationBaseEvidence,
+} from "../src/intake.mjs";
 import { prepareReviewContext } from "../src/context.mjs";
+import { mergeCoverageGaps } from "../src/evidence.mjs";
 import { preparedVisualRequirements, visualPrompt } from "../src/visuals.mjs";
+import { VISUAL_RELIABILITY_FORMATS } from "../src/visual-validation.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const json = async (name) =>
   JSON.parse(await readFile(join(root, "evaluation", name), "utf8"));
 const retest = process.argv.includes("--retest");
+const corrected = process.argv.includes("--corrected");
+const facts = process.argv.includes("--facts");
+const reliability =
+  process.argv.includes("--reliability") || corrected || facts;
+if (
+  [retest, corrected, facts, process.argv.includes("--reliability")].filter(
+    Boolean,
+  ).length > 1
+)
+  throw new TypeError("Select one distinct campaign");
 const spec = {
   ...(await json("visual-fixtures.json")),
   ...(retest ? await json("visual-retest-spec.json") : {}),
+  ...(reliability
+    ? await json(
+        facts
+          ? "visual-facts-spec.json"
+          : corrected
+            ? "visual-corrected-spec.json"
+            : "visual-reliability-spec.json",
+      )
+    : {}),
 };
-const approvedBudget = retest ? 5.08 : 7.89;
+const sharedBudget = corrected
+  ? correctedCampaignBudget(
+      await readFile(
+        join(root, "evaluation/visual-reliability-results.json"),
+        "utf8",
+      ),
+      spec,
+    )
+  : undefined;
+const approvedBudget = facts
+  ? 10
+  : corrected
+    ? sharedBudget.remainingUsd
+    : reliability
+      ? 15
+      : retest
+        ? 5.08
+        : 7.89;
 const approvedSessions = retest ? 9 : 27;
 const approvedRequests = approvedSessions * 16;
 const approvedRepetitions = retest ? 1 : 3;
-const approval = retest
-  ? "owner-approved-5.08-visual-retest-2026-10-20"
-  : "owner-approved-7.89-visuals-2026-10-20";
-const resultsFile = retest
-  ? "visual-retest-results.json"
-  : "visual-results.json";
+const approval = facts
+  ? "owner-approved-10-visual-facts-2026-10-21"
+  : corrected
+    ? "owner-approved-18-combined-visual-corrected-2026-10-20"
+    : reliability
+      ? "owner-approved-15-visual-reliability-2026-10-20"
+      : retest
+        ? "owner-approved-5.08-visual-retest-2026-10-20"
+        : "owner-approved-7.89-visuals-2026-10-20";
+const resultsFile = facts
+  ? "visual-facts-results.json"
+  : corrected
+    ? "visual-corrected-results.json"
+    : reliability
+      ? "visual-reliability-results.json"
+      : retest
+        ? "visual-retest-results.json"
+        : "visual-results.json";
 const matrix = await json("matrix.json");
 const ids = [
   "anthropic/claude-sonnet-5.5",
@@ -39,19 +93,47 @@ const ids = [
   "z-ai/glm-5.3",
 ];
 if (
-  process.env.EVALUATION_BUDGET_USD !== String(approvedBudget) ||
+  process.env.EVALUATION_BUDGET_USD !==
+    String(corrected ? 18 : approvedBudget) ||
   !process.env.OPENROUTER_API_KEY ||
-  spec.budgetUsd !== approvedBudget ||
+  !Number.isFinite(spec.budgetUsd) ||
+  Math.abs(spec.budgetUsd - approvedBudget) > 1e-9 ||
   spec.maxSessions !== approvedSessions ||
   spec.maxRequests !== approvedRequests ||
   spec.repetitions !== approvedRepetitions ||
-  spec.approval !== approval
+  spec.approval !== approval ||
+  (reliability &&
+    (spec.repairVisuals !== true ||
+      !Number.isFinite(spec.estimatedUsd) ||
+      spec.estimatedUsd > approvedBudget ||
+      spec.maxRequestsPerSession !== 16 ||
+      spec.maxOutputTokens !== 32768 ||
+      spec.maxInputBytes !== 8388608))
 )
   throw new Error(
-    `Explicit new $${approvedBudget} visual-only approval and API key required`,
+    `Explicit new $${corrected ? 18 : approvedBudget} visual-only approval and API key required`,
+  );
+if (
+  reliability &&
+  Object.entries(VISUAL_RELIABILITY_FORMATS).some(
+    ([key, value]) => spec.pipelineFormats?.[key] !== value,
+  )
+)
+  throw new Error(
+    "The campaign's frozen pipeline differs from this runner; a separate versioned campaign is required",
   );
 const path = join(root, "evaluation", resultsFile);
 const resume = process.argv.includes("--resume");
+if (
+  reliability &&
+  execFileSync("git", ["status", "--porcelain", "--untracked-files=no"], {
+    cwd: root,
+    encoding: "utf8",
+  }).trim()
+)
+  throw new Error(
+    "Commit and offline-validate the reliability runner before paid evaluation",
+  );
 const lock = await open(`${path}.lock`, "wx");
 let proxy;
 let ledger;
@@ -73,6 +155,7 @@ try {
       id,
       contextLength: model.context_length,
       maxOutputTokens: 32768,
+      ...(reliability ? { maxInputBytes: spec.maxInputBytes } : {}),
       inputPerMillionUsd: Number(model.pricing.prompt) * 1e6,
       reservedInputPerMillionUsd: Math.max(
         ...[
@@ -96,6 +179,22 @@ try {
       throw new Error(`Invalid model limits/pricing: ${id}`);
     return entry;
   });
+  let creditBefore;
+  if (reliability && !resume) {
+    const response = await fetch("https://openrouter.ai/api/v1/credits", {
+      headers: { authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!response.ok)
+      throw new Error(`Credit preflight HTTP ${response.status}`);
+    const { data } = await response.json();
+    const availableUsd = data.total_credits - data.total_usage;
+    if (!Number.isFinite(availableUsd) || availableUsd < approvedBudget)
+      throw new Error(
+        "Available credits do not fund the approved campaign cap",
+      );
+    creditBefore = { checkedAt: new Date().toISOString(), availableUsd };
+  }
   const initialLedger = {
     runnerSha: execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: root,
@@ -105,6 +204,7 @@ try {
     task: "visuals",
     visualPhase: 1,
     budgetUsd: approvedBudget,
+    ...(corrected ? { sharedBudget } : {}),
     maxSessions: approvedSessions,
     maxRequests: approvedRequests,
     maxRequestsPerSession: 16,
@@ -115,6 +215,9 @@ try {
     sessions: [],
     requests: [],
     status: "in-progress",
+    ...(reliability
+      ? { pipelineFormats: VISUAL_RELIABILITY_FORMATS, creditBefore }
+      : {}),
   };
   if (resume) {
     const existing = await json(resultsFile);
@@ -126,9 +229,16 @@ try {
       existing.repetitions !== approvedRepetitions ||
       existing.maxRequestsPerSession !== 16 ||
       existing.status !== "in-progress" ||
+      (corrected &&
+        JSON.stringify(existing.sharedBudget) !==
+          JSON.stringify(sharedBudget)) ||
       JSON.stringify(existing.fixtures) !== JSON.stringify(matrix.fixtures) ||
       existing.models.map((model) => model.id).join() !== ids.join() ||
-      budgetTotal(existing.requests) > approvedBudget
+      budgetTotal(existing.requests) > approvedBudget ||
+      (reliability &&
+        (existing.runnerSha !== initialLedger.runnerSha ||
+          JSON.stringify(existing.pipelineFormats) !==
+            JSON.stringify(VISUAL_RELIABILITY_FORMATS)))
     )
       throw new Error(
         "Resume requires the unchanged interrupted visual campaign",
@@ -206,8 +316,16 @@ try {
       headSha: fixture.headSha,
     };
     const files = comparison.files.map(
-      ({ filename, status, additions, deletions, patch }) => ({
+      ({
         filename,
+        previous_filename,
+        status,
+        additions,
+        deletions,
+        patch,
+      }) => ({
+        filename,
+        ...(previous_filename ? { previous_filename } : {}),
         status,
         additions,
         deletions,
@@ -215,10 +333,27 @@ try {
       }),
     );
     const prepared = await prepareReviewContext(files, matrix.context, (file) =>
-      loadChangedFile(identity, file, githubToken, fetch),
+      loadChangedFile(
+        {
+          ...identity,
+          baseSha: comparison.merge_base_commit?.sha ?? identity.baseSha,
+        },
+        file,
+        githubToken,
+        fetch,
+      ),
     );
     if (prepared.conclusion !== "review")
       throw new Error(`Fixture not reviewable: ${fixture.pull}`);
+    if (reliability)
+      await prepareDeclarationBaseEvidence(
+        prepared,
+        identity,
+        comparison.merge_base_commit?.sha,
+        githubToken,
+        matrix.context.limits.maxFileBytes,
+        fetch,
+      );
     const requirements = preparedVisualRequirements(prepared);
     if (!prepared.files.length)
       throw new Error("Frozen visual fixture has no available source");
@@ -251,106 +386,133 @@ try {
     ledger,
     checkpoint,
   });
-  for (let repetition = 1; repetition <= approvedRepetitions; repetition++) {
-    for (const { fixture, requirements, context } of contexts) {
-      for (const model of models) {
-        if (
-          proxy.blocked ||
-          ledger.requests.length >= ledger.maxRequests ||
-          ledger.sessions.length >= ledger.maxSessions ||
-          budgetTotal(ledger.requests) >= ledger.budgetUsd
+  const slots = [];
+  for (let repetition = 1; repetition <= approvedRepetitions; repetition++)
+    for (const context of contexts)
+      for (const model of models) slots.push({ repetition, ...context, model });
+  // Expensive candidates run first so conservative full-context reserves retain headroom.
+  if (corrected || facts)
+    slots.sort((a, b) => ids.indexOf(a.model.id) - ids.indexOf(b.model.id));
+  for (const { repetition, fixture, requirements, context, model } of slots) {
+    if (
+      proxy.blocked ||
+      ledger.requests.length >= ledger.maxRequests ||
+      ledger.sessions.length >= ledger.maxSessions ||
+      budgetTotal(ledger.requests) >= ledger.budgetUsd
+    )
+      break;
+    const id = `visuals:${model.id}:pr${fixture.pull}:${repetition}`;
+    if (ledger.sessions.some((session) => session.id === id)) continue;
+    const entry = {
+      id,
+      task: "visuals",
+      visualPhase: 1,
+      provider: "openrouter",
+      model: model.id,
+      pull: fixture.pull,
+      baseSha: fixture.baseSha,
+      headSha: fixture.headSha,
+      repetition,
+      status: "planned",
+      contextFormat: "plain-text-v1",
+      validatorFormat: "node-dom-v1",
+      outputFormat: "final-message-v1",
+      selectedSkills: [],
+      skillOverrides: [],
+      ...(reliability
+        ? {
+            pipelineFormats: VISUAL_RELIABILITY_FORMATS,
+            invocations: 0,
+            usageReports: 0,
+          }
+        : {}),
+    };
+    ledger.sessions.push(entry);
+    await checkpoint();
+    const sessionToken = proxy.authorizeSession(id);
+    const workspace = await mkdtemp(join(tmpdir(), "pr-visual-evaluation-"));
+    const started = Date.now();
+    try {
+      await writeFile(
+        join(workspace, "pull-request.json"),
+        JSON.stringify(context),
+      );
+      entry.review = await runRestrictedReview({
+        task: "visuals",
+        visualPhase: 1,
+        provider: "openrouter",
+        model: model.id,
+        apiKey: sessionToken,
+        openRouterBaseURL: proxy.baseURL,
+        openRouterModelLimits: {
+          context: model.contextLength,
+          output: model.maxOutputTokens,
+        },
+        workspace,
+        skills: VISUAL_SKILLS,
+        visualRequirements: requirements,
+        prompt: `Generate descriptive visual-only analysis for ${spec.repository} PR #${fixture.pull}. ${visualPrompt(requirements)}`,
+        allowSkillFallback: false,
+        maxTransientRetries: 0,
+        repairVisuals: reliability,
+        onVisualValidation: (report) => {
+          if (reliability) entry.visualValidation = report;
+        },
+        onInvocation: () => {
+          if (reliability) entry.invocations++;
+        },
+        onSkillsResolved: (skills) => {
+          entry.selectedSkills = skills;
+        },
+        onUsage: (usage) => {
+          if (reliability) entry.usageReports++;
+          if (!entry.usage) entry.usage = usage;
+          else
+            for (const [field, value] of Object.entries(usage)) {
+              if (
+                field === "estimatedCostUsd" &&
+                (value === null || entry.usage[field] === null)
+              )
+                entry.usage[field] = null;
+              else if (value !== null)
+                entry.usage[field] = (entry.usage[field] ?? 0) + value;
+            }
+        },
+        onEvidence: (report) => {
+          entry.evidence = report;
+        },
+      });
+      entry.review.coverageGaps = mergeCoverageGaps(
+        entry.review.coverageGaps,
+        context.omissions,
+      );
+      entry.status = "success";
+    } catch (error) {
+      if (
+        !["deferred-unstarted", "budget-limited", "request-limited"].includes(
+          entry.status,
         )
-          break;
-        const id = `visuals:${model.id}:pr${fixture.pull}:${repetition}`;
-        if (ledger.sessions.some((session) => session.id === id)) continue;
-        const entry = {
-          id,
-          task: "visuals",
-          visualPhase: 1,
-          provider: "openrouter",
-          model: model.id,
-          pull: fixture.pull,
-          baseSha: fixture.baseSha,
-          headSha: fixture.headSha,
-          repetition,
-          status: "planned",
-          contextFormat: "plain-text-v1",
-          validatorFormat: "node-dom-v1",
-          outputFormat: "final-message-v1",
-          selectedSkills: [],
-          skillOverrides: [],
-        };
-        ledger.sessions.push(entry);
-        await checkpoint();
-        const sessionToken = proxy.authorizeSession(id);
-        const workspace = await mkdtemp(
-          join(tmpdir(), "pr-visual-evaluation-"),
-        );
-        const started = Date.now();
-        try {
-          await writeFile(
-            join(workspace, "pull-request.json"),
-            JSON.stringify(context),
-          );
-          entry.review = await runRestrictedReview({
-            task: "visuals",
-            visualPhase: 1,
-            provider: "openrouter",
-            model: model.id,
-            apiKey: sessionToken,
-            openRouterBaseURL: proxy.baseURL,
-            openRouterModelLimits: {
-              context: model.contextLength,
-              output: model.maxOutputTokens,
-            },
-            workspace,
-            skills: VISUAL_SKILLS,
-            visualRequirements: requirements,
-            prompt: `Generate descriptive visual-only analysis for ${spec.repository} PR #${fixture.pull}. ${visualPrompt(requirements)}`,
-            allowSkillFallback: false,
-            maxTransientRetries: 0,
-            onSkillsResolved: (skills) => {
-              entry.selectedSkills = skills;
-            },
-            onUsage: (usage) => {
-              entry.usage = usage;
-            },
-            onEvidence: (report) => {
-              entry.evidence = report;
-            },
-          });
-          entry.review.coverageGaps.push(...context.omissions);
-          entry.status = "success";
-        } catch (error) {
-          if (
-            ![
-              "deferred-unstarted",
-              "budget-limited",
-              "request-limited",
-            ].includes(entry.status)
-          )
-            entry.status = "error";
-          entry.error = error.message.slice(0, 1000);
-        } finally {
-          entry.latencyMs = Date.now() - started;
-          await proxy.finishSession(id);
-          await rm(workspace, { recursive: true, force: true });
-          await checkpoint();
-        }
-        const requests = ledger.requests.filter(
-          (request) => request.session === id,
-        );
-        console.log(
-          JSON.stringify({
-            id,
-            status: entry.status,
-            requests: requests.length,
-            accountedUsd: budgetTotal(ledger.requests),
-            ...(entry.error ? { error: entry.error } : {}),
-          }),
-        );
-      }
+      )
+        entry.status = "error";
+      entry.error = error.message.slice(0, 1000);
+    } finally {
+      entry.latencyMs = Date.now() - started;
+      await proxy.finishSession(id);
+      await rm(workspace, { recursive: true, force: true });
+      await checkpoint();
     }
+    const requests = ledger.requests.filter(
+      (request) => request.session === id,
+    );
+    console.log(
+      JSON.stringify({
+        id,
+        status: entry.status,
+        requests: requests.length,
+        accountedUsd: budgetTotal(ledger.requests),
+        ...(entry.error ? { error: entry.error } : {}),
+      }),
+    );
   }
   ledger.status =
     ledger.sessions.length === approvedSessions &&
@@ -371,6 +533,43 @@ try {
 } finally {
   if (proxy) await proxy.close();
   if (ledger) {
+    if (reliability && ledger.creditBefore) {
+      try {
+        const response = await fetch("https://openrouter.ai/api/v1/credits", {
+          headers: {
+            authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          },
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!response.ok) throw new Error("Credit reconciliation unavailable");
+        const { data } = await response.json();
+        const afterUsd = data.total_credits - data.total_usage;
+        if (!Number.isFinite(afterUsd))
+          throw new Error("Invalid credit response");
+        const returnedBilledUsd = ledger.requests.reduce(
+          (sum, request) => sum + (request.costUsd ?? 0),
+          0,
+        );
+        ledger.creditReconciliation = {
+          checkedAt: new Date().toISOString(),
+          beforeUsd: ledger.creditBefore.availableUsd,
+          afterUsd,
+          returnedBilledUsd,
+          outstandingReservations: ledger.requests.filter(
+            (request) => !Number.isFinite(request.costUsd),
+          ).length,
+          deltaMatchesBilled:
+            Math.abs(
+              ledger.creditBefore.availableUsd - afterUsd - returnedBilledUsd,
+            ) < 0.000001,
+        };
+      } catch {
+        ledger.creditReconciliation = {
+          checkedAt: new Date().toISOString(),
+          status: "unavailable; request reservations retained",
+        };
+      }
+    }
     ledger.finishedAt = new Date().toISOString();
     await writeJsonAtomic(path, ledger);
   }

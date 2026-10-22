@@ -39,6 +39,7 @@ test("automatic manifest-only metadata changes fetch frozen base evidence but sk
     const bootstrap = `
       globalThis.fetch = async (url) => {
         let body;
+        if (url.includes('/comments?')) return new Response('[]');
         if (url.includes('/contents/.github%2Fpr-visuals.json')) body = { encoding: 'base64', content: Buffer.from(${JSON.stringify(JSON.stringify(config))}).toString('base64') };
         else if (url.includes('/pulls/42')) body = { base: { sha: 'base-sha' }, head: { sha: 'head-sha' } };
         else if (url.includes('/compare/')) body = { files: [{ filename: 'package.json', status: 'modified', additions: 1, deletions: 1, patch: '-"version":"1"\\n+"version":"2"' }] };

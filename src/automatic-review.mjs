@@ -4,12 +4,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveReviewEvent } from "./events.mjs";
 import { prepareReviewContext } from "./context.mjs";
+import { mergeCoverageGaps } from "./evidence.mjs";
 import {
   assertCurrentHead,
   buildArtifact,
   collectInternalReviewContext,
   loadChangedFile,
   loadBaseEvidence,
+  prepareDeclarationBaseEvidence,
   loadRepositoryFile,
 } from "./intake.mjs";
 import { runRestrictedReview } from "./opencode.mjs";
@@ -53,7 +55,18 @@ const identity =
         process.env.GITHUB_TOKEN,
         globalThis.fetch,
         task,
+        {
+          appSlug: process.env.REVIEW_APP_SLUG,
+          runId: process.env.GITHUB_RUN_ID,
+          runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+        },
       );
+if (
+  identity.shouldRun &&
+  process.env.REVIEW_ADMITTED_HEAD_SHA &&
+  identity.headSha !== process.env.REVIEW_ADMITTED_HEAD_SHA
+)
+  throw new Error("PR head changed after visual admission");
 if (!identity.shouldRun) {
   if (process.env.GITHUB_STEP_SUMMARY)
     await appendFile(
@@ -92,8 +105,25 @@ if (task && validateTask(context.config.task) !== validateTask(task))
 const prepared = await prepareReviewContext(
   context.files,
   context.config,
-  (file) => loadChangedFile(identity, file, process.env.GITHUB_TOKEN),
+  (file) =>
+    loadChangedFile(
+      context.config.task === "visuals" &&
+        context.config.visualPhase !== 2 &&
+        context.comparisonBaseSha
+        ? { ...identity, baseSha: context.comparisonBaseSha }
+        : identity,
+      file,
+      process.env.GITHUB_TOKEN,
+    ),
 );
+if (context.config.task === "visuals" && context.config.visualPhase !== 2)
+  await prepareDeclarationBaseEvidence(
+    prepared,
+    identity,
+    context.comparisonBaseSha,
+    process.env.GITHUB_TOKEN,
+    context.config.limits.maxFileBytes,
+  );
 if (context.config.visualPhase === 2) {
   for (const file of visualBaseCandidates(prepared.files)) {
     const evidence = await loadBaseEvidence(
@@ -262,9 +292,10 @@ try {
     },
   });
   await assertCurrentHead(identity, process.env.GITHUB_TOKEN);
-  review.coverageGaps.push(
-    ...prepared.omissions,
-    ...skillSelection.coverageGaps,
+  review.coverageGaps = mergeCoverageGaps(
+    review.coverageGaps,
+    prepared.omissions,
+    skillSelection.coverageGaps,
   );
   if (usageReports < invocationCount) effectiveUsage.estimatedCostUsd = null;
   if (effectiveUsage.estimatedCostUsd === null)

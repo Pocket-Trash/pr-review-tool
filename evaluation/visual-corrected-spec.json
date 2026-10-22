@@ -1,0 +1,28 @@
+{
+  "approval": "owner-approved-18-combined-visual-corrected-2026-10-20",
+  "budgetUsd": 11.407086251,
+  "sharedBudget": {
+    "totalCapUsd": 18,
+    "parentCampaign": "owner-approved-15-visual-reliability-2026-10-20",
+    "parentSha256": "53874c4e01ddd526ad1acc47c0987c01f2eed6772e8576956259845f9bca0965",
+    "priorAccountedUsd": 6.592913749
+  },
+  "maxSessions": 27,
+  "maxRequests": 432,
+  "repetitions": 3,
+  "maxRequestsPerSession": 16,
+  "maxInputBytes": 8388608,
+  "maxOutputTokens": 32768,
+  "repairVisuals": true,
+  "pipelineFormats": {
+    "runner": "phase1-reliability-v2",
+    "prompt": "host-graph-selection-v2",
+    "evidence": "frozen-evidence-v1",
+    "relationships": "visual-relationships-v1",
+    "repair": "single-pass-narrative-v2",
+    "budget": "session-capability-full-context-v1"
+  },
+  "estimatedUsd": 9.3600832932,
+  "estimateMethod": "Highest billed v1 session per model and fixture, times three repetitions, times 1.2 contingency: $9.3600832932 corrected; $15.9529970422 combined. Planning estimate only. Sonnet slots first, then Kimi, then GLM for conservative reservation headroom. All failures, repairs and retained reservations count toward $18 combined; no paid replacements.",
+  "purpose": "Separately versioned corrected Phase 1 visual-only matrix after ENG-561 through ENG-564. Same exact three models, frozen PRs and three repetitions. Frozen v1 is unchanged. No route adoption, live repair activation or production deployment."
+}
