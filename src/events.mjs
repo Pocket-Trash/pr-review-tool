@@ -131,7 +131,10 @@ export async function resolveReviewEvent(
     checkbox ? event.sender?.login : event.comment?.user?.login,
     "comment actor login",
   );
-  if ((checkbox ? event.sender : event.comment?.user)?.type === "Bot")
+  if (
+    task === "visuals" &&
+    (checkbox ? event.sender : event.comment?.user)?.type === "Bot"
+  )
     return { shouldRun: false, reason: "bot reruns are not authorized" };
   const [owner, repo] = repository.split("/");
   if (!owner || !repo) throw new TypeError("repository must be owner/name");

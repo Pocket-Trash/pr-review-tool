@@ -17,7 +17,9 @@ export function findOwnedMarkerComment(comments, appSlug, task = "review") {
     (comment) =>
       comment.user?.type === "Bot" &&
       comment.user?.login?.toLowerCase() === `${appSlug}[bot]`.toLowerCase() &&
-      (comment.body === marker || comment.body?.startsWith(`${marker}\n`)),
+      (task === "visuals"
+        ? comment.body === marker || comment.body?.startsWith(`${marker}\n`)
+        : comment.body?.includes(marker)),
   );
 }
 

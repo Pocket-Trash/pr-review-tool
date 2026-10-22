@@ -113,6 +113,16 @@ test("uses effective permission rather than a privileged-looking custom role", a
   }
 });
 
+test("new human-only visual controls do not change the inactive review lane's legacy event authorization", async () => {
+  const candidate = manualEvent();
+  candidate.comment.user.type = "Bot";
+  assert.equal(
+    (await resolveReviewEvent(candidate, "token", manualFetch(), "review"))
+      .shouldRun,
+    true,
+  );
+});
+
 test("skips near matches and ordinary issue comments without API calls", async () => {
   for (const candidate of [
     manualEvent("!pockettrash reviews"),
