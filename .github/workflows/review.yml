@@ -1,0 +1,107 @@
+name: Pocket Trash PR analysis dispatcher
+
+on:
+  workflow_call:
+    inputs:
+      task:
+        description: Analysis lane (visuals or review); review remains gated
+        required: false
+        default: visuals
+        type: string
+      infisical-project-id:
+        description: Infisical project ID for OIDC credential reads
+        required: false
+        default: ""
+        type: string
+      infisical-environment:
+        required: false
+        default: preview
+        type: string
+      infisical-path:
+        required: false
+        default: /tools/github/pr-review-tool
+        type: string
+      config-path:
+        description: Trusted configuration path on the base SHA
+        required: false
+        default: ""
+        type: string
+      app-id:
+        description: Pocket Trash PR Review GitHub App ID
+        required: true
+        type: string
+      app-slug:
+        description: Expected GitHub App slug
+        required: false
+        default: pocket-trash-pr-review
+        type: string
+    secrets:
+      INFISICAL_GITHUB_IDENTITY_ID:
+        required: false
+      INFISICAL_DOMAIN:
+        required: false
+      INFISICAL_OIDC_AUDIENCE:
+        required: false
+      CHEAPER_INFERENCE_API_KEY:
+        required: false
+      OPENROUTER_API_KEY:
+        required: false
+      APP_PRIVATE_KEY:
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  REVIEW_TASK: ${{ inputs.task }}
+  REVIEW_VISUAL_PHASE: "1"
+  REVIEW_CODE_ENABLED: "false"
+  REVIEW_APP_SLUG: ${{ inputs.app-slug }}
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      runnable: ${{ steps.authorize.outputs.runnable }}
+      pull-number: ${{ steps.authorize.outputs.pull-number }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: reviewer
+          persist-credentials: false
+      - id: authorize
+        name: Authorize visual analysis event
+        run: node reviewer/src/preflight.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REVIEW_AUTHORIZE_ONLY: "true"
+
+  review:
+    needs: authorize
+    if: needs.authorize.outputs.runnable == 'true'
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
+      id-token: write
+    uses: ./.github/workflows/run-review.yml
+    with:
+      task: ${{ inputs.task }}
+      infisical-project-id: ${{ inputs.infisical-project-id }}
+      infisical-environment: ${{ inputs.infisical-environment }}
+      infisical-path: ${{ inputs.infisical-path }}
+      app-id: ${{ inputs.app-id }}
+      app-slug: ${{ inputs.app-slug }}
+      config-path: ${{ inputs.config-path || (inputs.task == 'review' && '.github/pr-review.json' || '.github/pr-visuals.json') }}
+      pull-number: ${{ fromJSON(needs.authorize.outputs.pull-number) }}
+    secrets:
+      INFISICAL_GITHUB_IDENTITY_ID: ${{ secrets.INFISICAL_GITHUB_IDENTITY_ID }}
+      INFISICAL_DOMAIN: ${{ secrets.INFISICAL_DOMAIN }}
+      INFISICAL_OIDC_AUDIENCE: ${{ secrets.INFISICAL_OIDC_AUDIENCE }}
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+      CHEAPER_INFERENCE_API_KEY: ${{ secrets.CHEAPER_INFERENCE_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

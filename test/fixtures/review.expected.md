@@ -32,7 +32,9 @@ Model: fixture/model
 Reviewed SHA: 0123456789abcdef0123456789abcdef01234567
 Run: fixture-1
 Skills: review-coordinator, i-have-adhd, stop-slop
-Tokens: 100000 input, 5000 output
+Tokens: 100000 input, unknown cached input, unknown reasoning, 5000 output
+Model calls: 1
+Tool iterations: 3
 Estimated cost: $0.01325
 
 </details>

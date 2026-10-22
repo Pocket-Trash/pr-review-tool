@@ -1,6 +1,22 @@
 const providers = new Set(["cheaperinference", "openrouter"]);
 const severities = new Set(["critical", "high", "medium", "low"]);
 const diagramKinds = new Set(["architecture", "schema-domain", "schema-er"]);
+const phaseTwoKinds = ["sequence", "state", "dependency", "before-after"];
+
+export function visualDiagramKinds(phase = 1) {
+  validateVisualPhase(phase);
+  return [...diagramKinds, ...(phase === 2 ? phaseTwoKinds : [])];
+}
+
+export function validateVisualPhase(phase = 1) {
+  if (phase !== 1 && phase !== 2) fail("visualPhase", "1 or 2");
+  return phase;
+}
+
+export function validateTask(task = "review") {
+  if (!["review", "visuals"].includes(task)) fail("task", "review or visuals");
+  return task;
+}
 
 function fail(path, expected) {
   throw new TypeError(`${path} must be ${expected}`);
@@ -43,12 +59,22 @@ export function validateConfig(input) {
   exactKeys(config, "config", [
     "provider",
     "model",
+    "skills",
+    "prompt",
     "generatedFiles",
     "limits",
+    "task",
+    "visualPhase",
   ]);
+  validateTask(config.task);
+  validateVisualPhase(config.visualPhase);
+  if (config.visualPhase !== undefined && config.task !== "visuals")
+    fail("config.visualPhase", "used only with task visuals");
   if (!providers.has(config.provider))
     fail("config.provider", "cheaperinference or openrouter");
   string(config.model, "config.model");
+  strings(config.skills, "config.skills");
+  string(config.prompt, "config.prompt");
   strings(config.generatedFiles, "config.generatedFiles");
 
   const limits = object(config.limits, "config.limits");
@@ -65,7 +91,32 @@ export function validateConfig(input) {
   return config;
 }
 
-export function validateReview(input) {
+export function validateProductionRoute(configInput) {
+  const config = validateConfig(configInput);
+  if (
+    config.task === "visuals" &&
+    validateVisualPhase(config.visualPhase) === 1
+  ) {
+    if (
+      config.provider !== "openrouter" ||
+      config.model !== "anthropic/claude-sonnet-5.5"
+    )
+      fail(
+        "config.model",
+        "owner-approved Phase 1 route openrouter / anthropic/claude-sonnet-5.5 (no automatic failover)",
+      );
+    return config;
+  }
+  if (config.provider !== "cheaperinference")
+    fail(
+      "config.provider",
+      "cheaperinference until the production routing decision is recorded",
+    );
+  return config;
+}
+
+export function validateReview(input, visualPhase = 1) {
+  validateVisualPhase(visualPhase);
   const review = object(input, "review");
   exactKeys(review, "review", [
     "overview",
@@ -111,7 +162,10 @@ export function validateReview(input) {
       "title",
       "mermaid",
     ]);
-    if (!diagramKinds.has(diagram.kind))
+    if (
+      !diagramKinds.has(diagram.kind) &&
+      !(visualPhase === 2 && phaseTwoKinds.includes(diagram.kind))
+    )
       fail(`review.diagrams[${index}].kind`, "a supported diagram kind");
     string(diagram.title, `review.diagrams[${index}].title`);
     string(diagram.mermaid, `review.diagrams[${index}].mermaid`);
@@ -128,56 +182,116 @@ export function validateReview(input) {
   return review;
 }
 
+export function validateVisualAnalysis(input, visualPhase = 1) {
+  const visuals = object(input, "visuals");
+  exactKeys(visuals, "visuals", [
+    "overview",
+    "diagrams",
+    "changedAreas",
+    "coverageGaps",
+  ]);
+  validateReview({ ...visuals, findings: [] }, visualPhase);
+  return visuals;
+}
+
+export function validateCodeReview(input) {
+  const review = object(input, "codeReview");
+  exactKeys(review, "codeReview", [
+    "overview",
+    "findings",
+    "changedAreas",
+    "coverageGaps",
+  ]);
+  validateReview({ ...review, diagrams: [] });
+  return review;
+}
+
 export function validateRun(input) {
   const run = object(input, "run");
-  exactKeys(run, "run", ["reviewedSha", "runId", "selectedSkills", "usage"]);
+  exactKeys(run, "run", [
+    "reviewedSha",
+    "runId",
+    "selectedSkills",
+    "skillOverrides",
+    "usage",
+  ]);
   string(run.reviewedSha, "run.reviewedSha");
   string(run.runId, "run.runId");
   strings(run.selectedSkills, "run.selectedSkills");
+  strings(run.skillOverrides, "run.skillOverrides");
 
   const usage = object(run.usage, "run.usage");
   exactKeys(usage, "run.usage", [
     "inputTokens",
+    "cachedInputTokens",
+    "reasoningTokens",
     "outputTokens",
+    "modelCalls",
+    "toolIterations",
     "estimatedCostUsd",
   ]);
   integer(usage.inputTokens, "run.usage.inputTokens");
   integer(usage.outputTokens, "run.usage.outputTokens");
+  integer(usage.modelCalls, "run.usage.modelCalls");
+  integer(usage.toolIterations, "run.usage.toolIterations");
+  for (const field of ["cachedInputTokens", "reasoningTokens"])
+    if (usage[field] !== null) integer(usage[field], `run.usage.${field}`);
   if (
-    typeof usage.estimatedCostUsd !== "number" ||
-    usage.estimatedCostUsd < 0
+    usage.estimatedCostUsd !== null &&
+    (!Number.isFinite(usage.estimatedCostUsd) || usage.estimatedCostUsd < 0)
   ) {
-    fail("run.usage.estimatedCostUsd", "a number >= 0");
+    fail("run.usage.estimatedCostUsd", "a finite number >= 0 or null");
   }
   return run;
 }
 
 export function renderReview(configInput, reviewInput, runInput) {
   const config = validateConfig(configInput);
-  const review = validateReview(reviewInput);
+  const visualOnly = config.task === "visuals";
+  const reviewOnly = config.task === "review";
+  const review = visualOnly
+    ? validateVisualAnalysis(reviewInput, config.visualPhase)
+    : reviewOnly
+      ? validateCodeReview(reviewInput)
+      : validateReview(reviewInput);
   const run = validateRun(runInput);
-  const findings = review.findings.length
-    ? review.findings
-        .map(
-          (finding) =>
-            `### ${finding.severity.toUpperCase()}: ${finding.title}\n\n**${finding.file}:${finding.line}** — ${finding.evidence}\n\nImpact: ${finding.impact}\n\nSmallest fix: ${finding.recommendation}`,
-        )
-        .join("\n\n")
-    : "No findings found in the supplied diff.";
-  const diagrams = review.diagrams.length
-    ? review.diagrams
-        .map(
-          (diagram) =>
-            `### ${diagram.title}\n\n\`\`\`mermaid\n${diagram.mermaid}\n\`\`\``,
-        )
-        .join("\n\n")
-    : "No diagram was needed for this change.";
+  const findings = visualOnly
+    ? ""
+    : review.findings.length
+      ? review.findings
+          .map(
+            (finding) =>
+              `### ${finding.severity.toUpperCase()}: ${finding.title}\n\n**${finding.file}:${finding.line}** — ${finding.evidence}\n\nImpact: ${finding.impact}\n\nSmallest fix: ${finding.recommendation}`,
+          )
+          .join("\n\n")
+      : "No findings found in the supplied diff.";
+  const diagrams = reviewOnly
+    ? ""
+    : review.diagrams.length
+      ? review.diagrams
+          .map(
+            (diagram) =>
+              `### ${diagram.title}\n\n\`\`\`mermaid\n${diagram.mermaid}\n\`\`\``,
+          )
+          .join("\n\n")
+      : "No diagram was needed for this change.";
   const areas = review.changedAreas
     .map(({ area, summary }) => `- **${area}:** ${summary}`)
     .join("\n");
   const gaps = review.coverageGaps.length
     ? review.coverageGaps.map((gap) => `- ${gap}`).join("\n")
     : "- None.";
+  const diagramHeading =
+    visualOnly && config.visualPhase === 2
+      ? "Diagrams"
+      : "Architecture and schema";
 
-  return `## Overview\n\n${review.overview}\n\n## Findings\n\n${findings}\n\n## Architecture and schema\n\n${diagrams}\n\n## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}\nTokens: ${run.usage.inputTokens} input, ${run.usage.outputTokens} output\nEstimated cost: $${run.usage.estimatedCostUsd.toFixed(5)}\n\n</details>\n`;
+  const overrides = run.skillOverrides.length
+    ? `\nSkill overrides: ${run.skillOverrides.join(", ")}`
+    : "";
+  const cost =
+    run.usage.estimatedCostUsd === null
+      ? "unknown"
+      : `$${run.usage.estimatedCostUsd.toFixed(5)}`;
+  return `${visualOnly ? "## PR Visuals\n\n" : reviewOnly ? "## PR Review\n\n" : ""}## Overview\n\n${review.overview}\n\n${visualOnly ? "" : `## Findings\n\n${findings}\n\n`}${reviewOnly ? "" : `## ${diagramHeading}\n\n${diagrams}\n\n`}## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}${overrides}\nTokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\nModel calls: ${run.usage.modelCalls}\nTool iterations: ${run.usage.toolIterations}\nEstimated cost: ${cost}\n\n</details>\n`;
 }
