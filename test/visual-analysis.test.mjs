@@ -15,7 +15,7 @@ import { visualRequirements, visualSkipReason } from "../src/visuals.mjs";
 
 const json = async (path) =>
   JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
-const config = await json("./fixtures/config.visuals.json");
+const config = await json("./fixtures/config.visuals-approved.json");
 const visuals = await json("./fixtures/visuals.valid.json");
 const run = await json("./fixtures/run.valid.json");
 const workspace = new URL("./fixtures/workspace", import.meta.url).pathname;
@@ -259,7 +259,7 @@ test("local ineligible visuals skip inference without credentials and zero old u
       process.execPath,
       [
         "src/local-review.mjs",
-        "test/fixtures/config.visuals.json",
+        "test/fixtures/config.visuals-approved.json",
         directory,
         "test/fixtures/run.valid.json",
       ],
@@ -325,7 +325,7 @@ test("local eligible visuals report actual skills and usage rather than fixture 
       process.execPath,
       [
         "src/local-review.mjs",
-        "test/fixtures/config.visuals.json",
+        "test/fixtures/config.visuals-approved.json",
         directory,
         "test/fixtures/run.valid.json",
       ],
@@ -333,7 +333,7 @@ test("local eligible visuals report actual skills and usage rather than fixture 
         encoding: "utf8",
         env: {
           PATH: `${directory}:${process.env.PATH}`,
-          CHEAPER_INFERENCE_API_KEY: "fixture-key",
+          OPENROUTER_API_KEY: "fixture-key",
         },
       },
     );
@@ -353,7 +353,7 @@ test("automatic visuals distinguish trusted exclusions from unavailable eligible
   const directory = await mkdtemp(join(tmpdir(), "automatic-visual-skip-"));
   try {
     const event = {
-      action: "synchronize",
+      action: "opened",
       repository: { full_name: "Pocket-Trash/example" },
       pull_request: {
         number: 42,
@@ -368,6 +368,7 @@ test("automatic visuals distinguish trusted exclusions from unavailable eligible
       const config = ${JSON.stringify(config)};
       globalThis.fetch = async (url) => {
         let body;
+        if (url.includes('/comments?')) return new Response('[]');
         if (url.includes('/contents/.github%2Fpr-review.json')) body = { encoding: 'base64', content: Buffer.from(JSON.stringify(config)).toString('base64') };
         else if (url.includes('/pulls/42')) body = { base: { sha: 'base-sha' }, head: { sha: 'head-sha' } };
         else if (url.includes('/compare/')) body = { files: [

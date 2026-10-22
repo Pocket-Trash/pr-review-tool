@@ -9,10 +9,23 @@ import {
   validateCodeReview,
 } from "./review.mjs";
 import { sanitizeVisuals, missingRequiredVisuals } from "./visuals.mjs";
+import {
+  COMMENT_MARKER,
+  VISUAL_COMMENT_MARKER,
+  findOwnedMarkerComment,
+  laneRunStamp,
+  withVisualRerun,
+  assertLaneRunOrder,
+  StaleReviewError,
+} from "./comment-controls.mjs";
+export {
+  COMMENT_MARKER,
+  VISUAL_COMMENT_MARKER,
+  findOwnedMarkerComment,
+  StaleReviewError,
+} from "./comment-controls.mjs";
 
-export const COMMENT_MARKER = "<!-- pockettrash:pr-review -->";
 export const CHECK_NAME = "Pocket Trash PR Review";
-export const VISUAL_COMMENT_MARKER = "<!-- pockettrash:pr-visuals -->";
 export const VISUAL_CHECK_NAME = "Pocket Trash PR Visuals";
 export const COMMENT_LIMIT = 60_000;
 const conclusions = new Set([
@@ -169,7 +182,10 @@ export async function preparePublication(artifact, fallback = {}) {
     )
       return {
         conclusion: "failure",
-        body: `${marker}\n${stamp}${operationalBody("failure", "Required visual diagrams are missing after publication validation.", fallback.runUrl, task, fallback.reviewedSha, reviewOnly)}`,
+        body: withVisualRerun(
+          `${marker}\n${stamp}${operationalBody("failure", "Required visual diagrams are missing after publication validation.", fallback.runUrl, task, fallback.reviewedSha, reviewOnly)}`,
+          task,
+        ),
       };
     const run = validateRun(artifact.run);
     content = renderReview(config, review, {
@@ -188,56 +204,22 @@ export async function preparePublication(artifact, fallback = {}) {
     );
   }
   const prefix = `${marker}\n${stamp}`;
-  let body = `${prefix}${content}`;
+  let body = withVisualRerun(`${prefix}${content}`, task);
   if (body.length > COMMENT_LIMIT) {
-    body = `${prefix}${operationalBody(
-      "failure",
-      `Rendered review exceeded the ${COMMENT_LIMIT.toLocaleString("en-US")} character limit.`,
-      fallback.runUrl,
+    body = withVisualRerun(
+      `${prefix}${operationalBody(
+        "failure",
+        `Rendered review exceeded the ${COMMENT_LIMIT.toLocaleString("en-US")} character limit.`,
+        fallback.runUrl,
+        task,
+        fallback.reviewedSha,
+        reviewOnly,
+      )}`,
       task,
-      fallback.reviewedSha,
-      reviewOnly,
-    )}`;
+    );
     return { body, conclusion: "failure" };
   }
   return { body, conclusion };
-}
-
-export function findOwnedMarkerComment(comments, appSlug, task = "review") {
-  validateTask(task);
-  const marker = task === "visuals" ? VISUAL_COMMENT_MARKER : COMMENT_MARKER;
-  const expectedLogin = `${appSlug}[bot]`.toLowerCase();
-  return comments.find(
-    (comment) =>
-      comment.user?.type === "Bot" &&
-      comment.user?.login?.toLowerCase() === expectedLogin &&
-      comment.body?.includes(marker),
-  );
-}
-
-export class StaleReviewError extends Error {}
-
-function laneRunStamp(task, runId, runAttempt = "1") {
-  if (!/^\d+$/.test(String(runId)) || !/^\d+$/.test(String(runAttempt)))
-    throw new TypeError(
-      "lane publication requires a numeric workflow run and attempt",
-    );
-  return `<!-- pockettrash:pr-${task}-run ${runId}:${runAttempt} -->\n`;
-}
-
-function assertLaneRunOrder(comment, task, runId, runAttempt = "1") {
-  const previous = comment?.body?.match(
-    new RegExp(`(?:^|\\n)<!-- pockettrash:pr-${task}-run (\\d+):(\\d+) -->`),
-  );
-  if (
-    previous &&
-    (BigInt(previous[1]) > BigInt(runId) ||
-      (BigInt(previous[1]) === BigInt(runId) &&
-        BigInt(previous[2]) > BigInt(runAttempt)))
-  )
-    throw new StaleReviewError(
-      `refusing to overwrite a newer ${task === "visuals" ? "visual" : "review"} run`,
-    );
 }
 
 export async function publishReview({

@@ -38,7 +38,7 @@ test("Phase 1 preflight refuses Phase 2 and local ineligible Phase 2 skips infer
       JSON.stringify(await fixture("events/pull-request-opened.json")),
     );
     await writeFile(configPath, JSON.stringify(config));
-    const bootstrap = `globalThis.fetch = async (url) => ({ ok: true, json: async () => url.includes('/contents/') ? { encoding: 'base64', content: Buffer.from(${JSON.stringify(JSON.stringify(config))}).toString('base64') } : url.includes('/pulls/') ? { base: { sha: 'base-sha' }, head: { sha: 'head-sha' } } : { files: [] } });`;
+    const bootstrap = `globalThis.fetch = async (url) => ({ ok: true, json: async () => url.includes('/comments?') ? [] : url.includes('/contents/') ? { encoding: 'base64', content: Buffer.from(${JSON.stringify(JSON.stringify(config))}).toString('base64') } : url.includes('/pulls/') ? { base: { sha: 'base-sha' }, head: { sha: 'head-sha' } } : { files: [] } });`;
     const preflight = spawnSync(
       process.execPath,
       [

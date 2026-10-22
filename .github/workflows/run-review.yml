@@ -55,17 +55,71 @@ env:
   REVIEW_VISUAL_PHASE: "1"
   REVIEW_CODE_ENABLED: "false"
   REVIEW_ARTIFACT_LIMIT_BYTES: "524288"
+  REVIEW_APP_SLUG: ${{ inputs.app-slug }}
 
 concurrency:
   group: pr-${{ inputs.task }}-${{ github.repository }}-${{ inputs.pull-number }}
   cancel-in-progress: true
 
 jobs:
+  admit:
+    if: inputs.task == 'visuals'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+      id-token: write
+    env:
+      INFISICAL_GITHUB_IDENTITY_ID: ${{ secrets.INFISICAL_GITHUB_IDENTITY_ID }}
+    outputs:
+      runnable: ${{ steps.admit.outputs.runnable }}
+      head-sha: ${{ steps.admit.outputs.head-sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: reviewer
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Fetch App credential for visual admission
+        if: env.INFISICAL_GITHUB_IDENTITY_ID != ''
+        run: node reviewer/src/infisical.mjs publication
+        env:
+          INFISICAL_PROJECT_ID: ${{ inputs.infisical-project-id }}
+          INFISICAL_ENVIRONMENT: ${{ inputs.infisical-environment }}
+          INFISICAL_SECRET_PATH: ${{ inputs.infisical-path }}
+          INFISICAL_DOMAIN: ${{ secrets.INFISICAL_DOMAIN }}
+          INFISICAL_OIDC_AUDIENCE: ${{ secrets.INFISICAL_OIDC_AUDIENCE }}
+      - id: app-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ inputs.app-id }}
+          private-key: ${{ env.PR_REVIEW_APP_PRIVATE_KEY || secrets.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-metadata: read
+          permission-pull-requests: read
+          permission-issues: write
+      - id: admit
+        name: Claim visual attempt and reset rerun checkbox before inference
+        run: node reviewer/src/admit-visuals.mjs
+        env:
+          GITHUB_APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_AUTHENTICATED_APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          REVIEW_PULL_NUMBER: ${{ inputs.pull-number }}
+
   review:
+    needs: admit
+    if: ${{ !cancelled() && (inputs.task != 'visuals' || needs.admit.outputs.runnable == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       INFISICAL_GITHUB_IDENTITY_ID: ${{ secrets.INFISICAL_GITHUB_IDENTITY_ID }}
+      REVIEW_ADMITTED_HEAD_SHA: ${{ needs.admit.outputs.head-sha }}
     permissions:
       contents: read
       pull-requests: read
@@ -74,8 +128,8 @@ jobs:
       review-enabled: ${{ env.REVIEW_CODE_ENABLED }}
       publish: ${{ steps.preflight.outcome == 'failure' || steps.preflight.outputs.runnable == 'true' }}
       pull-number: ${{ steps.preflight.outputs.pull-number || inputs.pull-number }}
-      head-sha: ${{ steps.preflight.outputs.head-sha || github.event.pull_request.head.sha }}
-      artifact-key: ${{ steps.preflight.outputs.head-sha || github.event.pull_request.head.sha || github.run_id }}
+      head-sha: ${{ steps.preflight.outputs.head-sha || needs.admit.outputs.head-sha || github.event.pull_request.head.sha }}
+      artifact-key: ${{ steps.preflight.outputs.head-sha || needs.admit.outputs.head-sha || github.event.pull_request.head.sha || github.run_id }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -141,7 +195,7 @@ jobs:
       - if: always() && (steps.preflight.outcome == 'failure' || steps.preflight.outputs.runnable == 'true')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: pr-${{ inputs.task }}-${{ steps.preflight.outputs.pull-number || inputs.pull-number }}-${{ steps.preflight.outputs.head-sha || github.event.pull_request.head.sha || github.run_id }}
+          name: pr-${{ inputs.task }}-${{ steps.preflight.outputs.pull-number || inputs.pull-number }}-${{ steps.preflight.outputs.head-sha || needs.admit.outputs.head-sha || github.event.pull_request.head.sha || github.run_id }}
           path: ${{ runner.temp }}/review-result.json
           retention-days: 90
       - name: Preserve analysis failure state
@@ -174,6 +228,9 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+      - name: Install pinned publication dependencies
+        working-directory: reviewer
+        run: npm ci --ignore-scripts
       - id: app-credential
         name: Fetch App credential from Infisical
         if: env.INFISICAL_GITHUB_IDENTITY_ID != ''

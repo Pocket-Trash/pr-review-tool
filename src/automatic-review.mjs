@@ -55,7 +55,18 @@ const identity =
         process.env.GITHUB_TOKEN,
         globalThis.fetch,
         task,
+        {
+          appSlug: process.env.REVIEW_APP_SLUG,
+          runId: process.env.GITHUB_RUN_ID,
+          runAttempt: process.env.GITHUB_RUN_ATTEMPT,
+        },
       );
+if (
+  identity.shouldRun &&
+  process.env.REVIEW_ADMITTED_HEAD_SHA &&
+  identity.headSha !== process.env.REVIEW_ADMITTED_HEAD_SHA
+)
+  throw new Error("PR head changed after visual admission");
 if (!identity.shouldRun) {
   if (process.env.GITHUB_STEP_SUMMARY)
     await appendFile(

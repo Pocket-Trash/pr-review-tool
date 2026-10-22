@@ -49,7 +49,7 @@ test("preflight rejects a trusted review config in the visual workflow before mo
       JSON.stringify(await fixture("events/pull-request-opened.json")),
     );
     const config = await fixture("config.valid.json");
-    const bootstrap = `globalThis.fetch = async (url) => ({ ok: true, json: async () => url.includes('/contents/') ? { encoding: 'base64', content: Buffer.from(${JSON.stringify(JSON.stringify(config))}).toString('base64') } : url.includes('/pulls/') ? { base: { sha: 'base-sha' }, head: { sha: 'head-sha' } } : { files: [] } });`;
+    const bootstrap = `globalThis.fetch = async (url) => ({ ok: true, json: async () => url.includes('/comments?') ? [] : url.includes('/contents/') ? { encoding: 'base64', content: Buffer.from(${JSON.stringify(JSON.stringify(config))}).toString('base64') } : url.includes('/pulls/') ? { base: { sha: 'base-sha' }, head: { sha: 'head-sha' } } : { files: [] } });`;
     const result = spawnSync(
       process.execPath,
       [
@@ -149,6 +149,40 @@ test("publisher converts malformed/oversized files into bounded visual failures 
         /wrong-head|## Findings|fixture-token|\{invalid/,
       );
     }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("preflight refuses a changed head after admission before trusted config or credentials", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "visual-stale-admission-"));
+  try {
+    const eventPath = join(directory, "event.json");
+    await writeFile(
+      eventPath,
+      JSON.stringify(await fixture("events/pull-request-opened.json")),
+    );
+    const bootstrap = `globalThis.fetch=async(url)=>{if(!url.includes('/comments?'))throw new Error('Unexpected config or model request');return new Response('[]');};`;
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        `data:text/javascript,${encodeURIComponent(bootstrap)}`,
+        "src/preflight.mjs",
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          PATH: process.env.PATH,
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_TOKEN: "fixture",
+          REVIEW_TASK: "visuals",
+          REVIEW_ADMITTED_HEAD_SHA: "older-admitted-sha",
+        },
+      },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /head changed after visual admission/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

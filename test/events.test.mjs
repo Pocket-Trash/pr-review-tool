@@ -203,10 +203,27 @@ test("visual commands are authorized independently and review comments cannot en
       false,
     );
   }
-  for (const action of ["opened", "synchronize", "ready_for_review"])
+  for (const action of ["opened", "ready_for_review"])
     assert.equal(
-      (await resolveReviewEvent(event(action), "token", undefined, "visuals"))
-        .shouldRun,
+      (
+        await resolveReviewEvent(
+          event(action),
+          "token",
+          async () => new Response("[]"),
+          "visuals",
+        )
+      ).shouldRun,
       true,
     );
+  assert.equal(
+    (
+      await resolveReviewEvent(
+        event("synchronize"),
+        "token",
+        async () => assert.fail("push called API"),
+        "visuals",
+      )
+    ).shouldRun,
+    false,
+  );
 });
