@@ -93,6 +93,20 @@ export function validateConfig(input) {
 
 export function validateProductionRoute(configInput) {
   const config = validateConfig(configInput);
+  if (
+    config.task === "visuals" &&
+    validateVisualPhase(config.visualPhase) === 1
+  ) {
+    if (
+      config.provider !== "openrouter" ||
+      config.model !== "anthropic/claude-sonnet-5.5"
+    )
+      fail(
+        "config.model",
+        "owner-approved Phase 1 route openrouter / anthropic/claude-sonnet-5.5 (no automatic failover)",
+      );
+    return config;
+  }
   if (config.provider !== "cheaperinference")
     fail(
       "config.provider",

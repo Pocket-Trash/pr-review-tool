@@ -1,0 +1,19 @@
+{
+  "task": "visuals",
+  "provider": "openrouter",
+  "model": "anthropic/claude-sonnet-5.5",
+  "skills": ["i-have-adhd", "stop-slop"],
+  "prompt": "Describe changed architecture, domains and entity relationships using frozen source facts. Do not review code correctness or infer runtime behavior.",
+  "generatedFiles": [
+    "pnpm-lock.yaml",
+    "**/drizzle/meta/**",
+    "**/drizzle/**/snapshot.json",
+    "**/generated/**"
+  ],
+  "limits": {
+    "maxFiles": 100,
+    "maxBytes": 1048576,
+    "maxChangedLines": 20000,
+    "maxFileBytes": 524288
+  }
+}
