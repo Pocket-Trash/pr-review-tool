@@ -9,6 +9,7 @@ import {
   validateCodeReview,
 } from "./review.mjs";
 import { sanitizeVisuals, missingRequiredVisuals } from "./visuals.mjs";
+import { githubRequestError } from "./events.mjs";
 import {
   COMMENT_MARKER,
   VISUAL_COMMENT_MARKER,
@@ -260,7 +261,7 @@ export async function publishReview({
       headers: { ...headers, ...options.headers },
     });
     if (!response.ok)
-      throw new Error(`GitHub publication request failed: ${response.status}`);
+      throw await githubRequestError(response, "GitHub publication request");
     return response.status === 204 ? null : response.json();
   };
   const pull = await request(`/repos/${owner}/${repo}/pulls/${pullNumber}`);

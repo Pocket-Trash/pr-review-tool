@@ -17,7 +17,7 @@ test("publisher isolates the model key from the minimum-permission App token", (
   for (const permission of [
     "permission-metadata: read",
     "permission-contents: read",
-    "permission-pull-requests: read",
+    "permission-pull-requests: write",
     "permission-checks: write",
     "permission-issues: write",
   ])
@@ -129,6 +129,11 @@ test("visual admission claims before analysis using an isolated App token and fr
   assert.match(admission, /if: inputs.task == 'visuals'/);
   assert.match(admission, /infisical.mjs publication/);
   assert.match(admission, /admit-visuals.mjs/);
+  assert.match(admission, /permission-pull-requests: write/);
+  assert.match(
+    admission,
+    /permissions:\s+contents: read\s+pull-requests: read/,
+  );
   assert.doesNotMatch(
     admission,
     /OPENROUTER|CHEAPER_INFERENCE|infisical.mjs analysis|npm ci|skills:install/,

@@ -55,6 +55,34 @@ export async function githubJson(path, token, fetch) {
   return response.json();
 }
 
+export async function githubRequestError(response, operation) {
+  const details = [];
+  const data = await response.json().catch(() => ({}));
+  if (
+    [
+      "Resource not accessible by integration",
+      "API rate limit exceeded",
+      "Bad credentials",
+    ].includes(data?.message)
+  )
+    details.push(data.message);
+  const permissions = response.headers.get("x-accepted-github-permissions");
+  if (
+    permissions &&
+    /^[a-z_]+=(?:read|write)(?:[;, ]+[a-z_]+=(?:read|write))*$/.test(
+      permissions,
+    ) &&
+    permissions.length <= 200
+  )
+    details.push(`accepted permissions: ${permissions}`);
+  const requestId = response.headers.get("x-github-request-id");
+  if (requestId && /^[A-Fa-f0-9:]{1,100}$/.test(requestId))
+    details.push(`request: ${requestId}`);
+  return new Error(
+    `${operation} failed: ${response.status}${details.length ? ` (${details.join("; ")})` : ""}`,
+  );
+}
+
 export async function visualComments(repository, pullNumber, token, fetch) {
   const comments = [];
   for (let page = 1; ; page++) {
