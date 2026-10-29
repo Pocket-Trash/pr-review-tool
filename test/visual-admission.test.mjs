@@ -56,10 +56,20 @@ function harness({
   permission = "write",
   currentPull = pull,
   failWrite = false,
+  reactionStatus = 201,
 } = {}) {
-  const state = { comments: structuredClone(comments), writes: [], calls: [] };
+  const state = {
+    comments: structuredClone(comments),
+    writes: [],
+    reactions: [],
+    calls: [],
+  };
   const fetch = async (url, options = {}) => {
     state.calls.push(url);
+    if (url.endsWith("/reactions")) {
+      state.reactions.push({ url, body: JSON.parse(options.body) });
+      return new Response("{}", { status: reactionStatus });
+    }
     if (options.method) {
       if (failWrite) return new Response("{}", { status: 503 });
       const body = JSON.parse(options.body).body;
@@ -108,6 +118,11 @@ test("first automatic visual attempt is claimed before inference and survives ca
   assert.equal((await h.admit(event)).shouldRun, true);
   assert.equal(h.state.writes.length, 1);
   assert.match(h.state.writes[0].body, /Results are pending/);
+  assert.match(
+    h.state.writes[0].body,
+    /https:\/\/github.com\/Pocket-Trash\/example\/actions\/runs\/100/,
+  );
+  assert.equal(h.state.reactions.length, 0);
   assert.ok(h.state.writes[0].body.endsWith(VISUAL_RERUN_FOOTER));
   assert.equal((await h.resolve(event, "100")).shouldRun, true);
   assert.equal((await h.admit(event)).shouldRun, false);
@@ -297,6 +312,16 @@ test("manual command is available after the automatic claim, without enabling re
     comment: { id: 99, user, body: "!pockettrash visuals" },
   };
   assert.equal((await h.admit(event)).shouldRun, true);
+  assert.equal(h.state.writes[0].method, "PATCH");
+  assert.doesNotMatch(h.state.writes[0].body, /Prior results/);
+  assert.deepEqual(h.state.reactions, [
+    {
+      url: `https://api.github.com/repos/${repository}/issues/comments/99/reactions`,
+      body: { content: "eyes" },
+    },
+  ]);
+  assert.equal((await h.admit(event)).shouldRun, false);
+  assert.equal(h.state.reactions.length, 1);
   assert.equal(
     (
       await h.admit(
@@ -307,6 +332,71 @@ test("manual command is available after the automatic claim, without enabling re
     false,
   );
   assert.equal(h.state.writes.length, 1);
+});
+
+test("reaction failure is visible but does not undo a successful durable claim", async () => {
+  const h = harness({ reactionStatus: 403 });
+  const event = {
+    action: "created",
+    repository: { full_name: repository },
+    issue: { number: 42, pull_request: {} },
+    comment: { id: 99, user, body: "!pockettrash visuals" },
+  };
+  const result = await h.admit(event);
+  assert.equal(result.shouldRun, true);
+  assert.match(result.acknowledgementWarning, /reaction failed: 403/);
+  assert.equal(h.state.writes.length, 1);
+  assert.equal((await h.admit(event)).shouldRun, false);
+});
+
+test("failed pending write never acknowledges or admits inference", async () => {
+  const h = harness({ failWrite: true });
+  const event = {
+    action: "created",
+    repository: { full_name: repository },
+    issue: { number: 42, pull_request: {} },
+    comment: { id: 99, user, body: "!pockettrash visuals" },
+  };
+  await assert.rejects(h.admit(event), /admission failed: 503/);
+  assert.equal(h.state.reactions.length, 0);
+  assert.equal(h.state.writes.length, 0);
+});
+
+test("first manual request creates a pending comment and only authorized humans receive eyes", async () => {
+  const event = {
+    action: "created",
+    repository: { full_name: repository },
+    issue: { number: 42, pull_request: {} },
+    comment: { id: 99, user, body: "!pockettrash visuals" },
+  };
+  const first = harness();
+  assert.equal((await first.admit(event)).shouldRun, true);
+  assert.equal(first.state.writes[0].method, "POST");
+  assert.equal(first.state.reactions.length, 1);
+  assert.ok(
+    first.state.calls.indexOf(
+      `https://api.github.com/repos/${repository}/issues/42/comments`,
+    ) <
+      first.state.calls.indexOf(
+        `https://api.github.com/repos/${repository}/issues/comments/99/reactions`,
+      ),
+  );
+  for (const [permission, request] of [
+    ["read", event],
+    ["write", { ...event, comment: { ...event.comment, user: bot } }],
+    ["write", { ...event, comment: { ...event.comment, body: "hello" } }],
+  ]) {
+    const denied = harness({ permission });
+    assert.equal((await denied.admit(request)).shouldRun, false);
+    assert.equal(denied.state.reactions.length, 0);
+    assert.equal(denied.state.writes.length, 0);
+  }
+  const malformed = harness();
+  await assert.rejects(
+    malformed.admit({ ...event, comment: { ...event.comment, id: "bad" } }),
+    /comment ID/,
+  );
+  assert.equal(malformed.state.writes.length, 0);
 });
 
 test("automatic history lookup paginates and ignores spoofed markers", async () => {

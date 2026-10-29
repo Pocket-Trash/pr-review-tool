@@ -10,6 +10,54 @@ const fixture = async (name) =>
     await readFile(new URL(`fixtures/${name}`, import.meta.url), "utf8"),
   );
 
+test("admission write denial reports a safe operational failure and cannot admit inference", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "visual-admission-denied-"));
+  try {
+    const eventPath = join(directory, "event.json");
+    const summaryPath = join(directory, "summary");
+    const outputPath = join(directory, "output");
+    const event = await fixture("events/pull-request-opened.json");
+    await writeFile(eventPath, JSON.stringify(event));
+    const bootstrap = `globalThis.fetch = async (url, options = {}) => {
+      if (options.method) return new Response(JSON.stringify({message:'Resource not accessible by integration',private:'fixture-secret'}),{status:403,headers:{'x-accepted-github-permissions':'issues=write; pull_requests=write'}});
+      return new Response(JSON.stringify(url.includes('/comments?') ? [] : ${JSON.stringify({ state: "open", draft: false, head: event.pull_request.head })}));
+    };`;
+    const result = spawnSync(
+      process.execPath,
+      [
+        "--import",
+        `data:text/javascript,${encodeURIComponent(bootstrap)}`,
+        "src/admit-visuals.mjs",
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          PATH: process.env.PATH,
+          REVIEW_TASK: "visuals",
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_OUTPUT: outputPath,
+          GITHUB_STEP_SUMMARY: summaryPath,
+          GITHUB_APP_TOKEN: "fixture-token",
+          GITHUB_AUTHENTICATED_APP_SLUG: "pockettrash",
+          REVIEW_APP_SLUG: "pockettrash",
+          GITHUB_RUN_ID: "100",
+          REVIEW_PULL_NUMBER: String(event.pull_request.number),
+        },
+      },
+    );
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /GitHub visual admission failed: 403/);
+    assert.doesNotMatch(result.stderr, /fixture-secret/);
+    assert.match(
+      await readFile(summaryPath, "utf8"),
+      /No model analysis started/,
+    );
+    await assert.rejects(readFile(outputPath), { code: "ENOENT" });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("dispatcher rejects review commands before API calls or visual cancellation", async () => {
   const directory = await mkdtemp(join(tmpdir(), "visual-authorize-"));
   try {
@@ -142,8 +190,11 @@ test("publisher converts malformed/oversized files into bounded visual failures 
       assert.equal(result.status, 0, result.stderr);
       const { body } = JSON.parse(await readFile(commentPath, "utf8"));
       assert.match(body, /pockettrash:pr-visuals-run 100:2/);
-      assert.match(body, /operational \*\*failure\*\*/);
-      assert.match(body, /Reviewed SHA: frozen-head/);
+      assert.match(
+        body,
+        /No diagrams were published because visual analysis failed/,
+      );
+      assert.match(body, /Requested SHA: frozen-head/);
       assert.doesNotMatch(
         body,
         /wrong-head|## Findings|fixture-token|\{invalid/,

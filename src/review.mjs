@@ -287,11 +287,11 @@ export function renderReview(configInput, reviewInput, runInput) {
       : "Architecture and schema";
 
   const overrides = run.skillOverrides.length
-    ? `\nSkill overrides: ${run.skillOverrides.join(", ")}`
+    ? `\n- Skill overrides: ${run.skillOverrides.join(", ")}`
     : "";
   const cost =
     run.usage.estimatedCostUsd === null
       ? "unknown"
       : `$${run.usage.estimatedCostUsd.toFixed(5)}`;
-  return `${visualOnly ? "## PR Visuals\n\n" : reviewOnly ? "## PR Review\n\n" : ""}## Overview\n\n${review.overview}\n\n${visualOnly ? "" : `## Findings\n\n${findings}\n\n`}${reviewOnly ? "" : `## ${diagramHeading}\n\n${diagrams}\n\n`}## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n<details>\n<summary>Run and cost details</summary>\n\nProvider: ${config.provider}\nModel: ${config.model}\nReviewed SHA: ${run.reviewedSha}\nRun: ${run.runId}\nSkills: ${run.selectedSkills.join(", ") || "none"}${overrides}\nTokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\nModel calls: ${run.usage.modelCalls}\nTool iterations: ${run.usage.toolIterations}\nEstimated cost: ${cost}\n\n</details>\n`;
+  return `${visualOnly ? "## PR Visuals\n\n" : reviewOnly ? "## PR Review\n\n" : ""}## Overview\n\n${review.overview}\n\n${visualOnly ? "" : `## Findings\n\n${findings}\n\n`}${reviewOnly ? "" : `## ${diagramHeading}\n\n${diagrams}\n\n`}## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n**Run and cost details**\n\n- Provider: ${config.provider}\n- Model / effort: ${config.model} / not explicitly set\n- Reviewed SHA: ${run.reviewedSha}\n- Run: ${run.runId}\n- Skills: ${run.selectedSkills.join(", ") || "none"}${overrides}\n- Tokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\n- Model calls: ${run.usage.modelCalls}\n- Tool iterations: ${run.usage.toolIterations}\n- Estimated cost: ${cost}\n`;
 }

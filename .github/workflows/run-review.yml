@@ -102,7 +102,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-metadata: read
-          permission-pull-requests: read
+          permission-pull-requests: write
           permission-issues: write
       - id: admit
         name: Claim visual attempt and reset rerun checkbox before inference
@@ -250,7 +250,7 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-metadata: read
           permission-contents: read
-          permission-pull-requests: read
+          permission-pull-requests: write
           permission-checks: write
           permission-issues: write
       - name: Publish persistent visual comment and check
