@@ -75,6 +75,33 @@ test("visual publication rejects cross-lane identity, findings, and wrong SHA", 
   );
 });
 
+test("run details stay visible and distinguish configured models from actual use", async () => {
+  const success = await preparePublication(artifact, options);
+  const skipped = await preparePublication(
+    {
+      ...artifact,
+      conclusion: "neutral",
+      review: null,
+      diagnostics: ["No eligible changes."],
+    },
+    {
+      ...options,
+      runUrl: "https://github.com/Pocket-Trash/example/actions/runs/100",
+    },
+  );
+  for (const result of [success, skipped]) {
+    assert.match(result.body, /\*\*Run and cost details\*\*/);
+    assert.match(result.body, /Model \/ effort:|Configured model \/ effort:/);
+    assert.match(result.body, /not explicitly set/);
+    assert.doesNotMatch(result.body, /<details>|<summary>|<\/details>/);
+  }
+  assert.match(skipped.body, /Configured model \/ effort: fixture-model/);
+  assert.match(
+    skipped.body,
+    /\[Pocket-Trash\/example\/actions\/runs\/100\]\(https:\/\/github.com\//,
+  );
+});
+
 test("neutral/failure/timeout/cancelled visual states remove diagrams and identify the current SHA", async () => {
   for (const conclusion of ["neutral", "failure", "timed_out", "cancelled"]) {
     const publication = await preparePublication(

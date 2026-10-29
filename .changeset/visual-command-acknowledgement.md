@@ -2,4 +2,4 @@
 "@pocket-trash/pr-review-tool": patch
 ---
 
-Acknowledge visual reruns, link pending results to their workflow, and explain why diagrams were not generated.
+Acknowledge visual reruns, clarify skipped diagrams, and show run details without collapsing them.

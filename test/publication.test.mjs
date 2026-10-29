@@ -64,7 +64,7 @@ test("publication preserves the six sections while sanitizing model prose", asyn
     "## Architecture and schema",
     "## Changed areas",
     "## Coverage gaps",
-    "<summary>Run and cost details</summary>",
+    "**Run and cost details**",
   ];
   let prior = -1;
   for (const heading of headings) {
