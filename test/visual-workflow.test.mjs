@@ -190,8 +190,11 @@ test("publisher converts malformed/oversized files into bounded visual failures 
       assert.equal(result.status, 0, result.stderr);
       const { body } = JSON.parse(await readFile(commentPath, "utf8"));
       assert.match(body, /pockettrash:pr-visuals-run 100:2/);
-      assert.match(body, /operational \*\*failure\*\*/);
-      assert.match(body, /Reviewed SHA: frozen-head/);
+      assert.match(
+        body,
+        /No diagrams were published because visual analysis failed/,
+      );
+      assert.match(body, /Requested SHA: frozen-head/);
       assert.doesNotMatch(
         body,
         /wrong-head|## Findings|fixture-token|\{invalid/,

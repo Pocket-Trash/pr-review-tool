@@ -11,6 +11,7 @@ import {
   publishReview,
 } from "../src/publication.mjs";
 import { VISUAL_RERUN_FOOTER } from "../src/comment-controls.mjs";
+import { visualSkipReason } from "../src/visuals.mjs";
 
 const fixture = async (name) =>
   JSON.parse(
@@ -44,6 +45,7 @@ test("visual publication sanitizes prose and diagrams without adding review find
   assert.ok(publication.body.startsWith(VISUAL_COMMENT_MARKER));
   assert.match(publication.body, /pr-visuals-run 100:1/);
   assert.match(publication.body, /## PR Visuals/);
+  assert.match(publication.body, /## Changed areas/);
   assert.match(publication.body, /@\u200bowner/);
   assert.match(publication.body, /unsafe Mermaid/);
   assert.doesNotMatch(
@@ -79,18 +81,54 @@ test("neutral/failure/timeout/cancelled visual states remove diagrams and identi
       {
         task: "visuals",
         conclusion,
-        diagnostics: ["No eligible changes; inference skipped."],
+        diagnostics: ["Test diagnostic."],
       },
       options,
     );
     assert.equal(publication.conclusion, conclusion);
     assert.ok(publication.body.endsWith(VISUAL_RERUN_FOOTER));
-    assert.match(publication.body, /No diagram was published/);
+    assert.match(publication.body, /No diagrams were (generated|published)/);
+    assert.match(publication.body, /Reason: Test diagnostic\./);
+    if (conclusion !== "neutral")
+      assert.match(
+        publication.body,
+        new RegExp(
+          `visual analysis ${conclusion === "timed_out" ? "timed out" : conclusion === "cancelled" ? "was cancelled" : "failed"}`,
+        ),
+      );
     assert.match(
       publication.body,
-      new RegExp(`Reviewed SHA: ${artifact.run.reviewedSha}`),
+      new RegExp(`Requested SHA: ${artifact.run.reviewedSha}`),
     );
-    assert.doesNotMatch(publication.body, /```mermaid|## Findings/);
+    assert.doesNotMatch(
+      publication.body,
+      /```mermaid|## Findings|## Changed areas|## Coverage gaps|not assessed|No diagrams were needed/,
+    );
+  }
+});
+
+test("no-eligible-change skips explain that no diagram was needed, unlike other neutral results", async () => {
+  const reason = visualSkipReason({ architecture: false, schema: "none" });
+  const skipped = await preparePublication(
+    { task: "visuals", conclusion: "neutral", diagnostics: [reason] },
+    options,
+  );
+  assert.match(
+    skipped.body,
+    /No diagrams were needed: the changes do not qualify for any enabled diagram type/,
+  );
+  assert.match(skipped.body, /No model analysis was run/);
+  for (const diagnostics of [
+    ["Context limit exceeded; inference was skipped."],
+    ["Acknowledgement integration test only; no model analysis was performed."],
+    [],
+  ]) {
+    const result = await preparePublication(
+      { task: "visuals", conclusion: "neutral", diagnostics },
+      options,
+    );
+    assert.doesNotMatch(result.body, /No diagrams were needed|do not qualify/);
+    assert.match(result.body, /Reason:/);
   }
 });
 

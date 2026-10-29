@@ -100,6 +100,8 @@ function operationalBody(
       ? runUrl
       : null;
   const visualOnly = task === "visuals";
+  if (visualOnly)
+    return `## PR Visuals\n\n## Analysis status\n\n${conclusion === "neutral" ? "No diagrams were generated." : `No diagrams were published because visual analysis ${conclusion === "timed_out" ? "timed out" : conclusion === "cancelled" ? "was cancelled" : "failed"}.`}\n\nReason: ${safeDetail}\n\n<details>\n<summary>Run and cost details</summary>\n\nConclusion: ${status}${reviewedSha ? `\nRequested SHA: ${sanitizePublishedText(reviewedSha)}` : ""}${safeRunUrl ? `\nRun: ${safeRunUrl}` : ""}\n\n</details>\n`;
   return `${visualOnly ? "## PR Visuals\n\n" : reviewOnly ? "## PR Review\n\n" : ""}## Overview\n\nThe automated ${visualOnly ? "visual analysis" : "review"} ended with an operational **${status}** result.\n\n${visualOnly ? "" : "## Findings\n\nNo advisory findings were published because analysis did not complete successfully.\n\n"}${reviewOnly ? "" : "## Architecture and schema\n\nNo diagram was published.\n\n"}## Changed areas\n\n- ${visualOnly ? "Visual analysis" : "Review"} system only; pull-request changes were not assessed.\n\n## Coverage gaps\n\n- ${safeDetail}\n\n<details>\n<summary>Run and cost details</summary>\n\nConclusion: ${status}${(visualOnly || reviewOnly) && reviewedSha ? `\nReviewed SHA: ${sanitizePublishedText(reviewedSha)}` : ""}${safeRunUrl ? `\nRun: ${safeRunUrl}` : ""}\n\n</details>\n`;
 }
 

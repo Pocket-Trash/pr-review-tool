@@ -229,7 +229,7 @@ export function visualSkipReason(requirements) {
     !requirements.state &&
     !requirements.dependency &&
     !requirements.beforeAfter
-    ? "No eligible architecture, domain, or ERD changes; inference was skipped."
+    ? "No diagrams were needed: the changes do not qualify for any enabled diagram type. No model analysis was run; inference was skipped."
     : null;
 }
 
