@@ -1,0 +1,39 @@
+name: Promote current release
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full main-history commit SHA; empty selects latest main
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reviewer-current-release
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: github.repository == 'Pocket-Trash/pr-review-tool' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - name: Validate and promote current-release
+        run: node scripts/promote-release.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.sha }}
