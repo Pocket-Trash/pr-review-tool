@@ -374,12 +374,63 @@ export function applicationArchitecture(files) {
   };
 }
 
+function hasApplicationStructure(files) {
+  return files.filter(sourceFile).some((file) => {
+    try {
+      const ast = parse(file.content, {
+        sourceType: "unambiguous",
+        plugins: [
+          "typescript",
+          ...(file.filename.endsWith("x") ? ["jsx"] : []),
+        ],
+      });
+      const names = new Set();
+      for (const node of ast.program.body)
+        if (node.type === "ImportDeclaration") {
+          for (const spec of node.specifiers)
+            if (
+              (node.source.value === "@tanstack/react-router" &&
+                spec.imported?.name === "createFileRoute") ||
+              (node.source.value === "react" &&
+                ["createContext", "useContext"].includes(spec.imported?.name))
+            )
+              names.add(spec.local.name);
+          if (node.source.value === "react")
+            for (const spec of node.specifiers)
+              if (
+                ["ImportNamespaceSpecifier", "ImportDefaultSpecifier"].includes(
+                  spec.type,
+                )
+              )
+                names.add(spec.local.name);
+        }
+      let found = false;
+      walk(ast.program, (node) => {
+        if (node.type !== "CallExpression") return;
+        const callee = node.callee;
+        if (callee.type === "Identifier" && names.has(callee.name))
+          found = true;
+        if (
+          callee.type === "MemberExpression" &&
+          names.has(callee.object?.name) &&
+          ["createContext", "useContext"].includes(callee.property?.name)
+        )
+          found = true;
+      });
+      return found;
+    } catch {
+      return false;
+    }
+  });
+}
+
 export async function prepareApplicationContext(
   prepared,
   identity,
   load,
   limits,
 ) {
+  if (!hasApplicationStructure(prepared.files)) return;
   const cache = new Map();
   let requests = 0,
     readBytes = 0;

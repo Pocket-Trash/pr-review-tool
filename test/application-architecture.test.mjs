@@ -144,7 +144,8 @@ test("context read budgets bound missing-path probes and cannot become a no-work
         Array.from(
           { length: 100 },
           (_, i) => `import x${i} from './missing${i}';`,
-        ).join("\n"),
+        ).join("\n") +
+          "\nimport {createFileRoute} from '@tanstack/react-router'; export const Route=createFileRoute('/x')({loader:()=>x0()});",
       ),
     ],
     omissions: [],
@@ -240,7 +241,12 @@ test("root static path aliases are read without inventing baseline evidence", as
     "../src/application-architecture.mjs"
   );
   const prepared = {
-    files: [file("src/route.ts", `import {search} from '@/search';`)],
+    files: [
+      file(
+        "src/route.ts",
+        `import {search} from '@/search'; import {createFileRoute} from '@tanstack/react-router'; export const Route=createFileRoute('/x')({loader:()=>search()});`,
+      ),
+    ],
     omissions: [],
   };
   await prepareApplicationContext(
@@ -287,4 +293,27 @@ test("base-only declarations are visibly removed in rendered architecture", () =
     catalog,
   );
   assert.match(result.diagrams[0].mermaid, /removed; base source/);
+});
+
+test("local lifecycle refactors do not expand context or turn into budget failures", async () => {
+  const { prepareApplicationContext } = await import(
+    "../src/application-architecture.mjs"
+  );
+  const prepared = {
+    conclusion: "review",
+    files: [
+      file(
+        "app/editor.ts",
+        "import React from 'react'; export function editor(){return React.useReducer(reducer,{})}",
+      ),
+    ],
+    omissions: [],
+  };
+  await prepareApplicationContext(
+    prepared,
+    identity,
+    async () => assert.fail("irrelevant source must not fetch neighbors"),
+    { maxFiles: 1, maxBytes: 1, maxFileBytes: 1 },
+  );
+  assert.equal(preparedVisualRequirements(prepared).architecture, false);
 });
