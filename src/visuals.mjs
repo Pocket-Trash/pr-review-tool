@@ -1,3 +1,4 @@
+import { applicationArchitecture } from "./application-architecture.mjs";
 import { JSDOM } from "jsdom";
 import { validateVisualPhase } from "./review.mjs";
 
@@ -85,6 +86,7 @@ function dependencyChange(file) {
 export function visualRequirements(files, visualPhase = 1) {
   validateVisualPhase(visualPhase);
   const architecture =
+    applicationArchitecture(files).eligible ||
     files.some(({ filename }) => infrastructurePattern.test(filename)) ||
     files
       .filter(
@@ -202,7 +204,22 @@ export function preparedVisualRequirements(prepared, phase = 1) {
     ...file,
     ...prepared.files.find((available) => available.filename === file.filename),
   }));
-  const requirements = visualRequirements(scope, phase);
+  const suppliedScope = [
+    ...scope,
+    ...prepared.files.filter(
+      (file) => !scope.some((item) => item.filename === file.filename),
+    ),
+  ];
+  const requirements = visualRequirements(suppliedScope, phase);
+  const application = applicationArchitecture(suppliedScope);
+  if (
+    phase === 1 &&
+    (application.uncertain || prepared.applicationIncomplete) &&
+    visualSkipReason(requirements)
+  )
+    throw new Error(
+      `Application architecture analysis incomplete: ${application.omissions.join(" ")}`,
+    );
   const unknown =
     phase === 2 &&
     scope.some(
