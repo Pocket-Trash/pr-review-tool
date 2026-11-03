@@ -99,8 +99,10 @@ export function visualRequirements(files, visualPhase = 1) {
         0,
       ) >= 50;
   const schemaFiles = files.filter(
-    ({ filename }) =>
-      schemaPattern.test(filename) && !nonSourcePattern.test(filename),
+    ({ filename, status }) =>
+      status !== "context" &&
+      schemaPattern.test(filename) &&
+      !nonSourcePattern.test(filename),
   );
   const schemaLines = schemaFiles.reduce(
     (total, file) => total + (file.additions || 0) + (file.deletions || 0),
