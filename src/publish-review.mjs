@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { appendFile, readFile, stat } from "node:fs/promises";
 import { publishReview } from "./publication.mjs";
 import { validateTask, validateVisualPhase } from "./review.mjs";
 import { artifactByteLimit } from "./intake.mjs";
@@ -53,7 +53,14 @@ if (!expectedHeadSha) {
 }
 if (!expectedHeadSha)
   throw new TypeError("publisher requires a pull request head SHA");
-await publishReview({
+if (task === "visuals" && process.env.ANALYSIS_CONCLUSION === "cancelled")
+  artifact = {
+    task,
+    conclusion: "cancelled",
+    ...(artifact?.config ? { config: artifact.config } : {}),
+    diagnostics: ["Visual analysis was cancelled before publication."],
+  };
+const publication = await publishReview({
   task,
   reviewOnly: task === "review",
   visualPhase: validateVisualPhase(
@@ -76,3 +83,9 @@ await publishReview({
   expectedAppSlug: process.env.GITHUB_APP_SLUG || "pockettrash",
   runUrl: `${event.repository.html_url}/actions/runs/${process.env.GITHUB_RUN_ID}`,
 });
+
+if (publication.skipped && process.env.GITHUB_STEP_SUMMARY)
+  await appendFile(
+    process.env.GITHUB_STEP_SUMMARY,
+    `Publication skipped: ${publication.reason}.\n`,
+  );

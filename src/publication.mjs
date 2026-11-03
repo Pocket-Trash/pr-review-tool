@@ -17,6 +17,7 @@ import {
   findOwnedMarkerComment,
   laneRunStamp,
   withVisualRerun,
+  hasCheckedVisualRerun,
   assertLaneRunOrder,
   StaleReviewError,
 } from "./comment-controls.mjs";
@@ -347,6 +348,26 @@ export async function publishReview({
   );
   if (latestPull.head?.sha !== expectedHeadSha)
     throw new StaleReviewError("refusing to overwrite a newer review");
+  // Leave a queued checkbox request for admission, even if this analysis completed.
+  if (task === "visuals" && existingComment) {
+    const current = await request(
+      `/repos/${owner}/${repo}/issues/comments/${existingComment.id}`,
+    );
+    if (
+      !findOwnedMarkerComment([current], authenticatedAppSlug, task) ||
+      current.id !== existingComment.id
+    )
+      throw new StaleReviewError(
+        "visual comment ownership changed before publication",
+      );
+    assertLaneRunOrder(current, task, runId, runAttempt);
+    if (hasCheckedVisualRerun(current.body))
+      return {
+        ...publication,
+        skipped: true,
+        reason: "a manual visual rerun is awaiting admission",
+      };
+  }
   const check = existingCheck
     ? await request(`/repos/${owner}/${repo}/check-runs/${existingCheck.id}`, {
         method: "PATCH",

@@ -238,3 +238,97 @@ test("preflight refuses a changed head after admission before trusted config or 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("cancelled execution overrides a completed artifact and preserves an awaiting rerun", async () => {
+  const directory = await mkdtemp(
+    join(tmpdir(), "visual-cancelled-publisher-"),
+  );
+  try {
+    const eventPath = join(directory, "event.json");
+    const artifactPath = join(directory, "artifact.json");
+    const commentPath = join(directory, "published.json");
+    const writesPath = join(directory, "writes");
+    const summaryPath = join(directory, "summary");
+    const head = "a".repeat(40);
+    await writeFile(
+      eventPath,
+      JSON.stringify({
+        repository: {
+          full_name: "Pocket-Trash/example",
+          html_url: "https://github.com/Pocket-Trash/example",
+        },
+        issue: { number: 7 },
+      }),
+    );
+    await writeFile(
+      artifactPath,
+      JSON.stringify({
+        task: "visuals",
+        conclusion: "success",
+        diagnostics: ["fixture-secret"],
+      }),
+    );
+    for (const checked of [true, false]) {
+      await rm(writesPath, { force: true });
+      await writeFile(summaryPath, "");
+      const comment = {
+        id: 12,
+        user: { type: "Bot", login: "pockettrash[bot]" },
+        body: `<!-- pockettrash:pr-visuals -->\n<!-- pockettrash:pr-visuals-run 99:1 -->\nPrior output\n\n<!-- pockettrash:visuals-rerun -->\n- [${checked ? "x" : " "}] Manually rerun\n`,
+      };
+      const bootstrap = `
+        const {writeFile} = await import('node:fs/promises');
+        globalThis.fetch = async (url, options={}) => {
+          if(options.method) await writeFile(${JSON.stringify(writesPath)}, 'mutation');
+          let body = {};
+          if(url.endsWith('/pulls/7')) body = {head: {sha: '${head}'}};
+          else if(url.includes('/check-runs?')) body = {check_runs: []};
+          else if(url.includes('/comments?')) body = [${JSON.stringify(comment)}];
+          else if(url.endsWith('/issues/comments/12')) {
+            body = ${JSON.stringify(comment)};
+            if(options.method) await writeFile(${JSON.stringify(commentPath)}, options.body);
+          } else if(url.endsWith('/check-runs') || url.endsWith('/check-runs/11')) body = {id: 11};
+          else throw Error('Unexpected request: '+url);
+          return new Response(JSON.stringify(body));
+        };
+      `;
+      const result = spawnSync(
+        process.execPath,
+        [
+          "--import",
+          `data:text/javascript,${encodeURIComponent(bootstrap)}`,
+          "src/publish-review.mjs",
+        ],
+        {
+          encoding: "utf8",
+          env: {
+            PATH: process.env.PATH,
+            REVIEW_TASK: "visuals",
+            GITHUB_EVENT_PATH: eventPath,
+            REVIEW_ARTIFACT_PATH: artifactPath,
+            GITHUB_APP_TOKEN: "fixture-token",
+            GITHUB_AUTHENTICATED_APP_SLUG: "pockettrash",
+            GITHUB_RUN_ID: "100",
+            REVIEW_HEAD_SHA: head,
+            ANALYSIS_CONCLUSION: "cancelled",
+            GITHUB_STEP_SUMMARY: summaryPath,
+          },
+        },
+      );
+      assert.equal(result.status, 0, result.stderr);
+      if (checked) {
+        await assert.rejects(readFile(writesPath), { code: "ENOENT" });
+        assert.match(
+          await readFile(summaryPath, "utf8"),
+          /Publication skipped: a manual visual rerun is awaiting admission/,
+        );
+      } else {
+        const { body } = JSON.parse(await readFile(commentPath, "utf8"));
+        assert.match(body, /visual analysis was cancelled/);
+        assert.doesNotMatch(body, /fixture-secret|Prior output/);
+      }
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
