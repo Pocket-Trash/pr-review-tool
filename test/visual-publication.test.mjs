@@ -443,3 +443,49 @@ test("cancelled publication preserves a pending rerun even if artifact metadata 
     [],
   );
 });
+
+test("a completed visual result also preserves a newer checked rerun", async () => {
+  for (const conclusion of ["success", "neutral", "failure", "timed_out"]) {
+    const mock = mockPublication();
+    mock.visualComment.body += VISUAL_RERUN_FOOTER.replace("[ ]", "[x]");
+    const input =
+      conclusion === "success"
+        ? artifact
+        : { task: "visuals", conclusion, diagnostics: [] };
+    const result = await publishReview({
+      ...publishOptions,
+      artifact: input,
+      fetch: mock.fetch,
+    });
+    assert.equal(result.skipped, true);
+    assert.deepEqual(
+      mock.calls.filter((c) => c.method !== "GET"),
+      [],
+    );
+  }
+});
+
+test("ordinary edits and noncanonical checked text do not defer visual publication", async () => {
+  for (const suffix of [
+    VISUAL_RERUN_FOOTER,
+    "\n- [x] Manually rerun\n",
+    VISUAL_RERUN_FOOTER.replace(
+      "[ ] Manually rerun",
+      "[x] Manually rerun later",
+    ),
+  ]) {
+    const mock = mockPublication();
+    mock.visualComment.body += suffix;
+    const result = await publishReview({
+      ...publishOptions,
+      fetch: mock.fetch,
+    });
+    assert.equal(result.skipped, undefined);
+    assert.equal(result.conclusion, "success");
+    assert.ok(
+      mock.calls.some(
+        (c) => c.method === "PATCH" && c.url.endsWith("/issues/comments/22"),
+      ),
+    );
+  }
+});

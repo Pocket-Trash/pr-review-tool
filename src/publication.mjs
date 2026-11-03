@@ -348,12 +348,8 @@ export async function publishReview({
   );
   if (latestPull.head?.sha !== expectedHeadSha)
     throw new StaleReviewError("refusing to overwrite a newer review");
-  // A cancelled predecessor must leave the replacement's checkbox for admission.
-  if (
-    task === "visuals" &&
-    artifact?.conclusion === "cancelled" &&
-    existingComment
-  ) {
+  // Leave a queued checkbox request for admission, even if this analysis completed.
+  if (task === "visuals" && existingComment) {
     const current = await request(
       `/repos/${owner}/${repo}/issues/comments/${existingComment.id}`,
     );
