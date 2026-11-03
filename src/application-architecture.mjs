@@ -384,15 +384,19 @@ function hasApplicationStructure(files) {
           ...(file.filename.endsWith("x") ? ["jsx"] : []),
         ],
       });
-      const names = new Set();
+      const names = new Set(),
+        routeFactories = new Set();
       for (const node of ast.program.body)
         if (node.type === "ImportDeclaration") {
           for (const spec of node.specifiers)
             if (
-              (node.source.value === "@tanstack/react-router" &&
-                spec.imported?.name === "createFileRoute") ||
-              (node.source.value === "react" &&
-                ["createContext", "useContext"].includes(spec.imported?.name))
+              node.source.value === "@tanstack/react-router" &&
+              spec.imported?.name === "createFileRoute"
+            )
+              routeFactories.add(spec.local.name);
+            else if (
+              node.source.value === "react" &&
+              ["createContext", "useContext"].includes(spec.imported?.name)
             )
               names.add(spec.local.name);
           if (node.source.value === "react")
@@ -408,6 +412,19 @@ function hasApplicationStructure(files) {
       walk(ast.program, (node) => {
         if (node.type !== "CallExpression") return;
         const callee = node.callee;
+        if (
+          callee.type === "CallExpression" &&
+          routeFactories.has(callee.callee?.name)
+        ) {
+          const loader = property(node.arguments[0], "loader");
+          if (
+            loader &&
+            !(file.baseContent ?? "").includes(
+              file.content.slice(loader.start, loader.end),
+            )
+          )
+            found = true;
+        }
         if (callee.type === "Identifier" && names.has(callee.name))
           found = true;
         if (
@@ -442,6 +459,7 @@ export async function prepareApplicationContext(
     if (!cache.has(path)) {
       if (requests++ >= 128) {
         incomplete("Application context request limit reached.");
+        cache.set(path, null);
         return null;
       }
       const value = await load(path);
@@ -456,13 +474,6 @@ export async function prepareApplicationContext(
     }
     return cache.get(path);
   };
-  let bytes = prepared.files.reduce(
-    (n, f) =>
-      n +
-      Buffer.byteLength(f.content ?? "") +
-      Buffer.byteLength(f.baseContent ?? ""),
-    0,
-  );
   const original = [...prepared.files];
   for (const file of original.filter(sourceFile)) {
     const aliases = {};
@@ -554,11 +565,6 @@ export async function prepareApplicationContext(
       for (const candidate of paths) {
         const loaded = await read(candidate);
         if (!loaded) continue;
-        if (bytes + Buffer.byteLength(loaded.content) > limits.maxBytes) {
-          incomplete(`${candidate}: application context byte limit reached.`);
-          break;
-        }
-        bytes += Buffer.byteLength(loaded.content);
         prepared.files.push({
           ...loaded,
           status: "context",

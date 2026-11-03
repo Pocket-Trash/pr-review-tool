@@ -216,3 +216,18 @@ test("diagram cap prioritizes required large-schema kinds after validation", asy
     !review.coverageGaps.some((gap) => gap.includes("no valid domain map")),
   );
 });
+
+test("imported schema context neither admits nor enlarges schema visual scope", () => {
+  const context = Array.from({ length: 6 }, (_, n) => ({
+    filename: `schema/context${n}.ts`,
+    status: "context",
+  }));
+  assert.equal(visualRequirements(context).schema, "none");
+  assert.equal(
+    visualRequirements([
+      { filename: "schema/changed.ts", additions: 5 },
+      ...context,
+    ]).schema,
+    "small",
+  );
+});

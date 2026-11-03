@@ -96,6 +96,19 @@ export function buildRelationshipCatalog(context) {
     nodes: [],
     relationships: [],
     omissions: [],
+    schemaChanges: [],
+    schemaIncomplete: [],
+  };
+  const incompleteSchema = (file) => {
+    if (
+      file.status !== "context" &&
+      (file.status === "removed" || file.content !== file.baseContent) &&
+      (/(?:^|\/)(?:schema|drizzle)(?:\/|\.)/.test(file.filename) ||
+        /drizzle-orm\/pg-core/.test(file.content))
+    )
+      catalog.schemaIncomplete.push(
+        `${file.filename}: changed schema source could not be parsed completely.`,
+      );
   };
   const environments = new Map();
   const addNode = (value) => {
@@ -124,6 +137,7 @@ export function buildRelationshipCatalog(context) {
       continue;
     }
     if (Buffer.byteLength(file.content) > 524288) {
+      incompleteSchema(file);
       catalog.omissions.push(
         `${file.filename}: relationship source exceeds 512 KiB.`,
       );
@@ -140,9 +154,10 @@ export function buildRelationshipCatalog(context) {
       const env = {
         ...file,
         sha:
-          file.status === "removed"
+          file.evidenceSha ??
+          (file.status === "removed"
             ? (file.baseSha ?? context.identity.baseSha)
-            : context.identity.headSha,
+            : context.identity.headSha),
         ast,
         imports: new Map(),
         locals: new Map(),
@@ -168,6 +183,7 @@ export function buildRelationshipCatalog(context) {
       }
       environments.set(file.filename, env);
     } catch {
+      incompleteSchema(file);
       catalog.omissions.push(
         `${file.filename}: unsupported or invalid source syntax; no relationships inferred.`,
       );
@@ -176,6 +192,131 @@ export function buildRelationshipCatalog(context) {
   const core = (env, symbol, expected) =>
     env.imports.get(symbol)?.source === "drizzle-orm/pg-core" &&
     env.imports.get(symbol)?.imported === expected;
+  function declaration(env, symbol, seen = new Set()) {
+    const id = `${env.filename}:${symbol}`;
+    if (seen.has(id) || seen.size >= 8) return;
+    seen = new Set([...seen, id]);
+    if (env.locals.has(symbol)) {
+      if (
+        !env.ast.program.body.some((s) => {
+          const declaration =
+            s.type === "ExportNamedDeclaration" ? s.declaration : s;
+          return (
+            declaration?.type === "VariableDeclaration" &&
+            declaration.kind === "const" &&
+            declaration.declarations.some((d) => d.id?.name === symbol)
+          );
+        })
+      )
+        return;
+      return { env, value: unwrap(env.locals.get(symbol)), seen };
+    }
+    const imported = env.imports.get(symbol);
+    if (!imported?.source.startsWith(".")) return;
+    const path = posix.normalize(
+      posix.join(posix.dirname(env.filename), imported.source),
+    );
+    const targets = [
+      path,
+      path.replace(/\.js$/, ".ts"),
+      path + ".ts",
+      path + "/index.ts",
+    ];
+    const matches = [...environments.values()].filter(
+      (e) => targets.includes(e.filename) && e.sha === env.sha,
+    );
+    if (matches.length !== 1) return;
+    const target = matches[0];
+    if (
+      !target.ast.program.body.some(
+        (s) =>
+          s.type === "ExportNamedDeclaration" &&
+          s.declaration?.declarations?.some(
+            (d) => d.id?.name === imported.imported,
+          ),
+      )
+    )
+      return;
+    return declaration(target, imported.imported, seen);
+  }
+  function baselineTables(env) {
+    if (env.baselineTables) return env.baselineTables;
+    try {
+      const ast = parse(env.baseContent, {
+        sourceType: "unambiguous",
+        plugins: ["typescript"],
+      });
+      const factories = new Set(
+        ast.program.body
+          .filter(
+            (n) =>
+              n.type === "ImportDeclaration" &&
+              n.source.value === "drizzle-orm/pg-core",
+          )
+          .flatMap((n) =>
+            n.specifiers
+              .filter((s) => s.imported?.name === "pgTable")
+              .map((s) => s.local.name),
+          ),
+      );
+      const tables = new Map();
+      for (const s of ast.program.body)
+        for (const d of (s.type === "ExportNamedDeclaration"
+          ? s.declaration
+          : s
+        )?.declarations ?? []) {
+          const n = unwrap(d.init),
+            name = literalName(n?.arguments?.[0]);
+          if (
+            n?.type === "CallExpression" &&
+            factories.has(n.callee.name) &&
+            identifier.test(name ?? "")
+          )
+            tables.set(name, [...(tables.get(name) ?? []), n]);
+        }
+      return (env.baselineTables = { tables });
+    } catch {
+      return (env.baselineTables = { uncertain: true, tables: new Map() });
+    }
+  }
+  function tableChange(env, init, tableName) {
+    if (env.status === "context") return;
+    if (typeof env.baseContent !== "string")
+      return { name: tableName, status: "uncertain", columns: [] };
+    const baseline = baselineTables(env),
+      before = baseline.tables.get(tableName) ?? [];
+    if (baseline.uncertain || before.length > 1)
+      return { name: tableName, status: "uncertain", columns: [] };
+    if (
+      env.status !== "removed" &&
+      before.length &&
+      env.baseContent.slice(before[0].start, before[0].end) ===
+        env.content.slice(init.start, init.end)
+    )
+      return;
+    const old = new Map(
+      properties(before[0]?.arguments[1]).map((p) => [
+        name(p.key),
+        env.baseContent.slice(p.value.start, p.value.end),
+      ]),
+    );
+    return {
+      name: tableName,
+      status:
+        env.status === "removed"
+          ? "removed"
+          : before.length
+            ? "modified"
+            : "added",
+      columns: properties(init.arguments[1])
+        .filter(
+          (p) =>
+            old.get(name(p.key)) !==
+            env.content.slice(p.value.start, p.value.end),
+        )
+        .map((p) => name(p.key)),
+    };
+  }
   function column(env, expression, seen = new Set()) {
     const node = unwrap(expression);
     if (node?.type !== "CallExpression") return undefined;
@@ -249,6 +390,33 @@ export function buildRelationshipCatalog(context) {
         unique: false,
         references: [],
       };
+    }
+    const resolved = declaration(env, symbol);
+    const factory = resolved?.value;
+    if (
+      factory?.type === "CallExpression" &&
+      core(resolved.env, name(factory.callee), "pgEnum")
+    ) {
+      const physical = literalName(node.arguments[0]);
+      const enumName = literalName(factory.arguments[0]);
+      let values = unwrap(factory.arguments[1]);
+      if (values?.type === "Identifier")
+        values = declaration(resolved.env, values.name, resolved.seen)?.value;
+      if (
+        identifier.test(physical ?? "") &&
+        identifier.test(enumName ?? "") &&
+        values?.type === "ArrayExpression" &&
+        values.elements.length &&
+        values.elements.every((v) => v?.type === "StringLiteral")
+      )
+        return {
+          name: physical,
+          type: enumName,
+          nullable: true,
+          primary: false,
+          unique: false,
+          references: [],
+        };
     }
     const helper = env.locals.get(symbol);
     if (
@@ -328,6 +496,20 @@ export function buildRelationshipCatalog(context) {
       )
         continue;
       const tableName = literalName(init.arguments[0]);
+      const change = identifier.test(tableName ?? "")
+        ? tableChange(env, init, tableName)
+        : undefined;
+      if (change) catalog.schemaChanges.push(change);
+      if (
+        !identifier.test(tableName ?? "") &&
+        env.status !== "context" &&
+        !(env.baseContent ?? "").includes(
+          env.content.slice(init.start, init.end),
+        )
+      )
+        catalog.schemaIncomplete.push(
+          `${env.filename}: changed table name is dynamic or unsupported.`,
+        );
       if (
         !identifier.test(tableName ?? "") ||
         init.arguments[1]?.type !== "ObjectExpression"
@@ -353,6 +535,11 @@ export function buildRelationshipCatalog(context) {
         uniqueKeys: [],
         foreignKeys: [],
       });
+      if (change) {
+        change.nodeId = table.id;
+        for (const col of columns)
+          col.changed = change.columns.includes(col.key);
+      }
       env.tables.set(symbol, table);
       for (const col of columns) {
         if (col.primary || col.unique) table.uniqueKeys.push([col.key]);
@@ -446,6 +633,30 @@ export function buildRelationshipCatalog(context) {
           table.uncertainConstraints = true;
       }
     }
+  for (const env of environments.values()) {
+    if (
+      env.status === "context" ||
+      env.status === "removed" ||
+      typeof env.baseContent !== "string"
+    )
+      continue;
+    const headNames = new Set(
+      [...env.locals.values()]
+        .filter(
+          (n) =>
+            n?.type === "CallExpression" &&
+            core(env, name(n.callee), "pgTable"),
+        )
+        .map((n) => literalName(n.arguments[0])),
+    );
+    for (const tableName of baselineTables(env).tables.keys())
+      if (!headNames.has(tableName))
+        catalog.schemaChanges.push({
+          name: tableName,
+          status: "removed",
+          columns: [],
+        });
+  }
   const targetTable = (env, symbol) => {
     if (env.tables.has(symbol)) return env.tables.get(symbol);
     const imported = env.imports.get(symbol);
@@ -584,7 +795,10 @@ export function buildRelationshipCatalog(context) {
   );
   const originalNodes = catalog.nodes.length;
   const originalEdges = catalog.relationships.length;
-  const applicationNodeIds = new Set(applicationIds.values());
+  const applicationNodeIds = new Set([
+    ...applicationIds.values(),
+    ...catalog.schemaChanges.map((c) => c.nodeId).filter(Boolean),
+  ]);
   catalog.nodes.sort(
     (a, b) =>
       Number(applicationNodeIds.has(b.id)) -
@@ -674,7 +888,7 @@ export function renderEvidenceVisuals(value, catalog) {
           .filter((edge) => edge.from === node.id)
           .flatMap((edge) => edge.columns);
         const cols = node.columns.filter(
-          (col) => col.primary || selected.includes(col.name),
+          (col) => col.primary || col.changed || selected.includes(col.name),
         );
         lines.push(
           `  ${node.name} {`,

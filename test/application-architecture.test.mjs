@@ -317,3 +317,51 @@ test("local lifecycle refactors do not expand context or turn into budget failur
   );
   assert.equal(preparedVisualRequirements(prepared).architecture, false);
 });
+
+test("unchanged route loaders do not fetch context for unrelated view edits", async () => {
+  const { prepareApplicationContext } = await import(
+    "../src/application-architecture.mjs"
+  );
+  const files = route();
+  files[0].baseContent = files[0].content + " function View(){return 'old';}";
+  files[0].content += " function View(){return 'new';}";
+  const prepared = { files, omissions: [] };
+  await prepareApplicationContext(
+    prepared,
+    identity,
+    async () => assert.fail("unchanged loader needs no additional reads"),
+    { maxFiles: 1, maxBytes: 1, maxFileBytes: 1 },
+  );
+  assert.equal(preparedVisualRequirements(prepared).architecture, false);
+});
+test("context read budget applies to additional evidence without charging supplied source twice", async () => {
+  const { prepareApplicationContext } = await import(
+    "../src/application-architecture.mjs"
+  );
+  const files = route().slice(0, 1);
+  files[0].content += " ".repeat(10000);
+  files[0].baseContent = " ".repeat(10000);
+  const prepared = { files, omissions: [] };
+  await prepareApplicationContext(
+    prepared,
+    identity,
+    async (path) =>
+      path === "app/search.ts"
+        ? { filename: path, content: "export function search(){return []}" }
+        : null,
+    { maxFiles: 10, maxBytes: 100, maxFileBytes: 100 },
+  );
+  assert.equal(preparedVisualRequirements(prepared).architecture, true);
+  assert.equal(prepared.applicationIncomplete, undefined);
+});
+test("incomplete preparation explains context limits even without analyzer omissions", () => {
+  assert.throws(
+    () =>
+      preparedVisualRequirements({
+        files: [],
+        applicationIncomplete: true,
+        omissions: ["Application context request limit reached."],
+      }),
+    /incomplete: Application context request limit reached/,
+  );
+});

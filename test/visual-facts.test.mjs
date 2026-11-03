@@ -179,13 +179,11 @@ test("final host prose and citations cannot describe discarded architecture or i
   );
   assert.equal(result.review.diagrams.length, 1);
   assert.match(result.review.overview, /1 validated source diagram/);
-  assert.match(
-    result.review.changedAreas[0].summary,
-    /unchanged declaration shown as context/,
-  );
-  assert.match(
-    result.review.changedAreas[0].summary,
-    new RegExp(`schema.ts:2-2 at SHA ${identity.headSha}`),
+  assert.deepEqual(result.review.changedAreas, []);
+  assert.ok(
+    catalog.facts.some(
+      (f) => f.status === "unchanged" && f.source.sha === identity.headSha,
+    ),
   );
   assert.match(result.review.coverageGaps.join("\n"), /retained schema-er/);
   assert.match(
@@ -226,7 +224,7 @@ test("bounded repair regenerates final prose without carrying failed-attempt cla
   );
   assert.equal(calls, 1);
   assert.match(result.review.overview, /1 validated source diagram/);
-  assert.match(result.review.changedAreas[0].summary, /added declaration/);
+  assert.match(result.review.changedAreas[0].summary, /Added declaration/);
   assert.doesNotMatch(
     result.review.coverageGaps.join("\n"),
     /had no valid architecture/,
@@ -463,4 +461,28 @@ test("candidate byte trimming keeps references closed and records scope loss", (
     focused.relationships.every((e) => ids.has(e.from) && ids.has(e.to)),
   );
   assert.match(focused.omissions[0], /candidate set omitted/);
+});
+
+test("imported source context never appears as an uncertain changed area", async () => {
+  const catalog = fixture([
+    {
+      filename: "context.ts",
+      status: "context",
+      content:
+        "import {pgTable,bigint} from 'drizzle-orm/pg-core'; const users=pgTable('users',{id:bigint('id').primaryKey()});",
+    },
+  ]);
+  const result = await completeFactVisuals(
+    { value: { factIds: [], diagrams: [diagram(catalog, "schema-er")] } },
+    {
+      catalog,
+      requirements: { architecture: false, schema: "small" },
+      phase: 1,
+      repairVisuals: false,
+      report: () => {},
+    },
+  );
+  assert.deepEqual(result.review.changedAreas, []);
+  assert.equal(catalog.facts[0].status, "uncertain");
+  assert.equal(catalog.facts[0].contextOnly, true);
 });

@@ -54,9 +54,12 @@ export async function materializeReviewEvidence(
           await writeFile(join(workspace, path), text);
           references[`${kind}File`] = path;
           const sha =
-            kind === "baseContent" || file.status === "removed"
+            kind === "baseContent"
               ? (file.baseSha ?? context.identity?.baseSha)
-              : context.identity?.headSha;
+              : (file.evidenceSha ??
+                (file.status === "removed"
+                  ? (file.baseSha ?? context.identity?.baseSha)
+                  : context.identity?.headSha));
           inventory.files.push({
             filename: file.filename,
             kind,

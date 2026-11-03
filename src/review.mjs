@@ -1,3 +1,4 @@
+import { visualCommentGaps, visualEvidenceLink } from "./visual-comment.mjs";
 const providers = new Set(["cheaperinference", "openrouter"]);
 const severities = new Set(["critical", "high", "medium", "low"]);
 const diagramKinds = new Set(["architecture", "schema-domain", "schema-er"]);
@@ -245,7 +246,12 @@ export function validateRun(input) {
   return run;
 }
 
-export function renderReview(configInput, reviewInput, runInput) {
+export function renderReview(
+  configInput,
+  reviewInput,
+  runInput,
+  { evidenceUrl } = {},
+) {
   const config = validateConfig(configInput);
   const visualOnly = config.task === "visuals";
   const reviewOnly = config.task === "review";
@@ -275,11 +281,15 @@ export function renderReview(configInput, reviewInput, runInput) {
           )
           .join("\n\n")
       : "No diagram was needed for this change.";
-  const areas = review.changedAreas
-    .map(({ area, summary }) => `- **${area}:** ${summary}`)
-    .join("\n");
-  const gaps = review.coverageGaps.length
-    ? review.coverageGaps.map((gap) => `- ${gap}`).join("\n")
+  const areas =
+    review.changedAreas
+      .map(({ area, summary }) => `- **${area}:** ${summary}`)
+      .join("\n") || "No changed declarations are represented in this diagram.";
+  const visibleGaps = visualOnly
+    ? visualCommentGaps(review.coverageGaps)
+    : review.coverageGaps;
+  const gaps = visibleGaps.length
+    ? visibleGaps.map((gap) => `- ${gap}`).join("\n")
     : "- None.";
   const diagramHeading =
     visualOnly && config.visualPhase === 2
@@ -293,5 +303,5 @@ export function renderReview(configInput, reviewInput, runInput) {
     run.usage.estimatedCostUsd === null
       ? "unknown"
       : `$${run.usage.estimatedCostUsd.toFixed(5)}`;
-  return `${visualOnly ? "## PR Visuals\n\n" : reviewOnly ? "## PR Review\n\n" : ""}## Overview\n\n${review.overview}\n\n${visualOnly ? "" : `## Findings\n\n${findings}\n\n`}${reviewOnly ? "" : `## ${diagramHeading}\n\n${diagrams}\n\n`}## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n**Run and cost details**\n\n- Provider: ${config.provider}\n- Model / effort: ${config.model} / not explicitly set\n- Reviewed SHA: ${run.reviewedSha}\n- Run: ${run.runId}\n- Skills: ${run.selectedSkills.join(", ") || "none"}${overrides}\n- Tokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\n- Model calls: ${run.usage.modelCalls}\n- Tool iterations: ${run.usage.toolIterations}\n- Estimated cost: ${cost}\n`;
+  return `${visualOnly ? "## PR Visuals\n\n" : reviewOnly ? "## PR Review\n\n" : ""}## Overview\n\n${review.overview}\n\n${visualOnly ? "" : `## Findings\n\n${findings}\n\n`}${reviewOnly ? "" : `## ${diagramHeading}\n\n${diagrams}\n\n`}## Changed areas\n\n${areas}\n\n## Coverage gaps\n\n${gaps}\n\n${visualOnly ? `${visualEvidenceLink(evidenceUrl)}\n\n` : ""}**Run and cost details**\n\n- Provider: ${config.provider}\n- Model / effort: ${config.model} / not explicitly set\n- Reviewed SHA: ${run.reviewedSha}\n- Run: ${run.runId}\n- Skills: ${run.selectedSkills.join(", ") || "none"}${overrides}\n- Tokens: ${run.usage.inputTokens} input, ${run.usage.cachedInputTokens ?? "unknown"} cached input, ${run.usage.reasoningTokens ?? "unknown"} reasoning, ${run.usage.outputTokens} output\n- Model calls: ${run.usage.modelCalls}\n- Tool iterations: ${run.usage.toolIterations}\n- Estimated cost: ${cost}\n`;
 }
