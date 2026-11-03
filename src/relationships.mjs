@@ -1,3 +1,4 @@
+import { applicationArchitecture } from "./application-architecture.mjs";
 import { parse } from "@babel/parser";
 import { posix } from "node:path";
 
@@ -546,6 +547,32 @@ export function buildRelationshipCatalog(context) {
       });
     });
   }
+  const application = applicationArchitecture(
+    (context.files ?? []).map((file) => ({
+      ...file,
+      headSha: context.identity.headSha,
+    })),
+  );
+  const applicationIds = new Map();
+  for (const node of application.nodes) {
+    const { id, ...value } = node;
+    applicationIds.set(id, addNode(value).id);
+  }
+  for (const relationship of application.relationships) {
+    addRelationship({
+      ...relationship,
+      from: applicationIds.get(relationship.from),
+      to: applicationIds.get(relationship.to),
+    });
+  }
+  catalog.omissions.push(...application.omissions);
+  const removedPaths = new Set(
+    (context.files ?? [])
+      .filter((file) => file.status === "removed")
+      .map((file) => file.filename),
+  );
+  for (const node of catalog.nodes)
+    if (removedPaths.has(node.source.file)) node.removed = true;
   // Internal parser details stay transient; only the declared graph is exposed to the model.
   for (const node of catalog.nodes) {
     delete node.uniqueKeys;
@@ -557,6 +584,12 @@ export function buildRelationshipCatalog(context) {
   );
   const originalNodes = catalog.nodes.length;
   const originalEdges = catalog.relationships.length;
+  const applicationNodeIds = new Set(applicationIds.values());
+  catalog.nodes.sort(
+    (a, b) =>
+      Number(applicationNodeIds.has(b.id)) -
+      Number(applicationNodeIds.has(a.id)),
+  );
   catalog.nodes = catalog.nodes.slice(0, 512);
   catalog.omissions = [...new Set(catalog.omissions)];
   const omittedNotes = Math.max(0, catalog.omissions.length - 128);
@@ -663,10 +696,13 @@ export function renderEvidenceVisuals(value, catalog) {
     } else {
       mermaid = [
         "flowchart LR",
-        ...nodes.map((node) => `  ${node.id}["${label(node.label)}"]`),
+        ...nodes.map(
+          (node) =>
+            `  ${node.id}["${label(`${node.label}${node.removed ? " (removed; base source)" : ""}`)}"]`,
+        ),
         ...relationships.map(
           (edge) =>
-            `  ${edge.from} -->|"${edge.kind} ${label(edge.source.file)}:${edge.source.startLine}"| ${edge.to}`,
+            `  ${edge.from} -->|"${label(edge.label ?? edge.kind)} ${label(edge.source.file)}:${edge.source.startLine}"| ${edge.to}`,
         ),
       ].join("\n");
     }
