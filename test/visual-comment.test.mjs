@@ -34,3 +34,17 @@ test("artifact navigation uses a validated workflow URL and keeps unsafe URLs ou
   );
   assert.doesNotMatch(visualEvidenceLink("javascript:alert(1)"), /javascript/);
 });
+
+test("application context limits are grouped instead of repeated per imported file", () => {
+  const gaps = Array.from(
+    { length: 20 },
+    (_, i) => `app/${i}.tsx: application context byte limit reached.`,
+  );
+  gaps.push("Application context request limit reached.");
+  gaps.push("service.ts: inherited path aliases are unassessed.");
+  assert.equal(visualCommentGaps(gaps).length, 1);
+  assert.match(
+    visualCommentGaps(gaps)[0],
+    /supporting application source or path aliases/,
+  );
+});

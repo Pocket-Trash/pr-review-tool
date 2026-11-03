@@ -218,7 +218,7 @@ export function preparedVisualRequirements(prepared, phase = 1) {
     visualSkipReason(requirements)
   )
     throw new Error(
-      `Application architecture analysis incomplete: ${application.omissions.join(" ")}`,
+      `Application architecture analysis incomplete: ${[...new Set([...application.omissions, ...(prepared.applicationIncomplete ? (prepared.omissions ?? []).filter((reason) => /application context|path aliases|path configuration/i.test(reason)) : [])])].slice(0, 3).join(" ") || "required frozen application context is unavailable."}`,
     );
   const unknown =
     phase === 2 &&

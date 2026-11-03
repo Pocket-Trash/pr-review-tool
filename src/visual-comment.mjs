@@ -24,6 +24,14 @@ export function visualCommentGaps(gaps) {
       );
       continue;
     }
+    if (
+      /application context.*(?:limit|budget)|inherited path aliases/i.test(gap)
+    ) {
+      result.add(
+        "Some supporting application source or path aliases could not be resolved. See the evidence artifact for the affected files.",
+      );
+      continue;
+    }
     if (/unsupported|incomplete|ambiguous|dynamic table/i.test(gap)) {
       result.add(
         "Some declarations or relationships could not be represented. See the evidence artifact for the affected source.",
