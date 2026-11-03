@@ -1,3 +1,4 @@
+import { missingSchemaChanges } from "./visual-validation.mjs";
 import {
   renderReview,
   validateConfig,
@@ -182,7 +183,9 @@ export async function preparePublication(artifact, fallback = {}) {
       );
     if (
       task === "visuals" &&
-      missingRequiredVisuals(review, artifact.visualRequirements).length
+      (missingRequiredVisuals(review, artifact.visualRequirements).length ||
+        missingSchemaChanges(review, artifact.visualValidation?.schemaChanges)
+          .length)
     )
       return {
         conclusion: "failure",
@@ -192,11 +195,16 @@ export async function preparePublication(artifact, fallback = {}) {
         ),
       };
     const run = validateRun(artifact.run);
-    content = renderReview(config, review, {
-      ...run,
-      selectedSkills: run.selectedSkills.map(sanitizePublishedText),
-      skillOverrides: run.skillOverrides.map(sanitizePublishedText),
-    });
+    content = renderReview(
+      config,
+      review,
+      {
+        ...run,
+        selectedSkills: run.selectedSkills.map(sanitizePublishedText),
+        skillOverrides: run.skillOverrides.map(sanitizePublishedText),
+      },
+      { evidenceUrl: fallback.runUrl },
+    );
   } else {
     content = operationalBody(
       conclusion,

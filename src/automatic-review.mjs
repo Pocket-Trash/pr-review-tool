@@ -1,3 +1,4 @@
+import { prepareSchemaContext } from "./schema-context.mjs";
 import { prepareApplicationContext } from "./application-architecture.mjs";
 import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -143,6 +144,20 @@ if (context.config.visualPhase === 2) {
 let requestedVisuals;
 let scopeFailure;
 if (context.config.task === "visuals" && context.config.visualPhase !== 2) {
+  await prepareSchemaContext(
+    prepared,
+    identity,
+    (path, ref) =>
+      loadRepositoryFile(
+        identity,
+        path,
+        process.env.GITHUB_TOKEN,
+        globalThis.fetch,
+        context.config.limits.maxFileBytes,
+        ref,
+      ),
+    context.config.limits,
+  );
   await prepareApplicationContext(
     prepared,
     identity,

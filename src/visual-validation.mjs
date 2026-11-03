@@ -44,10 +44,25 @@ export async function validateVisualAttempt(
     undefined,
     diagnostics,
   );
+  const uncovered =
+    catalog && requirements.schema !== "none"
+      ? missingSchemaChanges(review, catalog.schemaChanges)
+      : [];
+  for (const change of uncovered)
+    diagnostics.push({
+      kind: "schema-er",
+      code: "changed-entity-missing",
+      entity: change.name,
+    });
   return {
     review,
     diagnostics,
-    missing: missingRequiredVisuals(review, requirements),
+    missing: [
+      ...new Set([
+        ...missingRequiredVisuals(review, requirements),
+        ...(uncovered.length ? ["schema-er"] : []),
+      ]),
+    ],
   };
 }
 
@@ -59,4 +74,17 @@ export function visualFailure(diagnostics) {
       diagnostics,
     },
   );
+}
+
+export function missingSchemaChanges(review, changes = []) {
+  if (!Array.isArray(changes) || changes.length > 128)
+    throw new TypeError("Invalid changed schema scope");
+  return changes.filter((change) => {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(change.name ?? ""))
+      throw new TypeError("Invalid changed entity name");
+    return !review.diagrams.some(
+      (d) =>
+        d.kind === "schema-er" && d.mermaid.includes(`\n  ${change.name} {`),
+    );
+  });
 }

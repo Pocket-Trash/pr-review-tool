@@ -339,3 +339,14 @@ test("cross-lane artifacts publish only a fixed visual failure, never the review
   assert.match(publication.body, /artifact validation failed/);
   assert.doesNotMatch(publication.body, /Staged queue|```mermaid|## Findings/);
 });
+
+test("publication cannot accept an unrelated ERD in place of a changed table", async () => {
+  const input = structuredClone(artifact);
+  input.visualRequirements = { architecture: false, schema: "small" };
+  input.visualValidation = {
+    schemaChanges: [{ name: "required_changed_table", status: "modified" }],
+  };
+  const result = await preparePublication(input, options);
+  assert.equal(result.conclusion, "failure");
+  assert.match(result.body, /required|incomplete/i);
+});

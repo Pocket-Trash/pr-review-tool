@@ -403,6 +403,27 @@ export async function runRestrictedReview({
       throw new Error(
         "Phase 1 visuals require frozen base/head source identity",
       );
+    if (
+      visualOnly &&
+      visualPhase === 1 &&
+      visualRequirements.schema !== "none"
+    ) {
+      const catalog = evidence.relationships;
+      if (
+        catalog.schemaIncomplete?.length ||
+        catalog.schemaChanges?.length > 128 ||
+        catalog.schemaChanges?.some(
+          (c) =>
+            c.status === "removed" ||
+            !c.nodeId ||
+            c.status === "uncertain" ||
+            !catalog.nodes.some((n) => n.id === c.nodeId),
+        )
+      )
+        throw new Error(
+          "Changed schema entities have unsupported or omitted evidence; analysis is incomplete before inference.",
+        );
+    }
     const allEvents = [];
     const relationshipCatalog = evidence?.relationships
       ? {
@@ -418,6 +439,9 @@ export async function runRestrictedReview({
       onVisualValidation({
         version: "visual-validation-v1",
         relationshipCatalog,
+        declarationFacts: evidence?.relationships?.facts,
+        schemaChanges: evidence?.relationships?.schemaChanges,
+        relationshipOmissions: evidence?.relationships?.omissions,
         attempts,
       });
     const invoke = async (activeSkills, repairPrompt = "") => {
