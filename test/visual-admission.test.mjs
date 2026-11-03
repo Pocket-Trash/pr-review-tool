@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { resolveReviewEvent } from "../src/events.mjs";
 import { admitVisualRun } from "../src/visual-admission.mjs";
+import { publishReview } from "../src/publication.mjs";
 import {
   VISUAL_COMMENT_MARKER,
   VISUAL_RERUN_FOOTER,
@@ -62,6 +63,7 @@ function harness({
     comments: structuredClone(comments),
     writes: [],
     reactions: [],
+    checkWrites: [],
     calls: [],
   };
   const fetch = async (url, options = {}) => {
@@ -69,6 +71,12 @@ function harness({
     if (url.endsWith("/reactions")) {
       state.reactions.push({ url, body: JSON.parse(options.body) });
       return new Response("{}", { status: reactionStatus });
+    }
+    if (url.includes("/check-runs")) {
+      if (options.method) state.checkWrites.push(JSON.parse(options.body));
+      return new Response(
+        JSON.stringify(url.includes("?") ? { check_runs: [] } : { id: 20 }),
+      );
     }
     if (options.method) {
       if (failWrite) return new Response("{}", { status: 503 });
@@ -429,4 +437,50 @@ test("native checkbox edits tolerate line-ending normalization but not other con
     "Changed prose",
   );
   assert.equal(isVisualRerunToggle(event, appSlug), false);
+});
+
+test("cancelled predecessors preserve checkbox requests until replacement admission", async () => {
+  for (const alreadyAdmitted of [false, true]) {
+    const h = harness({ comments: [owned()] });
+    if (alreadyAdmitted) {
+      const first = toggle(h.state.comments[0]);
+      h.state.comments = [first.comment];
+      assert.equal((await h.admit(first, "100")).shouldRun, true);
+    }
+    const replacement = toggle(h.state.comments[0]);
+    h.state.comments = [replacement.comment];
+    assert.equal((await h.resolve(replacement, "101")).shouldRun, true);
+    const originalBody = h.state.comments[0].body;
+    const priorWrites = h.state.writes.length;
+    const publish = (runId, conclusion) =>
+      publishReview({
+        task: "visuals",
+        runId,
+        artifact: {
+          task: "visuals",
+          conclusion,
+          diagnostics: ["Controlled status"],
+        },
+        token: "fixture-token",
+        repository,
+        pullNumber: 42,
+        expectedHeadSha: headSha,
+        authenticatedAppSlug: appSlug,
+        expectedAppSlug: appSlug,
+        fetch: h.fetch,
+      });
+    const cancelled = await publish("100", "cancelled");
+    assert.equal(cancelled.skipped, true);
+    assert.equal(h.state.comments[0].body, originalBody);
+    assert.equal(h.state.writes.length, priorWrites);
+    assert.deepEqual(h.state.checkWrites, []);
+    assert.equal((await h.admit(replacement, "101")).shouldRun, true);
+    assert.equal((await h.resolve(replacement, "101")).shouldRun, true);
+    assert.ok(h.state.comments[0].body.endsWith(VISUAL_RERUN_FOOTER));
+    await assert.rejects(publish("100", "cancelled"), /newer visual run/);
+    assert.equal((await publish("101", "neutral")).conclusion, "neutral");
+    assert.equal(h.state.comments.length, 1);
+    assert.match(h.state.comments[0].body, /pr-visuals-run 101:1/);
+    assert.equal((await h.admit(replacement, "102")).shouldRun, false);
+  }
 });

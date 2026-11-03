@@ -67,6 +67,17 @@ export function visualAdmissionStamp(event, runId, runAttempt = "1") {
   return `<!-- pockettrash:visuals-admitted ${runId}:${runAttempt}:${request} -->`;
 }
 
+export function hasCheckedVisualRerun(body) {
+  return ["x", "X"].some(
+    (checked) =>
+      typeof body === "string" &&
+      body
+        .replaceAll("\r\n", "\n")
+        .trimEnd()
+        .endsWith(VISUAL_RERUN_FOOTER.replace("[ ]", `[${checked}]`).trimEnd()),
+  );
+}
+
 export function isVisualRerunToggle(event, appSlug) {
   const normalize = (body) =>
     typeof body === "string" ? body.replaceAll("\r\n", "\n").trimEnd() : "";

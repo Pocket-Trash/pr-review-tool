@@ -195,6 +195,11 @@ test("visual validation and size failures retain the unchecked rerun control wit
 
 function mockPublication(previousRun = "99:1") {
   const calls = [];
+  const visualComment = {
+    id: 22,
+    user: { type: "Bot", login: "pockettrash[bot]" },
+    body: `${VISUAL_COMMENT_MARKER}\n<!-- pockettrash:pr-visuals-run ${previousRun} -->\nOld diagrams`,
+  };
   const response = (body) => new Response(JSON.stringify(body));
   const fetch = async (url, request = {}) => {
     const method = request.method || "GET";
@@ -220,17 +225,14 @@ function mockPublication(previousRun = "99:1") {
           user: { type: "Bot", login: "pockettrash[bot]" },
           body: COMMENT_MARKER,
         },
-        {
-          id: 22,
-          user: { type: "Bot", login: "pockettrash[bot]" },
-          body: `${VISUAL_COMMENT_MARKER}\n<!-- pockettrash:pr-visuals-run ${previousRun} -->\nOld diagrams`,
-        },
+        visualComment,
       ]);
     if (url.endsWith("/check-runs/11")) return response({ id: 11 });
-    if (url.endsWith("/issues/comments/22")) return response({ id: 22 });
+    if (url.endsWith("/issues/comments/22"))
+      return response(method === "GET" ? visualComment : { id: 22 });
     throw new Error(`unexpected publication request: ${method} ${url}`);
   };
-  return { fetch, calls };
+  return { fetch, calls, visualComment };
 }
 const publishOptions = {
   task: "visuals",
@@ -349,4 +351,95 @@ test("publication cannot accept an unrelated ERD in place of a changed table", a
   const result = await preparePublication(input, options);
   assert.equal(result.conclusion, "failure");
   assert.match(result.body, /required|incomplete/i);
+});
+
+test("cancelled publication rechecks the checkbox before any comment or check writes", async () => {
+  for (const checked of ["x", "X"]) {
+    const mock = mockPublication();
+    let pullReads = 0;
+    const fetch = async (url, request) => {
+      if (url.endsWith("/pulls/7") && ++pullReads === 3)
+        mock.visualComment.body += VISUAL_RERUN_FOOTER.replace(
+          "[ ]",
+          `[${checked}]`,
+        ).replaceAll("\n", "\r\n");
+      return mock.fetch(url, request);
+    };
+    const result = await publishReview({
+      ...publishOptions,
+      artifact: { task: "visuals", conclusion: "cancelled", diagnostics: [] },
+      fetch,
+    });
+    assert.equal(result.skipped, true);
+    assert.deepEqual(
+      mock.calls.filter((c) => c.method !== "GET"),
+      [],
+    );
+  }
+});
+test("cancellation without a checked replacement still replaces stale diagrams and completes the check", async () => {
+  const mock = mockPublication();
+  mock.visualComment.body += VISUAL_RERUN_FOOTER;
+  const result = await publishReview({
+    ...publishOptions,
+    artifact: { task: "visuals", conclusion: "cancelled", diagnostics: [] },
+    fetch: mock.fetch,
+  });
+  assert.equal(result.conclusion, "cancelled");
+  assert.equal(result.skipped, undefined);
+  const writes = mock.calls.filter((c) => c.method !== "GET");
+  assert.match(
+    writes.find((c) => c.url.endsWith("/issues/comments/22")).body.body,
+    /visual analysis was cancelled/,
+  );
+  assert.equal(writes.at(-1).body.conclusion, "cancelled");
+});
+
+test("cancellation cannot write after a fresh ownership or run-order change", async () => {
+  for (const change of [
+    { user: { type: "User", login: "maintainer" } },
+    {
+      body: `${VISUAL_COMMENT_MARKER}\n<!-- pockettrash:pr-visuals-run 101:1 -->\nNewer results`,
+    },
+  ]) {
+    const mock = mockPublication();
+    const fetch = (url, request = {}) =>
+      url.endsWith("/issues/comments/22") && !request.method
+        ? Promise.resolve(
+            new Response(JSON.stringify({ ...mock.visualComment, ...change })),
+          )
+        : mock.fetch(url, request);
+    await assert.rejects(
+      publishReview({
+        ...publishOptions,
+        artifact: { task: "visuals", conclusion: "cancelled", diagnostics: [] },
+        fetch,
+      }),
+      StaleReviewError,
+    );
+    assert.deepEqual(
+      mock.calls.filter((c) => c.method !== "GET"),
+      [],
+    );
+  }
+});
+
+test("cancelled publication preserves a pending rerun even if artifact metadata fails validation", async () => {
+  const mock = mockPublication();
+  mock.visualComment.body += VISUAL_RERUN_FOOTER.replace("[ ]", "[x]");
+  const result = await publishReview({
+    ...publishOptions,
+    artifact: {
+      task: "visuals",
+      conclusion: "cancelled",
+      config: { provider: "invalid" },
+      diagnostics: [],
+    },
+    fetch: mock.fetch,
+  });
+  assert.equal(result.skipped, true);
+  assert.deepEqual(
+    mock.calls.filter((c) => c.method !== "GET"),
+    [],
+  );
 });
