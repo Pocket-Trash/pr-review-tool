@@ -34,6 +34,7 @@ const owned = (
   ),
 ) => ({
   id: 12,
+  node_id: "comment-node",
   user: bot,
   body,
   issue_url: `https://api.github.com/repos/${repository}/issues/42`,
@@ -483,4 +484,121 @@ test("cancelled predecessors preserve checkbox requests until replacement admiss
     assert.match(h.state.comments[0].body, /pr-visuals-run 101:1/);
     assert.equal((await h.admit(replacement, "102")).shouldRun, false);
   }
+});
+
+test("a checkbox checked after the publisher's last read survives its overwrite", async () => {
+  const h = harness({ comments: [owned()] });
+  const first = toggle(h.state.comments[0]);
+  h.state.comments = [first.comment];
+  assert.equal((await h.admit(first, "100")).shouldRun, true);
+  let replacement;
+  let latestEdit;
+  let historyStatus = 200;
+  const fetch = async (url, options = {}) => {
+    if (
+      url.endsWith("/check-runs") &&
+      options.method === "POST" &&
+      !replacement
+    ) {
+      replacement = toggle(h.state.comments[0]);
+      h.state.comments = [replacement.comment];
+      latestEdit = {
+        editor: { __typename: "User", login: user.login },
+        editedAt: replacement.comment.updated_at,
+        diff: replacement.comment.body,
+      };
+    }
+    if (url === "https://api.github.com/graphql")
+      return new Response(
+        JSON.stringify({
+          data: {
+            node: {
+              id: "comment-node",
+              userContentEdits: {
+                nodes: [
+                  {
+                    editor: { __typename: "Bot", login: appSlug },
+                    diff: h.state.comments[0].body,
+                  },
+                  latestEdit,
+                ],
+              },
+            },
+          },
+        }),
+        { status: historyStatus },
+      );
+    const response = await h.fetch(url, options);
+    if (url.endsWith("/issues/comments/12") && !options.method) {
+      const comment = await response.json();
+      return new Response(
+        JSON.stringify({ ...comment, node_id: "comment-node" }),
+      );
+    }
+    return response;
+  };
+  await publishReview({
+    task: "visuals",
+    runId: "100",
+    artifact: { task: "visuals", conclusion: "cancelled", diagnostics: [] },
+    token: "fixture-token",
+    repository,
+    pullNumber: 42,
+    expectedHeadSha: headSha,
+    authenticatedAppSlug: appSlug,
+    expectedAppSlug: appSlug,
+    fetch,
+  });
+  assert.match(h.state.comments[0].body, /visual analysis was cancelled/);
+  const matchingEdit = latestEdit;
+  const priorWrites = h.state.writes.length;
+  for (const edit of [
+    { ...matchingEdit, diff: first.comment.body },
+    { ...matchingEdit, editedAt: "2026-10-22T04:00:01Z" },
+    { ...matchingEdit, editor: { __typename: "User", login: "another" } },
+    { ...matchingEdit, editor: { __typename: "Bot", login: "another-bot" } },
+    { ...matchingEdit, editor: null },
+  ]) {
+    latestEdit = edit;
+    assert.equal(
+      (await h.admit(replacement, "101", "1", { fetch })).shouldRun,
+      false,
+    );
+    assert.equal(h.state.writes.length, priorWrites);
+  }
+  latestEdit = matchingEdit;
+  historyStatus = 403;
+  await assert.rejects(
+    h.admit(replacement, "101", "1", { fetch }),
+    /edit history failed: 403/,
+  );
+  assert.equal(h.state.writes.length, priorWrites);
+  historyStatus = 200;
+  assert.equal(
+    (await h.admit(replacement, "101", "1", { fetch })).shouldRun,
+    true,
+  );
+  assert.match(h.state.comments[0].body, /pr-visuals-run 101:1/);
+  assert.equal(
+    (await h.admit(replacement, "102", "1", { fetch })).shouldRun,
+    false,
+  );
+  await publishReview({
+    task: "visuals",
+    runId: "101",
+    artifact: { task: "visuals", conclusion: "neutral", diagnostics: [] },
+    token: "fixture-token",
+    repository,
+    pullNumber: 42,
+    expectedHeadSha: headSha,
+    authenticatedAppSlug: appSlug,
+    expectedAppSlug: appSlug,
+    fetch,
+  });
+  assert.equal(h.state.comments.length, 1);
+  assert.match(h.state.comments[0].body, /pr-visuals-run 101:1/);
+  assert.equal(
+    (await h.admit(replacement, "102", "1", { fetch })).shouldRun,
+    false,
+  );
 });
