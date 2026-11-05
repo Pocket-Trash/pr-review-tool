@@ -98,6 +98,72 @@ export async function visualComments(repository, pullNumber, token, fetch) {
   }
 }
 
+export async function matchesVisualRerun(
+  current,
+  event,
+  token,
+  fetch,
+  appSlug,
+) {
+  if (current.body === event.comment.body) return true;
+  const stamp = event.comment.body.match(
+    /(?:^|\n)<!-- pockettrash:pr-visuals-run (\d+:\d+) -->/,
+  )?.[1];
+  if (
+    !current.node_id ||
+    !stamp ||
+    !event.comment.body.includes(
+      `<!-- pockettrash:visuals-admitted ${stamp}:`,
+    ) ||
+    !current.body.includes(`<!-- pockettrash:pr-visuals-run ${stamp} -->`) ||
+    current.body.includes("<!-- pockettrash:visuals-admitted ")
+  )
+    return false;
+
+  // GitHub cannot conditionally PATCH comments; recover only the latest human request.
+  // shortcut: inspect 100 recent edits; paginate if request recovery needs older history.
+  const response = await fetch(`${API}/graphql`, {
+    method: "POST",
+    redirect: "error",
+    signal: AbortSignal.timeout(20_000),
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      query: `query($id: ID!) {
+        node(id: $id) {
+          id
+          ... on IssueComment {
+            userContentEdits(first: 100) {
+              nodes { editedAt diff editor { __typename login } }
+            }
+          }
+        }
+      }`,
+      variables: { id: current.node_id },
+    }),
+  });
+  if (!response.ok)
+    throw await githubRequestError(response, "GitHub visual edit history");
+  const result = await response.json();
+  if (result.errors || result.data?.node?.id !== current.node_id)
+    throw new Error("GitHub visual edit history is unavailable");
+  const edits = result.data.node.userContentEdits?.nodes;
+  if (!Array.isArray(edits))
+    throw new Error("Invalid GitHub visual edit history");
+  const latest = edits.find(
+    (edit) =>
+      edit?.editor?.__typename !== "Bot" || edit.editor.login !== appSlug,
+  );
+  return (
+    latest?.editor?.__typename === "User" &&
+    latest.editor.login === event.sender.login &&
+    latest.editedAt === event.comment.updated_at &&
+    latest.diff === event.comment.body
+  );
+}
+
 export async function resolveReviewEvent(
   event,
   token,
@@ -194,7 +260,8 @@ export async function resolveReviewEvent(
       current.issue_url !==
         `${API}/repos/${owner}/${repo}/issues/${pullNumber}` ||
       !findOwnedMarkerComment([current], appSlug, "visuals") ||
-      (current.body !== event.comment.body && !admitted(current))
+      (!admitted(current) &&
+        !(await matchesVisualRerun(current, event, token, fetch, appSlug)))
     )
       return {
         shouldRun: false,

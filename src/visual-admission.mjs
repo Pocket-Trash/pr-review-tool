@@ -3,6 +3,7 @@ import {
   visualComments,
   githubJson,
   githubRequestError,
+  matchesVisualRerun,
 } from "./events.mjs";
 import {
   VISUAL_COMMENT_MARKER,
@@ -49,7 +50,8 @@ export async function admitVisualRun({
     return { shouldRun: false, reason: "visual request already claimed" };
   if (
     event.action === "edited" &&
-    (existing?.id !== event.comment.id || existing.body !== event.comment.body)
+    (existing?.id !== event.comment.id ||
+      !(await matchesVisualRerun(existing, event, token, fetch, appSlug)))
   )
     return {
       shouldRun: false,
