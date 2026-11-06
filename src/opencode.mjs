@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { cp, mkdtemp, opendir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -22,7 +23,14 @@ import { evidenceFromEvents, evidenceCoverage } from "./evidence.mjs";
 import { validateVisualAttempt, visualFailure } from "./visual-validation.mjs";
 import { visualFactContract, completeFactVisuals } from "./visual-facts.mjs";
 
-const OPENCODE_PACKAGE = "opencode-ai@1.19.3";
+const opencodeManifestUrl = new URL(
+  "../node_modules/opencode-ai/package.json",
+  import.meta.url,
+);
+const opencodeManifest = JSON.parse(readFileSync(opencodeManifestUrl, "utf8"));
+const OPENCODE_BINARY = fileURLToPath(
+  new URL(opencodeManifest.bin.opencode, opencodeManifestUrl),
+);
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 const providers = new Set(["cheaperinference", "openrouter"]);
 export const REVIEW_SKILLS = ["review-coordinator", "i-have-adhd", "stop-slop"];
@@ -467,10 +475,8 @@ export async function runRestrictedReview({
         onInvocation();
         try {
           ({ stdout } = await execute(
-            "npx",
+            OPENCODE_BINARY,
             [
-              "--yes",
-              OPENCODE_PACKAGE,
               "--pure",
               "run",
               "--format",

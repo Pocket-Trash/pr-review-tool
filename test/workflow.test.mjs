@@ -29,10 +29,10 @@ test("publisher isolates the model key from the minimum-permission App token", (
   assert.match(publishJob, /if: always\(\)/);
   assert.match(
     publishJob,
-    /working-directory: reviewer\s+run: npm ci --ignore-scripts/,
+    /working-directory: reviewer\s+run: pnpm install --frozen-lockfile/,
   );
   assert.ok(
-    publishJob.indexOf("npm ci --ignore-scripts") <
+    publishJob.indexOf("pnpm install --frozen-lockfile") <
       publishJob.indexOf("infisical.mjs publication"),
   );
 });
@@ -136,7 +136,7 @@ test("visual admission claims before analysis using an isolated App token and fr
   );
   assert.doesNotMatch(
     admission,
-    /OPENROUTER|CHEAPER_INFERENCE|infisical.mjs analysis|npm ci|skills:install/,
+    /OPENROUTER|CHEAPER_INFERENCE|infisical.mjs analysis|pnpm install|skills:install/,
   );
   assert.match(workflow, /needs: admit/);
   assert.match(workflow, /needs.admit.outputs.runnable == 'true'/);
@@ -146,4 +146,21 @@ test("visual admission claims before analysis using an isolated App token and fr
   );
   assert.match(workflow, /head-sha:.*needs.admit.outputs.head-sha/);
   assert.match(dispatcher, /REVIEW_APP_SLUG: \$\{\{ inputs.app-slug \}\}/);
+});
+
+test("preflight diagnostics pass the same audit gate before artifact upload", () => {
+  const install = workflow.slice(
+    workflow.indexOf("      - name: Install pinned reviewer dependencies"),
+    workflow.indexOf("      - name: Install pinned review skills"),
+  );
+  const audit = workflow.slice(
+    workflow.indexOf("      - id: audit"),
+    workflow.indexOf("      - name: Install pinned review skills"),
+  );
+  for (const step of [install, audit])
+    assert.match(
+      step,
+      /preflight.outcome == 'failure' \|\| steps.preflight.outputs.runnable == 'true'/,
+    );
+  assert.match(workflow, /if: always\(\) && steps.audit.outcome == 'success'/);
 });

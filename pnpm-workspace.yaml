@@ -1,0 +1,9 @@
+minimumReleaseAge: 10080
+minimumReleaseAgeIgnoreMissingTime: false
+minimumReleaseAgeStrict: true
+minimumReleaseAgeExclude:
+  - "@pocket-trash/cli"
+  - "@pocket-trash/localizations"
+  - "@pocket-trash/skills"
+allowBuilds:
+  opencode-ai: true

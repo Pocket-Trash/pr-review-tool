@@ -43,6 +43,20 @@ function scenario(overrides = {}) {
         status: overrides.ancestry || "ahead",
         merge_base_commit: { sha: selected },
       };
+    else if (path.startsWith("/actions/workflows/security.yml/runs?"))
+      result = {
+        workflow_runs: [
+          {
+            id: 124,
+            head_sha: selected,
+            head_branch: "main",
+            event: "push",
+            path: ".github/workflows/security.yml",
+            status: "completed",
+            conclusion: overrides.securityConclusion || "success",
+          },
+        ],
+      };
     else if (path.startsWith("/actions/workflows/test.yml/runs?"))
       result = {
         workflow_runs: overrides.runs || [
@@ -321,4 +335,10 @@ test("promotion is manual, serialized, main-only and has no model or App credent
   assert.match(yaml, /actions: read/);
   assert.match(yaml, /contents: write/);
   assert.match(yaml, /RELEASE_SHA: \$\{\{ inputs.sha \}\}/);
+});
+
+test("promotion rejects a selected commit without passing dependency security", async () => {
+  const mock = scenario({ securityConclusion: "failure" });
+  await assert.rejects(promoteRelease(mock.options), /Dependency security/);
+  assert.ok(mock.calls.every((call) => call.method === "GET"));
 });

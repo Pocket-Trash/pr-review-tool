@@ -11,6 +11,11 @@ const manifest = validateSkillManifest(
     await readFile(join(repositoryRoot, "skills/manifest.json"), "utf8"),
   ),
 );
+const packageManifest = JSON.parse(
+  await readFile(join(repositoryRoot, "package.json"), "utf8"),
+);
+if (manifest.cli !== `skills@${packageManifest.devDependencies.skills}`)
+  throw new Error("Skill installer must match the locked CLI dependency.");
 const checkoutRoot = await mkdtemp(join(tmpdir(), "pr-review-skills-"));
 const failures = [];
 
@@ -70,10 +75,10 @@ try {
         checkout,
       );
       run(
-        "npx",
+        "pnpm",
         [
-          "--yes",
-          manifest.cli,
+          "exec",
+          "skills",
           "add",
           checkout,
           "--agent",

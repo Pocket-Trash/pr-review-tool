@@ -376,13 +376,19 @@ test("enabled review analysis is independent of visual eligibility and skips who
       .map((event) => JSON.stringify(event))
       .join("\n");
     await writeFile(
-      join(directory, "npx"),
+      join(directory, "opencode"),
       `#!/usr/bin/env node\nif(process.argv.at(-1).includes('Conditional visuals requested')) throw new Error('review invoked visuals');\nprocess.stdout.write(${JSON.stringify(stdout)});\n`,
       { mode: 0o755 },
     );
     for (const excluded of [false, true]) {
       const filename = excluded ? "src/generated/api.ts" : "README.md";
       const bootstrap = `
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
+const originalSpawn = childProcess.spawn;
+childProcess.spawn = (command, args, options) => originalSpawn(command.includes('/node_modules/opencode-ai/') ? 'opencode' : command, args, options);
+syncBuiltinESMExports();
+
         globalThis.fetch = async (url) => {
           let body;
           if (url.includes('/contents/.github%2Fpr-review.json')) body = { encoding: 'base64', content: Buffer.from(${JSON.stringify(JSON.stringify(config))}).toString('base64') };
