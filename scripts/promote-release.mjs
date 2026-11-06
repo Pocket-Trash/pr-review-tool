@@ -100,6 +100,25 @@ export async function promoteRelease({
       throw new Error(
         "The exact selected SHA needs a completed, passing main Test workflow.",
       );
+    const securityRuns = await request(
+      `/actions/workflows/security.yml/runs?head_sha=${selected}&branch=main&event=push&per_page=100`,
+    );
+    const securityRun = securityRuns.workflow_runs
+      ?.filter(
+        (run) =>
+          run.head_sha === selected &&
+          run.head_branch === "main" &&
+          run.event === "push" &&
+          run.path === ".github/workflows/security.yml",
+      )
+      .sort((a, b) => b.id - a.id)[0];
+    if (
+      securityRun?.status !== "completed" ||
+      securityRun.conclusion !== "success"
+    )
+      throw new Error(
+        "The exact selected SHA needs passing Dependency security checks.",
+      );
     ci = `https://github.com/${repository}/actions/runs/${testRun.id}`;
     const existing = await request(
       "/git/ref/tags/current-release",

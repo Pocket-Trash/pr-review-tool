@@ -22,7 +22,9 @@ import { evidenceFromEvents, evidenceCoverage } from "./evidence.mjs";
 import { validateVisualAttempt, visualFailure } from "./visual-validation.mjs";
 import { visualFactContract, completeFactVisuals } from "./visual-facts.mjs";
 
-const OPENCODE_PACKAGE = "opencode-ai@1.19.3";
+const OPENCODE_BINARY = fileURLToPath(
+  new URL("../node_modules/.bin/opencode", import.meta.url),
+);
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 const providers = new Set(["cheaperinference", "openrouter"]);
 export const REVIEW_SKILLS = ["review-coordinator", "i-have-adhd", "stop-slop"];
@@ -467,10 +469,8 @@ export async function runRestrictedReview({
         onInvocation();
         try {
           ({ stdout } = await execute(
-            "npx",
+            OPENCODE_BINARY,
             [
-              "--yes",
-              OPENCODE_PACKAGE,
               "--pure",
               "run",
               "--format",

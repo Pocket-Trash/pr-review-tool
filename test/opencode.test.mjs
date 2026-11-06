@@ -169,14 +169,8 @@ test("restricted runner validates successful inference", async () => {
   });
 
   assert.deepEqual(result, review);
-  assert.equal(invocation.command, "npx");
-  assert.deepEqual(invocation.args.slice(0, 5), [
-    "--yes",
-    "opencode-ai@1.19.3",
-    "--pure",
-    "run",
-    "--format",
-  ]);
+  assert.ok(invocation.command.endsWith("/node_modules/.bin/opencode"));
+  assert.deepEqual(invocation.args.slice(0, 3), ["--pure", "run", "--format"]);
   assert.match(
     invocation.args.at(-1),
     /exactly these five top-level keys: overview, findings, diagrams, changedAreas, coverageGaps/,

@@ -137,6 +137,10 @@ jobs:
           ref: ${{ job.workflow_sha }}
           path: reviewer
           persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.27.1
+          run_install: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
@@ -147,14 +151,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REVIEW_CONFIG_PATH: ${{ inputs.config-path }}
-      - name: Install pinned review skills
-        if: steps.preflight.outcome == 'success' && steps.preflight.outputs.runnable == 'true'
-        working-directory: reviewer
-        run: npm run skills:install
       - name: Install pinned reviewer dependencies
         if: steps.preflight.outcome == 'success' && steps.preflight.outputs.runnable == 'true'
         working-directory: reviewer
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile
+      - id: audit
+        name: Audit review dependencies
+        if: steps.preflight.outcome == 'success' && steps.preflight.outputs.runnable == 'true'
+        working-directory: reviewer
+        run: pnpm security:audit
+      - name: Install pinned review skills
+        if: steps.preflight.outcome == 'success' && steps.preflight.outputs.runnable == 'true'
+        working-directory: reviewer
+        run: pnpm skills:install
       - id: model-credential
         # OIDC mode never reads the App key or the entire Infisical folder.
         name: Fetch model credential from Infisical
@@ -192,7 +201,7 @@ jobs:
           failure
           "${{ runner.temp }}/preflight-error.log"
           "${{ runner.temp }}/review-result.json"
-      - if: always() && (steps.preflight.outcome == 'failure' || steps.preflight.outputs.runnable == 'true')
+      - if: always() && steps.audit.outcome == 'success' && (steps.preflight.outcome == 'failure' || steps.preflight.outputs.runnable == 'true')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pr-${{ inputs.task }}-${{ steps.preflight.outputs.pull-number || inputs.pull-number }}-${{ steps.preflight.outputs.head-sha || needs.admit.outputs.head-sha || github.event.pull_request.head.sha || github.run_id }}
@@ -225,12 +234,19 @@ jobs:
         with:
           name: pr-${{ inputs.task }}-${{ needs.review.outputs.pull-number }}-${{ needs.review.outputs.artifact-key }}
           path: ${{ runner.temp }}/review-artifact
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.27.1
+          run_install: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
       - name: Install pinned publication dependencies
         working-directory: reviewer
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile
+      - name: Audit publication dependencies
+        working-directory: reviewer
+        run: pnpm security:audit
       - id: app-credential
         name: Fetch App credential from Infisical
         if: env.INFISICAL_GITHUB_IDENTITY_ID != ''

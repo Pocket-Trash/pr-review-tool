@@ -29,9 +29,15 @@ jobs:
         with:
           ref: ${{ github.workflow_sha }}
           persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.27.1
+          run_install: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm security:audit
       - name: Validate and promote current-release
         run: node scripts/promote-release.mjs
         env:

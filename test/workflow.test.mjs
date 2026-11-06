@@ -29,10 +29,10 @@ test("publisher isolates the model key from the minimum-permission App token", (
   assert.match(publishJob, /if: always\(\)/);
   assert.match(
     publishJob,
-    /working-directory: reviewer\s+run: npm ci --ignore-scripts/,
+    /working-directory: reviewer\s+run: pnpm install --frozen-lockfile/,
   );
   assert.ok(
-    publishJob.indexOf("npm ci --ignore-scripts") <
+    publishJob.indexOf("pnpm install --frozen-lockfile") <
       publishJob.indexOf("infisical.mjs publication"),
   );
 });
@@ -136,7 +136,7 @@ test("visual admission claims before analysis using an isolated App token and fr
   );
   assert.doesNotMatch(
     admission,
-    /OPENROUTER|CHEAPER_INFERENCE|infisical.mjs analysis|npm ci|skills:install/,
+    /OPENROUTER|CHEAPER_INFERENCE|infisical.mjs analysis|pnpm install|skills:install/,
   );
   assert.match(workflow, /needs: admit/);
   assert.match(workflow, /needs.admit.outputs.runnable == 'true'/);
