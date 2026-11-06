@@ -13,8 +13,6 @@ Third-party GitHub Actions must be pinned to full commit SHAs, and downloaded co
 
 See [SECURITY.md](SECURITY.md) for the trust boundary and vulnerability reporting process.
 
-## Dependency policy
-
 Use Node 22 and pnpm 11.27.1. Run `pnpm install --frozen-lockfile`,
 `pnpm security:audit`, `pnpm test`, `pnpm typecheck`, and `pnpm fixture`.
 External releases must be at least seven days old, including frozen lockfile

@@ -147,3 +147,20 @@ test("visual admission claims before analysis using an isolated App token and fr
   assert.match(workflow, /head-sha:.*needs.admit.outputs.head-sha/);
   assert.match(dispatcher, /REVIEW_APP_SLUG: \$\{\{ inputs.app-slug \}\}/);
 });
+
+test("preflight diagnostics pass the same audit gate before artifact upload", () => {
+  const install = workflow.slice(
+    workflow.indexOf("      - name: Install pinned reviewer dependencies"),
+    workflow.indexOf("      - name: Install pinned review skills"),
+  );
+  const audit = workflow.slice(
+    workflow.indexOf("      - id: audit"),
+    workflow.indexOf("      - name: Install pinned review skills"),
+  );
+  for (const step of [install, audit])
+    assert.match(
+      step,
+      /preflight.outcome == 'failure' \|\| steps.preflight.outputs.runnable == 'true'/,
+    );
+  assert.match(workflow, /if: always\(\) && steps.audit.outcome == 'success'/);
+});
