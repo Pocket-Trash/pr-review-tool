@@ -169,7 +169,7 @@ test("restricted runner validates successful inference", async () => {
   });
 
   assert.deepEqual(result, review);
-  assert.ok(invocation.command.endsWith("/node_modules/.bin/opencode"));
+  assert.ok(invocation.command.includes("/node_modules/opencode-ai/"));
   assert.deepEqual(invocation.args.slice(0, 3), ["--pure", "run", "--format"]);
   assert.match(
     invocation.args.at(-1),

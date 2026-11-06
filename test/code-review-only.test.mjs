@@ -386,7 +386,7 @@ test("enabled review analysis is independent of visual eligibility and skips who
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 const originalSpawn = childProcess.spawn;
-childProcess.spawn = (command, args, options) => originalSpawn(command.endsWith('/node_modules/.bin/opencode') ? 'opencode' : command, args, options);
+childProcess.spawn = (command, args, options) => originalSpawn(command.includes('/node_modules/opencode-ai/') ? 'opencode' : command, args, options);
 syncBuiltinESMExports();
 
         globalThis.fetch = async (url) => {

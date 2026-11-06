@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { cp, mkdtemp, opendir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -22,8 +23,13 @@ import { evidenceFromEvents, evidenceCoverage } from "./evidence.mjs";
 import { validateVisualAttempt, visualFailure } from "./visual-validation.mjs";
 import { visualFactContract, completeFactVisuals } from "./visual-facts.mjs";
 
+const opencodeManifestUrl = new URL(
+  "../node_modules/opencode-ai/package.json",
+  import.meta.url,
+);
+const opencodeManifest = JSON.parse(readFileSync(opencodeManifestUrl, "utf8"));
 const OPENCODE_BINARY = fileURLToPath(
-  new URL("../node_modules/.bin/opencode", import.meta.url),
+  new URL(opencodeManifest.bin.opencode, opencodeManifestUrl),
 );
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 const providers = new Set(["cheaperinference", "openrouter"]);

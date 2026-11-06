@@ -252,7 +252,7 @@ test("local ineligible visuals skip inference without credentials and zero old u
       process.execPath,
       [
         "--import",
-        `data:text/javascript,${encodeURIComponent("\nimport childProcess from 'node:child_process';\nimport { syncBuiltinESMExports } from 'node:module';\nconst originalSpawn = childProcess.spawn;\nchildProcess.spawn = (command, args, options) => originalSpawn(command.endsWith('/node_modules/.bin/opencode') ? 'opencode' : command, args, options);\nsyncBuiltinESMExports();\n")}`,
+        `data:text/javascript,${encodeURIComponent("\nimport childProcess from 'node:child_process';\nimport { syncBuiltinESMExports } from 'node:module';\nconst originalSpawn = childProcess.spawn;\nchildProcess.spawn = (command, args, options) => originalSpawn(command.includes('/node_modules/opencode-ai/') ? 'opencode' : command, args, options);\nsyncBuiltinESMExports();\n")}`,
         "src/local-review.mjs",
         "test/fixtures/config.visuals-approved.json",
         directory,
@@ -320,7 +320,7 @@ test("local eligible visuals report actual skills and usage rather than fixture 
       process.execPath,
       [
         "--import",
-        `data:text/javascript,${encodeURIComponent("\nimport childProcess from 'node:child_process';\nimport { syncBuiltinESMExports } from 'node:module';\nconst originalSpawn = childProcess.spawn;\nchildProcess.spawn = (command, args, options) => originalSpawn(command.endsWith('/node_modules/.bin/opencode') ? 'opencode' : command, args, options);\nsyncBuiltinESMExports();\n")}`,
+        `data:text/javascript,${encodeURIComponent("\nimport childProcess from 'node:child_process';\nimport { syncBuiltinESMExports } from 'node:module';\nconst originalSpawn = childProcess.spawn;\nchildProcess.spawn = (command, args, options) => originalSpawn(command.includes('/node_modules/opencode-ai/') ? 'opencode' : command, args, options);\nsyncBuiltinESMExports();\n")}`,
         "src/local-review.mjs",
         "test/fixtures/config.visuals-approved.json",
         directory,
