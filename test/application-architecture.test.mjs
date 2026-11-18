@@ -334,6 +334,154 @@ test("unchanged route loaders do not fetch context for unrelated view edits", as
   );
   assert.equal(preparedVisualRequirements(prepared).architecture, false);
 });
+
+test("icon import migrations do not crawl unchanged React context calls", async () => {
+  const { prepareApplicationContext } = await import(
+    "../src/application-architecture.mjs"
+  );
+  const base = `import React, {createContext, useContext} from 'react';
+import {faPlus} from '@fortawesome/pro-light-svg-icons';
+const Sidebar = createContext(null);
+export function useSidebar(){useContext(Sidebar);return React.useContext(Sidebar)}`;
+  const files = Array.from({ length: 55 }, (_, index) =>
+    file(
+      `app/sidebar-${index}.tsx`,
+      base.replace(
+        "@fortawesome/pro-light-svg-icons",
+        "@awesome.me/kit-64c2f1f813/icons/classic/light",
+      ),
+      base,
+    ),
+  );
+  const prepared = { files, omissions: [] };
+  await prepareApplicationContext(
+    prepared,
+    identity,
+    async () => assert.fail("unchanged context needs no additional source"),
+    { maxFiles: 55, maxBytes: 1, maxFileBytes: 1 },
+  );
+  assert.equal(prepared.files.length, 55);
+  assert.equal(prepared.applicationIncomplete, undefined);
+  assert.deepEqual(prepared.omissions, []);
+});
+
+test("changed context import bindings still collect structural evidence", async () => {
+  const { prepareApplicationContext } = await import(
+    "../src/application-architecture.mjs"
+  );
+  const base = `import {useContext} from 'react';
+import {Settings} from './old-settings';
+export function useSettings(){return useContext(Settings)}`;
+  const prepared = {
+    files: [
+      file(
+        "app/use-settings.ts",
+        base.replace("old-settings", "settings"),
+        base,
+      ),
+    ],
+    omissions: [],
+  };
+  const reads = [];
+  await prepareApplicationContext(
+    prepared,
+    identity,
+    async (filename) => {
+      reads.push(filename);
+      return filename === "app/settings.ts"
+        ? {
+            filename,
+            content: "export const Settings = createContext(null)",
+          }
+        : null;
+    },
+    { maxFiles: 2, maxBytes: 1000, maxFileBytes: 1000 },
+  );
+  assert.ok(prepared.files.some((f) => f.filename === "app/settings.ts"));
+  assert.ok(reads.length <= 128);
+  assert.equal(prepared.applicationIncomplete, undefined);
+});
+
+test("changed context providers still collect evidence when context calls are unchanged", async () => {
+  const { prepareApplicationContext } = await import(
+    "../src/application-architecture.mjs"
+  );
+  const base = `import {createContext} from 'react';
+import {Consumer} from './consumer';
+export const Settings = createContext(null);
+export function Provider(){return null}`;
+  const prepared = {
+    files: [
+      file(
+        "app/settings.tsx",
+        base.replace(
+          "return null",
+          "return <Settings.Provider value={null}><Consumer/></Settings.Provider>",
+        ),
+        base,
+      ),
+    ],
+    omissions: [],
+  };
+  await prepareApplicationContext(
+    prepared,
+    identity,
+    async (filename) =>
+      filename === "app/consumer.tsx"
+        ? { filename, content: "export function Consumer(){return null}" }
+        : null,
+    { maxFiles: 2, maxBytes: 1000, maxFileBytes: 1000 },
+  );
+  assert.ok(prepared.files.some((f) => f.filename === "app/consumer.tsx"));
+  assert.equal(prepared.applicationIncomplete, undefined);
+});
+
+test("a separate provider change collects consumers alongside an icon-only context edit", async () => {
+  const { prepareApplicationContext } = await import(
+    "../src/application-architecture.mjs"
+  );
+  const settings = `import {createContext,useContext} from 'react';
+import {faPlus} from '@fortawesome/pro-light-svg-icons';
+export const Settings = createContext(null);
+export function useSettings(){return useContext(Settings)}`;
+  const provider = `import {Settings} from './settings';
+import {A} from './a'; import {B} from './b';
+export function Provider(){return null}`;
+  const prepared = {
+    files: [
+      file(
+        "app/settings.ts",
+        settings.replace("pro-light-svg-icons", "kit-icons"),
+        settings,
+      ),
+      file(
+        "app/provider.tsx",
+        provider.replace(
+          "return null",
+          "return <Settings.Provider value={null}><A/><B/></Settings.Provider>",
+        ),
+        provider,
+      ),
+    ],
+    omissions: [],
+  };
+  await prepareApplicationContext(
+    prepared,
+    identity,
+    async (filename) =>
+      ["app/a.tsx", "app/b.tsx"].includes(filename)
+        ? {
+            filename,
+            content: `import {useSettings} from './settings'; export function ${filename.includes("/a.") ? "A" : "B"}(){return useSettings()}`,
+          }
+        : null,
+    { maxFiles: 4, maxBytes: 1000, maxFileBytes: 1000 },
+  );
+  assert.equal(prepared.files.length, 4);
+  assert.equal(prepared.applicationIncomplete, undefined);
+  assert.equal(preparedVisualRequirements(prepared).architecture, true);
+});
+
 test("context read budget applies to additional evidence without charging supplied source twice", async () => {
   const { prepareApplicationContext } = await import(
     "../src/application-architecture.mjs"
