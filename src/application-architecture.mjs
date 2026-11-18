@@ -377,18 +377,56 @@ export function applicationArchitecture(files) {
 function hasApplicationStructure(files) {
   return files.filter(sourceFile).some((file) => {
     try {
-      const ast = parse(file.content, {
+      const options = {
         sourceType: "unambiguous",
         plugins: [
           "typescript",
           ...(file.filename.endsWith("x") ? ["jsx"] : []),
         ],
-      });
+      };
+      const ast = parse(file.content, options);
+      const baseImports = new Map();
+      let base;
+      if (file.baseContent) {
+        try {
+          base = parse(file.baseContent, options);
+        } catch {
+          return true;
+        }
+        for (const node of base.program.body)
+          if (node.type === "ImportDeclaration")
+            for (const spec of node.specifiers)
+              baseImports.set(spec.local.name, {
+                source: node.source.value,
+                kind: spec.type,
+                imported: key(spec.imported),
+              });
+      }
+      const bodyUnchanged =
+        base &&
+        ast.program.body.every(
+          (node) =>
+            node.type === "ImportDeclaration" ||
+            file.baseContent.includes(text({ file }, node)),
+        ) &&
+        base.program.body.every(
+          (node) =>
+            node.type === "ImportDeclaration" ||
+            file.content.includes(file.baseContent.slice(node.start, node.end)),
+        );
       const names = new Set(),
-        routeFactories = new Set();
+        routeFactories = new Set(),
+        changedImports = new Set();
       for (const node of ast.program.body)
         if (node.type === "ImportDeclaration") {
-          for (const spec of node.specifiers)
+          for (const spec of node.specifiers) {
+            const before = baseImports.get(spec.local.name);
+            if (
+              before?.source !== node.source.value ||
+              before?.kind !== spec.type ||
+              before?.imported !== key(spec.imported)
+            )
+              changedImports.add(spec.local.name);
             if (
               node.source.value === "@tanstack/react-router" &&
               spec.imported?.name === "createFileRoute"
@@ -399,6 +437,7 @@ function hasApplicationStructure(files) {
               ["createContext", "useContext"].includes(spec.imported?.name)
             )
               names.add(spec.local.name);
+          }
           if (node.source.value === "react")
             for (const spec of node.specifiers)
               if (
@@ -410,7 +449,26 @@ function hasApplicationStructure(files) {
         }
       let found = false;
       walk(ast.program, (node) => {
-        if (node.type !== "CallExpression") return;
+        const provider =
+          node.type === "JSXElement" &&
+          node.openingElement.name.type === "JSXMemberExpression" &&
+          node.openingElement.name.property.name === "Provider";
+        if (node.type !== "CallExpression" && !provider) return;
+        if (bodyUnchanged) {
+          let bindingChanged = false;
+          walk(node, (reference) => {
+            if (
+              ["Identifier", "JSXIdentifier"].includes(reference.type) &&
+              changedImports.has(reference.name)
+            )
+              bindingChanged = true;
+          });
+          if (!bindingChanged) return;
+        }
+        if (provider) {
+          found = true;
+          return;
+        }
         const callee = node.callee;
         if (
           callee.type === "CallExpression" &&
